@@ -1,7 +1,7 @@
 # Sportzal MVP — Architecture and UX Design
 
 **Date:** 2026-09-06  
-**Status:** Design approved in conversation; written spec pending final user review before implementation plan.  
+**Status:** Design approved in conversation; documentation reviewed and corrected in PR; application implementation remains a separate step.
 **Repository:** `bimjim225-ship-it/sportzal`
 
 ## 1. Problem
@@ -83,7 +83,7 @@ The only computations that resemble analysis are mechanical UI computations such
 ## 4. System context
 
 ```mermaid
-flowchart LR
+flowchart TB
     AI[External AI / ChatGPT]
     FILEIN[sportzal_program.json]
     APP[Sportzal Android]
@@ -155,29 +155,15 @@ Implementation may normalize the program deeply or persist validated program JSO
 
 A started workout must never change when a new program is imported.
 
-At start, persist a plan snapshot/reference sufficient to reconstruct exactly what was planned for that workout.
+At start, persist a plan snapshot/reference sufficient to reconstruct exactly what was planned for that workout. Export the start-time equipment records as workout.equipment_at_start, including equipment for skipped/unperformed exercises; never substitute the current catalog for that context.
 
 ## 7. Time model
 
-Every set records `completed_at` when the user taps `Записать подход`.
+Every set captures the original save-tap timestamp before the Room transaction, plus a stable write ID and a session-wide sequence number. Retry reuses them. This is not a measured physical completion time.
 
-No persistent countdown timer is needed.
+Persist `elapsedRealtime` and a boot identity where available. Same-boot timers survive deep sleep and process death without a background service. After reboot/unknown boot identity, use a nonnegative wall-clock estimate visibly marked approximate. Follow `docs/data-contracts.md` for clock semantics. Session elapsed time includes breaks; it is not active exercise duration.
 
-UI timer:
-
-```text
-elapsed = now - latest completed_at for this exercise in active workout
-```
-
-Consequences:
-
-- backgrounding does not break timers;
-- process death does not break timers;
-- screen lock does not break timers;
-- export contains stable raw timestamps;
-- AI can recompute all intervals.
-
-`completed_at` is not changed when a set is edited later. `edited_at` records the correction.
+Intervals between save taps include the next set, other exercises in rotation, and entry delay. Never label them actual rest. Editing retains the original timestamp/sequence; deletion recomputes timers from remaining facts.
 
 ## 8. Workout model
 
@@ -192,7 +178,7 @@ Program → workouts → blocks → exercises → planned sets.
 ### Block mode `rotation`
 
 - 2–N exercises;
-- all unfinished exercise cards are visible;
+- all unfinished cards are available in one scrollable list;
 - user alternates them until each reaches planned completion;
 - user is never forced to select the top card.
 
@@ -205,7 +191,7 @@ For the active rotation block:
 3. completed/skipped exercises collapse below active content;
 4. ties use `planned_order` for stability.
 
-This is presentation only. UI must not label the top item as recommended/ready.
+This is presentation only. UI must not label the top item as recommended/ready. Defer reordering while any input, gesture, keyboard, menu or accessibility focus is active; drafts and focus belong to exercise_instance_id. Manual block switching is allowed without skipping unfinished work; original plan order and actual sequence remain separate.
 
 ## 9. Set logging interaction
 
@@ -213,17 +199,12 @@ Target: 3–5 seconds.
 
 Default card already contains values for the next set.
 
-Prefill precedence:
-
-1. previous actual set of the same exercise in current workout;
-2. otherwise current planned set target.
-
-User changes only what differs.
+Prefill follows the canonical rule in `docs/data-contracts.md`: preserve slot drafts; otherwise use the current target. Reuse the previous actual weight/reps only across identical planned targets with unchanged exercise/equipment/setup/load semantics. Warmup → work and target changes use the new plan. Equipment/exercise substitution clears weight until entered manually. Never prefill actual RIR or symptom flags.
 
 Typical interaction:
 
 ```text
-[40 kg] [11 reps]
+[40 кг] [11 reps]
 RIR [0][1][2][3][4+]   # only if required
 [Записать подход]
 ```
@@ -250,11 +231,11 @@ Exercise plan controls capture policy:
 - `last_work_set`;
 - `all_work_sets`.
 
-UI bucket `4+` is serialized as `4` and documented as capped `>=4`.
+UI bucket `4+` is serialized as `4` and documented as capped `>=4`. Actual RIR starts empty; explicit «Не оценил» stores null. Early completion may leave the last performed set without RIR. Missing RIR is unknown, not the target value.
 
 ## 11. Exceptions, not questionnaires
 
-Normal technique/setup is assumed.
+Missing deviation flags mean “not reported”, not verified normal technique or absence of pain. Actual setup and equipment names are snapshotted per set, never rewritten by catalog upserts.
 
 The overflow action allows optional facts:
 
@@ -275,11 +256,11 @@ No field is mandatory in a normal set beyond the factual fields required by the 
 Priority:
 
 1. resume active workout;
-2. planned workout today;
-3. next planned workout;
+2. earliest unstarted workout, including past planned dates;
+3. manual selection of other planned workouts;
 4. import program empty state.
 
-Also exposes `Отправить последний JSON` after at least one workout exists.
+Exposes «Отправить JSON» even before the first workout to share the equipment/program context. Started instances remain consumed across program versions; a new session needs a new workout_instance_id. Only one local workout may be active.
 
 ### 12.2 Workout
 
@@ -338,11 +319,11 @@ Import is transactional.
 
 ### Phone → AI
 
-At finish or later from Today:
+At finish, Today (including before the first workout), or History detail:
 
 `Отправить JSON` → generate file → `ACTION_SEND` → Android Share Sheet.
 
-No Telegram/email-specific SDK is needed.
+No Telegram/email-specific SDK is needed. Share Sheet selection is not proof of delivery. A secondary «Сохранить файл» uses the system destination picker if no suitable sharing target exists. Use a unique export file, narrow FileProvider directory and temporary read permission; retain cache files beyond chooser close as defined in the data contract.
 
 This is the core reason Firebase/web is not part of MVP.
 
@@ -354,12 +335,14 @@ Snapshot contains raw context, not app-generated conclusions:
 - equipment catalog;
 - active/current program;
 - historical program versions referenced by included workouts;
-- latest 24 workouts by start time;
-- active workout if present.
+- latest 24 finished workouts by start time;
+- active workout if present;
+- selected history workout as focus, even outside the window;
+- explicit included/omitted history counts.
 
 At approximately two workouts per week, this provides around 12 weeks of raw history while remaining easy to send and upload to chat.
 
-Snapshot can also serve as a practical off-device copy when the user sends it to their own Telegram/email/Drive.
+Snapshot is a copy of the included data, not a complete backup. It excludes photos and older workouts, and MVP does not restore a database from it.
 
 ## 15. Import/export contracts
 
@@ -375,7 +358,7 @@ Program import validates structural invariants but never evaluates whether train
 
 ## 16. Visual direction
 
-Normative visual source: `DESIGN.md`.
+Normative visual source: root `DESIGN.md`. No Android code exists yet; this is a specification, not verified runtime behavior.
 
 North Star: instrument panel of sports equipment, not a generic fitness app.
 
@@ -394,7 +377,7 @@ Primary qualities:
 
 ### App killed mid-workout
 
-Reopen → detect active workout → Today primary CTA `Продолжить тренировку` → timestamps recover timers.
+Reopen → detect active workout → Today primary CTA `Продолжить тренировку` → saved clock anchors recover timers, with approximate fallback after reboot.
 
 ### Set save fails
 
@@ -410,7 +393,7 @@ No data is lost. User can regenerate the snapshot later.
 
 ### New program imported during active workout
 
-Current workout remains bound to its start-time program snapshot. New program applies only to future workouts.
+Current workout remains bound to its start-time program snapshot. New program applies only to future workouts. Same ID/version/content import is a no-op; conflicting content with the same key is rejected, never replaces historical plans.
 
 ## 18. Privacy and permissions
 
@@ -455,12 +438,16 @@ Before claiming MVP ready:
 - timestamp-derived elapsed values;
 - RIR capture policy;
 - program invariant validation;
-- snapshot scope selection (latest 24 + active);
+- snapshot scope selection (latest 24 finished + active + focused history, deduplicated);
+- prefill warmup/work, changed targets, replacement equipment, no fabricated RIR;
+- immutable versions, per-set setup snapshot, repeated semantic exercise IDs;
+- skipped slots, extra sets, delete/recalculate, completed vs ended_early;
 - serializers/deserializers.
 
 ### Database
 
-- set atomic save;
+- set atomic save with slot uniqueness and retry idempotency;
+- single-active-workout constraint and persisted non-fact drafts;
 - edit retains `completed_at`;
 - active workout survives database reopen;
 - imported program versions remain referentially available to history.
@@ -474,7 +461,10 @@ Before claiming MVP ready:
 - finish incomplete workout confirmation;
 - import preview and invalid import;
 - history detail;
-- local photo binding.
+- local photo binding;
+- manual block detour and return, no fabricated skip;
+- expired plan date and exhausted plan empty state;
+- Back preserves drafts without a routine confirmation.
 
 ### Platform/device
 
