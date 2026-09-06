@@ -1,0 +1,547 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "exported_at",
+    "app",
+    "active_program",
+    "focus_workout_id",
+    "history_scope",
+    "equipment",
+    "programs",
+    "workouts"
+  ],
+  "properties": {
+    "schema": {
+      "const": "sportzal.ai_snapshot"
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "exported_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "app_version"
+      ],
+      "properties": {
+        "name": {
+          "const": "Sportzal"
+        },
+        "app_version": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        }
+      }
+    },
+    "active_program": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "program_id",
+            "program_version"
+          ],
+          "properties": {
+            "program_id": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": ".*\\S.*"
+            },
+            "program_version": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "focus_workout_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "history_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "completed_limit",
+        "total_stored_workouts",
+        "included_workouts",
+        "omitted_workouts"
+      ],
+      "properties": {
+        "completed_limit": {
+          "const": 24
+        },
+        "total_stored_workouts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "included_workouts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omitted_workouts": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "equipment": {
+      "type": "array",
+      "items": {
+        "$ref": "program.schema.json#/$defs/equipment"
+      },
+      "minItems": 0
+    },
+    "programs": {
+      "type": "array",
+      "items": {
+        "$ref": "program.schema.json"
+      },
+      "minItems": 0
+    },
+    "workouts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/workout"
+      },
+      "minItems": 0
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sportzal.local/schemas/ai-snapshot.schema.json",
+  "title": "Sportzal AI snapshot v1",
+  "$defs": {
+    "clock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "boot_id",
+        "elapsed_realtime_ms"
+      ],
+      "properties": {
+        "boot_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "elapsed_realtime_ms": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "set_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "set_result_id",
+        "sequence_no",
+        "exercise_instance_id",
+        "planned_set_no",
+        "set_type",
+        "exercise_id_actual",
+        "title_actual",
+        "equipment_id_actual",
+        "equipment_name_actual",
+        "setup_actual",
+        "load_basis_actual",
+        "side_actual",
+        "weight_kg",
+        "reps",
+        "rir",
+        "completed_at",
+        "clock",
+        "edited_at",
+        "deviations"
+      ],
+      "properties": {
+        "set_result_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "sequence_no": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "exercise_instance_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "planned_set_no": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "set_type": {
+          "enum": [
+            "warmup",
+            "work"
+          ]
+        },
+        "exercise_id_actual": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "title_actual": {
+          "type": "string",
+          "minLength": 1
+        },
+        "equipment_id_actual": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": ".*\\S.*"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "equipment_name_actual": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "setup_actual": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "load_basis_actual": {
+          "enum": [
+            "machine_display",
+            "total_external",
+            "per_hand",
+            "assistance",
+            "bodyweight"
+          ]
+        },
+        "side_actual": {
+          "enum": [
+            "bilateral",
+            "left",
+            "right"
+          ]
+        },
+        "weight_kg": {
+          "type": "number",
+          "minimum": 0
+        },
+        "reps": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rir": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "clock": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/clock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "edited_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deviations": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "range_shortened",
+              "technique_changed",
+              "discomfort",
+              "setup_changed",
+              "equipment_changed",
+              "exercise_changed",
+              "other"
+            ]
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "load_basis_actual": {
+                "const": "bodyweight"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "weight_kg": {
+                "const": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "equipment_id_actual": {
+                "type": "null"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "equipment_name_actual": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "equipment_name_actual": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "skipped_set": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exercise_instance_id",
+        "planned_set_no",
+        "recorded_at",
+        "reason"
+      ],
+      "properties": {
+        "exercise_instance_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "planned_set_no": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "recorded_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reason": {
+          "enum": [
+            null,
+            "equipment_busy",
+            "time_limit",
+            "fatigue",
+            "discomfort",
+            "other"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "workout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workout_id",
+        "program_id",
+        "program_version",
+        "workout_instance_id",
+        "template_id",
+        "started_at",
+        "finished_at",
+        "completion_status",
+        "sets",
+        "skipped_sets",
+        "equipment_at_start"
+      ],
+      "properties": {
+        "workout_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "program_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "program_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "workout_instance_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "template_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "completion_status": {
+          "enum": [
+            "active",
+            "completed",
+            "ended_early"
+          ]
+        },
+        "sets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/set_result"
+          },
+          "minItems": 0
+        },
+        "skipped_sets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/skipped_set"
+          },
+          "minItems": 0
+        },
+        "notes": {
+          "type": "string"
+        },
+        "equipment_at_start": {
+          "type": "array",
+          "items": {
+            "$ref": "program.schema.json#/$defs/equipment"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "completion_status": {
+                "const": "active"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "finished_at": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "finished_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "completion_status": {
+                "const": "completed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "skipped_sets": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

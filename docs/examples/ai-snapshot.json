@@ -1,0 +1,401 @@
+{
+  "schema": "sportzal.ai_snapshot",
+  "schema_version": 1,
+  "exported_at": "2026-09-08T19:17:00+03:00",
+  "app": {
+    "name": "Sportzal",
+    "app_version": "0.1.0"
+  },
+  "active_program": {
+    "program_id": "synthetic-program",
+    "program_version": 1
+  },
+  "focus_workout_id": "workout-local-01",
+  "history_scope": {
+    "completed_limit": 24,
+    "total_stored_workouts": 1,
+    "included_workouts": 1,
+    "omitted_workouts": 0
+  },
+  "equipment": [
+    {
+      "equipment_id": "eq-chest-01",
+      "name": "Жим от груди сидя",
+      "setup_hint": "Сиденье 4",
+      "available_weights_kg": [
+        20,
+        30,
+        35,
+        40,
+        45
+      ]
+    },
+    {
+      "equipment_id": "eq-row-01",
+      "name": "Горизонтальная тяга",
+      "setup_hint": "Упор 5",
+      "weight_step_kg": 5
+    },
+    {
+      "equipment_id": "eq-chest-02",
+      "name": "Жим у окна",
+      "setup_hint": null,
+      "weight_step_kg": 2.5
+    }
+  ],
+  "programs": [
+    {
+      "schema": "sportzal.program",
+      "schema_version": 1,
+      "program_id": "synthetic-program",
+      "program_version": 1,
+      "generated_at": "2026-09-06T13:00:00Z",
+      "athlete_context": "Синтетический пример контракта, не сведения о владельце и не назначение тренировки.",
+      "equipment_upserts": [
+        {
+          "equipment_id": "eq-chest-01",
+          "name": "Жим от груди сидя",
+          "setup_hint": "Сиденье 4",
+          "available_weights_kg": [
+            20,
+            30,
+            35,
+            40,
+            45
+          ]
+        },
+        {
+          "equipment_id": "eq-row-01",
+          "name": "Горизонтальная тяга",
+          "setup_hint": "Упор 3",
+          "weight_step_kg": 5
+        },
+        {
+          "equipment_id": "eq-chest-02",
+          "name": "Жим у окна",
+          "setup_hint": null,
+          "weight_step_kg": 2.5
+        }
+      ],
+      "workouts": [
+        {
+          "workout_instance_id": "session-A-01",
+          "template_id": "A",
+          "title": "Синтетическая тренировка A",
+          "planned_date": "2026-09-08",
+          "blocks": [
+            {
+              "block_id": "A-pair",
+              "title": "Пример пары",
+              "mode": "rotation",
+              "exercises": [
+                {
+                  "exercise_instance_id": "A-chest",
+                  "exercise_id": "chest-press",
+                  "title": "Жим от груди",
+                  "equipment_id": "eq-chest-01",
+                  "setup_hint": "Сиденье 4",
+                  "load_basis": "machine_display",
+                  "side": "bilateral",
+                  "planned_order": 1,
+                  "rir_capture": "last_work_set",
+                  "planned_sets": [
+                    {
+                      "set_no": 1,
+                      "set_type": "warmup",
+                      "target_weight_kg": 20,
+                      "reps_min": 10,
+                      "reps_max": 10,
+                      "target_rir": null,
+                      "rest_target_sec": 60
+                    },
+                    {
+                      "set_no": 2,
+                      "set_type": "work",
+                      "target_weight_kg": 40,
+                      "reps_min": 8,
+                      "reps_max": 12,
+                      "target_rir": 2,
+                      "rest_target_sec": 90
+                    },
+                    {
+                      "set_no": 3,
+                      "set_type": "work",
+                      "target_weight_kg": 40,
+                      "reps_min": 8,
+                      "reps_max": 12,
+                      "target_rir": 2,
+                      "rest_target_sec": 90
+                    }
+                  ],
+                  "notes": "Пауза после подхода указана в плане; затем перейти к тяге. Разминка отдельно от рабочих."
+                },
+                {
+                  "exercise_instance_id": "A-row",
+                  "exercise_id": "horizontal-row",
+                  "title": "Горизонтальная тяга",
+                  "equipment_id": "eq-row-01",
+                  "setup_hint": null,
+                  "load_basis": "machine_display",
+                  "side": "bilateral",
+                  "planned_order": 2,
+                  "rir_capture": "last_work_set",
+                  "planned_sets": [
+                    {
+                      "set_no": 1,
+                      "set_type": "warmup",
+                      "target_weight_kg": 20,
+                      "reps_min": 10,
+                      "reps_max": 10,
+                      "target_rir": null,
+                      "rest_target_sec": 60
+                    },
+                    {
+                      "set_no": 2,
+                      "set_type": "work",
+                      "target_weight_kg": 40,
+                      "reps_min": 8,
+                      "reps_max": 12,
+                      "target_rir": 2,
+                      "rest_target_sec": 90
+                    },
+                    {
+                      "set_no": 3,
+                      "set_type": "work",
+                      "target_weight_kg": 40,
+                      "reps_min": 8,
+                      "reps_max": 12,
+                      "target_rir": 2,
+                      "rest_target_sec": 90
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "block_id": "A-light",
+              "title": "Пример повторного упражнения",
+              "mode": "straight",
+              "exercises": [
+                {
+                  "exercise_instance_id": "A-chest-light",
+                  "exercise_id": "chest-press",
+                  "title": "Жим от груди — облегчённый",
+                  "equipment_id": "eq-chest-01",
+                  "setup_hint": null,
+                  "load_basis": "machine_display",
+                  "side": "bilateral",
+                  "planned_order": 1,
+                  "rir_capture": "last_work_set",
+                  "planned_sets": [
+                    {
+                      "set_no": 1,
+                      "set_type": "work",
+                      "target_weight_kg": 30,
+                      "reps_min": 8,
+                      "reps_max": 12,
+                      "target_rir": 2,
+                      "rest_target_sec": 90
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "workouts": [
+    {
+      "workout_id": "workout-local-01",
+      "program_id": "synthetic-program",
+      "program_version": 1,
+      "workout_instance_id": "session-A-01",
+      "template_id": "A",
+      "started_at": "2026-09-08T19:00:00+03:00",
+      "finished_at": "2026-09-08T19:16:00+03:00",
+      "completion_status": "ended_early",
+      "sets": [
+        {
+          "set_result_id": "set-1",
+          "sequence_no": 1,
+          "exercise_instance_id": "A-chest",
+          "planned_set_no": 1,
+          "set_type": "warmup",
+          "exercise_id_actual": "chest-press",
+          "title_actual": "Жим от груди",
+          "equipment_id_actual": "eq-chest-01",
+          "equipment_name_actual": "Жим от груди сидя",
+          "setup_actual": "Сиденье 4",
+          "load_basis_actual": "machine_display",
+          "side_actual": "bilateral",
+          "weight_kg": 20,
+          "reps": 10,
+          "rir": null,
+          "completed_at": "2026-09-08T19:02:00+03:00",
+          "clock": {
+            "boot_id": "local-boot-17",
+            "elapsed_realtime_ms": 220000
+          },
+          "edited_at": null,
+          "deviations": []
+        },
+        {
+          "set_result_id": "set-2",
+          "sequence_no": 2,
+          "exercise_instance_id": "A-row",
+          "planned_set_no": 1,
+          "set_type": "warmup",
+          "exercise_id_actual": "horizontal-row",
+          "title_actual": "Горизонтальная тяга",
+          "equipment_id_actual": "eq-row-01",
+          "equipment_name_actual": "Горизонтальная тяга",
+          "setup_actual": "Упор 3",
+          "load_basis_actual": "machine_display",
+          "side_actual": "bilateral",
+          "weight_kg": 20,
+          "reps": 10,
+          "rir": null,
+          "completed_at": "2026-09-08T19:04:00+03:00",
+          "clock": {
+            "boot_id": "local-boot-17",
+            "elapsed_realtime_ms": 340000
+          },
+          "edited_at": null,
+          "deviations": []
+        },
+        {
+          "set_result_id": "set-3",
+          "sequence_no": 3,
+          "exercise_instance_id": "A-chest-light",
+          "planned_set_no": 1,
+          "set_type": "work",
+          "exercise_id_actual": "chest-press",
+          "title_actual": "Жим от груди — облегчённый",
+          "equipment_id_actual": "eq-chest-01",
+          "equipment_name_actual": "Жим от груди сидя",
+          "setup_actual": "Сиденье 4",
+          "load_basis_actual": "machine_display",
+          "side_actual": "bilateral",
+          "weight_kg": 30,
+          "reps": 10,
+          "rir": 2,
+          "completed_at": "2026-09-08T19:06:00+03:00",
+          "clock": {
+            "boot_id": "local-boot-17",
+            "elapsed_realtime_ms": 460000
+          },
+          "edited_at": null,
+          "deviations": []
+        },
+        {
+          "set_result_id": "set-4",
+          "sequence_no": 4,
+          "exercise_instance_id": "A-chest",
+          "planned_set_no": 2,
+          "set_type": "work",
+          "exercise_id_actual": "chest-press",
+          "title_actual": "Жим от груди",
+          "equipment_id_actual": "eq-chest-01",
+          "equipment_name_actual": "Жим от груди сидя",
+          "setup_actual": "Сиденье 5",
+          "load_basis_actual": "machine_display",
+          "side_actual": "bilateral",
+          "weight_kg": 40,
+          "reps": 11,
+          "rir": null,
+          "completed_at": "2026-09-08T19:09:00+03:00",
+          "clock": {
+            "boot_id": "local-boot-17",
+            "elapsed_realtime_ms": 640000
+          },
+          "edited_at": null,
+          "deviations": [
+            "setup_changed"
+          ]
+        },
+        {
+          "set_result_id": "set-5",
+          "sequence_no": 5,
+          "exercise_instance_id": "A-row",
+          "planned_set_no": 2,
+          "set_type": "work",
+          "exercise_id_actual": "horizontal-row",
+          "title_actual": "Горизонтальная тяга",
+          "equipment_id_actual": "eq-row-01",
+          "equipment_name_actual": "Горизонтальная тяга",
+          "setup_actual": "Упор 3",
+          "load_basis_actual": "machine_display",
+          "side_actual": "bilateral",
+          "weight_kg": 40,
+          "reps": 10,
+          "rir": null,
+          "completed_at": "2026-09-08T19:11:00+03:00",
+          "clock": {
+            "boot_id": "local-boot-17",
+            "elapsed_realtime_ms": 760000
+          },
+          "edited_at": null,
+          "deviations": []
+        },
+        {
+          "set_result_id": "set-6",
+          "sequence_no": 6,
+          "exercise_instance_id": "A-chest",
+          "planned_set_no": 3,
+          "set_type": "work",
+          "exercise_id_actual": "chest-press",
+          "title_actual": "Жим от груди",
+          "equipment_id_actual": "eq-chest-02",
+          "equipment_name_actual": "Жим у окна",
+          "setup_actual": "Сиденье 2",
+          "load_basis_actual": "machine_display",
+          "side_actual": "bilateral",
+          "weight_kg": 32.5,
+          "reps": 9,
+          "rir": 2,
+          "completed_at": "2026-09-08T19:14:00+03:00",
+          "clock": {
+            "boot_id": "local-boot-17",
+            "elapsed_realtime_ms": 940000
+          },
+          "edited_at": null,
+          "deviations": [
+            "equipment_changed",
+            "setup_changed"
+          ]
+        }
+      ],
+      "skipped_sets": [
+        {
+          "exercise_instance_id": "A-row",
+          "planned_set_no": 3,
+          "recorded_at": "2026-09-08T19:15:00+03:00",
+          "reason": "time_limit"
+        }
+      ],
+      "notes": "Синтетика: временный переход в другой блок, возврат, изменение настройки и замена оборудования.",
+      "equipment_at_start": [
+        {
+          "equipment_id": "eq-chest-01",
+          "name": "Жим от груди сидя",
+          "setup_hint": "Сиденье 4",
+          "available_weights_kg": [
+            20,
+            30,
+            35,
+            40,
+            45
+          ]
+        },
+        {
+          "equipment_id": "eq-row-01",
+          "name": "Горизонтальная тяга",
+          "setup_hint": "Упор 3",
+          "weight_step_kg": 5
+        }
+      ]
+    }
+  ]
+}

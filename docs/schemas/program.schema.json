@@ -1,0 +1,399 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "program_id",
+    "program_version",
+    "generated_at",
+    "equipment_upserts",
+    "workouts"
+  ],
+  "properties": {
+    "schema": {
+      "const": "sportzal.program"
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "program_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": ".*\\S.*"
+    },
+    "program_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "equipment_upserts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/equipment"
+      },
+      "minItems": 0
+    },
+    "workouts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/planned_workout"
+      },
+      "minItems": 1
+    },
+    "athlete_context": {
+      "type": "string"
+    },
+    "coach_notes": {
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sportzal.local/schemas/program.schema.json",
+  "title": "Sportzal program v1",
+  "$defs": {
+    "equipment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "equipment_id",
+        "name",
+        "setup_hint"
+      ],
+      "properties": {
+        "equipment_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "setup_hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "weight_step_kg": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "available_weights_kg": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "planned_set": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "set_no",
+        "set_type",
+        "target_weight_kg",
+        "reps_min",
+        "reps_max",
+        "target_rir",
+        "rest_target_sec"
+      ],
+      "properties": {
+        "set_no": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "set_type": {
+          "enum": [
+            "warmup",
+            "work"
+          ]
+        },
+        "target_weight_kg": {
+          "type": "number",
+          "minimum": 0
+        },
+        "reps_min": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reps_max": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "target_rir": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rest_target_sec": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "exercise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exercise_instance_id",
+        "exercise_id",
+        "title",
+        "equipment_id",
+        "setup_hint",
+        "load_basis",
+        "side",
+        "planned_order",
+        "rir_capture",
+        "planned_sets"
+      ],
+      "properties": {
+        "exercise_instance_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "exercise_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "equipment_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": ".*\\S.*"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "setup_hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "load_basis": {
+          "enum": [
+            "machine_display",
+            "total_external",
+            "per_hand",
+            "assistance",
+            "bodyweight"
+          ]
+        },
+        "side": {
+          "enum": [
+            "bilateral",
+            "left",
+            "right"
+          ]
+        },
+        "planned_order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rir_capture": {
+          "enum": [
+            "none",
+            "last_work_set",
+            "all_work_sets"
+          ]
+        },
+        "planned_sets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/planned_set"
+          },
+          "minItems": 1
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "load_basis": {
+                "const": "bodyweight"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "planned_sets": {
+                "items": {
+                  "properties": {
+                    "target_weight_kg": {
+                      "const": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "block": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "block_id",
+        "title",
+        "mode",
+        "exercises"
+      ],
+      "properties": {
+        "block_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "enum": [
+            "straight",
+            "rotation"
+          ]
+        },
+        "exercises": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/exercise"
+          },
+          "minItems": 1
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "straight"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "exercises": {
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "exercises": {
+                "minItems": 2
+              }
+            }
+          }
+        }
+      ]
+    },
+    "planned_workout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workout_instance_id",
+        "template_id",
+        "title",
+        "planned_date",
+        "blocks"
+      ],
+      "properties": {
+        "workout_instance_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "template_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": ".*\\S.*"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "planned_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/block"
+          },
+          "minItems": 1
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
