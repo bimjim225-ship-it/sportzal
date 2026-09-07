@@ -155,8 +155,11 @@ class RoomSportzalRepository(
     }
 
     override suspend fun cancelEmptyWorkout(workoutId: String) = db.withTransaction {
-        if (dao.workout(workoutId) == null) {
+        val workout = dao.workout(workoutId)
+        if (workout == null) {
             CancelEmptyResult.NotFound
+        } else if (workout.completionStatus != "active") {
+            CancelEmptyResult.NotActive
         } else if (dao.setCount(workoutId) > 0 || dao.skipCount(workoutId) > 0) {
             CancelEmptyResult.HasFacts
         } else {
@@ -166,9 +169,18 @@ class RoomSportzalRepository(
     }
 
     override suspend fun saveSet(command: SaveSetCommand) = db.withTransaction {
-        requireActive(command.workoutId)
+        val workout = requireActive(command.workoutId)
         dao.set(command.setResultId)?.let {
             return@withTransaction SaveSetResult.Saved(it.setResultId, it.sequenceNo, true)
+        }
+        val exercise = plannedExercise(workout, command.exerciseInstanceId)
+        command.plannedSetNo?.let { setNo ->
+            val plannedSet = checkNotNull(exercise.plannedSets.find { it.setNo == setNo }) {
+                "Planned slot does not exist in the workout snapshot"
+            }
+            require(command.setType == plannedSet.setType) {
+                "Set type does not match the planned slot"
+            }
         }
         if (command.plannedSetNo != null && (
                 dao.setInSlot(command.workoutId, command.exerciseInstanceId, command.plannedSetNo) != null ||
@@ -232,7 +244,11 @@ class RoomSportzalRepository(
     }
 
     override suspend fun skipSet(command: SkipSetCommand) = db.withTransaction {
-        requireActive(command.workoutId)
+        val workout = requireActive(command.workoutId)
+        val exercise = plannedExercise(workout, command.exerciseInstanceId)
+        check(exercise.plannedSets.any { it.setNo == command.plannedSetNo }) {
+            "Planned slot does not exist in the workout snapshot"
+        }
         check(dao.setInSlot(command.workoutId, command.exerciseInstanceId, command.plannedSetNo) == null) {
             "Planned slot already contains a set"
         }
@@ -264,6 +280,12 @@ class RoomSportzalRepository(
         check(workout.completionStatus == "active") { "Workout is not active" }
         return workout
     }
+
+    private fun plannedExercise(workout: WorkoutEntity, exerciseInstanceId: String) =
+        StrictJson.decodeFromString<ru.sportzal.app.model.PlannedWorkoutDocument>(workout.planSnapshotJson)
+            .blocks.flatMap { it.exercises }
+            .find { it.exerciseInstanceId == exerciseInstanceId }
+            ?: error("Exercise does not exist in the workout snapshot")
 
     private suspend fun completionStatus(workout: WorkoutEntity): CompletionStatus {
         val plan = StrictJson.decodeFromString<ru.sportzal.app.model.PlannedWorkoutDocument>(workout.planSnapshotJson)
