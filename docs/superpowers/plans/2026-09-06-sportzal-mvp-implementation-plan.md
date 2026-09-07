@@ -11,7 +11,7 @@
 **Spec:** `docs/superpowers/specs/2026-09-06-sportzal-mvp-design.md`  
 **Frozen decisions:** `docs/decisions/0001-development-readiness-freeze.md`  
 **Behavior:** `UX-CONTRACT.md`  
-**External data contract:** `docs/data-contracts.md`, `docs/schemas/*.json`
+**External data contract:** `docs/data-contracts.md`; JSON schemas are in `docs/schemas/`.
 
 ## Global Constraints
 
