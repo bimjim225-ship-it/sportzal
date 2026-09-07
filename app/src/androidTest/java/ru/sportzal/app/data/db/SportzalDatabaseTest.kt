@@ -104,6 +104,18 @@ class SportzalDatabaseTest {
     }
 
     @Test
+    fun finishedEmptyWorkoutCannotBeCancelled() = runBlocking {
+        import(program())
+        val id = repository.startWorkout("program", 1, "session")
+        assertEquals(CompletionStatus.ENDED_EARLY, repository.finishWorkout(id))
+        val finishedAt = database.dao().workout(id)?.finishedAt
+
+        assertEquals(CancelEmptyResult.NotActive, repository.cancelEmptyWorkout(id))
+        assertNotNull(database.dao().workout(id))
+        assertEquals(finishedAt, database.dao().workout(id)?.finishedAt)
+    }
+
+    @Test
     fun cancellationAfterSetOrSkipIsRejected() = runBlocking {
         import(program())
         val setWorkout = repository.startWorkout("program", 1, "session")
@@ -133,6 +145,27 @@ class SportzalDatabaseTest {
         val id = repository.startWorkout("program", 1, "session")
         repository.skipSet(SkipSetCommand(id, "exercise", 1, "now"))
         assertTrue(repository.saveSet(setCommand("set", id, 1)) is SaveSetResult.Conflict)
+    }
+
+    @Test
+    fun factsMustReferenceExercisesAndPlannedSlotsInImmutableSnapshot() = runBlocking {
+        import(program())
+        val id = repository.startWorkout("program", 1, "session")
+
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { repository.saveSet(setCommand("unknown-exercise", id, 1, exerciseId = "unknown")) }
+        }
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { repository.saveSet(setCommand("unknown-slot", id, 2)) }
+        }
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { repository.skipSet(SkipSetCommand(id, "exercise", 2, "now")) }
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { repository.saveSet(setCommand("wrong-type", id, 1, setType = "warmup")) }
+        }
+
+        assertTrue(repository.saveSet(setCommand("extra", id, null)) is SaveSetResult.Saved)
     }
 
     @Test
@@ -274,8 +307,14 @@ class SportzalDatabaseTest {
         )),
     )
 
-    private fun setCommand(setId: String, workoutId: String, planned: Int?) = SaveSetCommand(
-        setId, workoutId, "exercise", planned, "work", "exercise-id", "Exercise",
+    private fun setCommand(
+        setId: String,
+        workoutId: String,
+        planned: Int?,
+        exerciseId: String = "exercise",
+        setType: String = "work",
+    ) = SaveSetCommand(
+        setId, workoutId, exerciseId, planned, setType, "exercise-id", "Exercise",
         loadBasisActual = "machine_display", sideActual = "bilateral", weightKg = 1.0,
         reps = 1, completedAt = "now",
     )

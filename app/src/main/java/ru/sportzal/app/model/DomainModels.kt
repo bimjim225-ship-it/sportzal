@@ -15,6 +15,7 @@ sealed interface ImportResult {
 sealed interface CancelEmptyResult {
     data object Cancelled : CancelEmptyResult
     data object HasFacts : CancelEmptyResult
+    data object NotActive : CancelEmptyResult
     data object NotFound : CancelEmptyResult
 }
 

@@ -96,8 +96,9 @@ class ProgramValidator(private val json: Json = StrictJson) {
                 require(block.title.isNotBlank()) { "blank block title" }
                 require((block.mode == "straight" && block.exercises.size == 1) ||
                     (block.mode == "rotation" && block.exercises.size >= 2)) { "invalid block size" }
-                require(block.exercises.map { it.plannedOrder } == (1..block.exercises.size).toList()) {
-                    "planned_order must be ordered and contiguous"
+                require(block.exercises.all { it.plannedOrder > 0 } &&
+                    block.exercises.map { it.plannedOrder }.distinct().size == block.exercises.size) {
+                    "planned_order must be positive and unique inside a block"
                 }
                 block.exercises.forEach { exercise ->
                     require(exercise.exerciseInstanceId.isNotBlank() && exercise.exerciseId.isNotBlank())
