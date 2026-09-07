@@ -27,7 +27,11 @@ class ProgramValidatorTest {
  @Test fun zeroPlannedOrderIsRejected()=failure(changeExercise { it["planned_order"]=JsonPrimitive(0) })
  @Test fun multipleExerciseStraightIsRejected()=failure(changeBlock { block -> val items=block["exercises"]!!.jsonArray; block["mode"]=JsonPrimitive("straight"); block["exercises"]=JsonArray(items+items.first()) })
  @Test fun duplicateExerciseInstanceIdIsRejected()=failure(changeBlock { block -> val items=block["exercises"]!!.jsonArray; block["exercises"]=JsonArray(items+items.first()) })
- @Test fun unorderedPlannedSetNumbersAreRejected()=failure(changeExercise { exercise -> val sets=exercise["planned_sets"]!!.jsonArray.toMutableList(); sets.reverse(); exercise["planned_sets"]=JsonArray(sets) })
+ @Test fun unorderedPlannedSetNumbersAreRejected()=failure(changeExercise { exercise ->
+  val first=exercise["planned_sets"]!!.jsonArray.single().jsonObject
+  val second=first.toMutableMap().apply { this["set_no"]=JsonPrimitive(2) }
+  exercise["planned_sets"]=JsonArray(listOf(JsonObject(second),first))
+ })
  @Test fun emptyPlannedSetsAreRejected()=failure(changeExercise { it["planned_sets"]=JsonArray(emptyList()) })
  @Test fun bodyweightWithNonZeroTargetIsRejected()=failure(changeExercise { it["load_basis"]=JsonPrimitive("bodyweight") })
  @Test fun unknownEquipmentReferenceIsRejected()=failure(changeExercise { it["equipment_id"]=JsonPrimitive("unknown") })
