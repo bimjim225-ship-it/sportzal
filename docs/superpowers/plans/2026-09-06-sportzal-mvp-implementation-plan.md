@@ -11,7 +11,7 @@
 **Spec:** `docs/superpowers/specs/2026-09-06-sportzal-mvp-design.md`  
 **Frozen decisions:** `docs/decisions/0001-development-readiness-freeze.md`  
 **Behavior:** `UX-CONTRACT.md`  
-**External data contract:** `docs/data-contracts.md`, `docs/schemas/*.json`
+**External data contract:** `docs/data-contracts.md`; JSON schemas are in `docs/schemas/`.
 
 ## Global Constraints
 
@@ -764,7 +764,7 @@ git commit -m "feat: add local history and equipment catalog"
 **Files:**
 - Create: `app/src/androidTest/java/ru/sportzal/app/ProcessDeathRecoveryTest.kt`
 - Create: `app/src/androidTest/java/ru/sportzal/app/AccessibilitySmokeTest.kt`
-- Create: `docs/reviews/mvp-device-acceptance.md` during execution with measured results only.
+- Create: docs/reviews/mvp-device-acceptance.md during execution with measured results only.
 - Modify shared UI only when tests reveal a failure.
 
 **Interfaces:** no new product features.
@@ -816,7 +816,7 @@ On the user’s real phone, use a representative prefilled exercise card. Perfor
 4. tap `Записать подход`;
 5. stop timing when saved row/next slot state is visible.
 
-Record all ten times in `docs/reviews/mvp-device-acceptance.md`.
+Record all ten times in docs/reviews/mvp-device-acceptance.md.
 
 Acceptance:
 
