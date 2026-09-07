@@ -55,228 +55,264 @@ class SportzalDatabaseTest {
     fun closeDatabase() = database.close()
 
     @Test
-    fun sameProgramKeyAndHashIsNoOpButDifferentHashConflictsAndJsonIsImmutable() = runBlocking {
-        val program = program()
-        val json = StrictJson.encodeToString(program)
-        assertEquals(ImportResult.Imported, repository.importProgram(program, json, "hash"))
-        assertEquals(ImportResult.NoOp, repository.importProgram(program, "different-json", "hash"))
-        assertEquals(ImportResult.Conflict, repository.importProgram(program, json, "other-hash"))
-        assertEquals(json, database.dao().program("program", 1)?.canonicalJson)
-    }
-
-    @Test
-    fun programEquipmentIndexAndActivePointerImportTogether() = runBlocking {
-        import(program())
-        assertNotNull(database.dao().program("program", 1))
-        assertNotNull(database.dao().equipment("equipment"))
-        assertEquals("program", repository.observeTodayState().first().activeProgramId)
-    }
-
-    @Test
-    fun maximumOneActiveWorkout() = runBlocking {
-        import(program())
-        repository.startWorkout("program", 1, "session")
-        assertThrows(IllegalStateException::class.java) {
-            runBlocking { repository.startWorkout("program", 1, "session") }
+    fun sameProgramKeyAndHashIsNoOpButDifferentHashConflictsAndJsonIsImmutable() {
+        runBlocking {
+            val program = program()
+            val json = StrictJson.encodeToString(program)
+            assertEquals(ImportResult.Imported, repository.importProgram(program, json, "hash"))
+            assertEquals(ImportResult.NoOp, repository.importProgram(program, "different-json", "hash"))
+            assertEquals(ImportResult.Conflict, repository.importProgram(program, json, "other-hash"))
+            assertEquals(json, database.dao().program("program", 1)?.canonicalJson)
         }
     }
 
     @Test
-    fun consumedWorkoutInstanceIsUniqueAcrossProgramVersions() = runBlocking {
-        import(program())
-        val first = repository.startWorkout("program", 1, "session")
-        repository.finishWorkout(first)
-        import(program(version = 2))
-        assertThrows(Exception::class.java) {
-            runBlocking { repository.startWorkout("program", 2, "session") }
+    fun programEquipmentIndexAndActivePointerImportTogether() {
+        runBlocking {
+            import(program())
+            assertNotNull(database.dao().program("program", 1))
+            assertNotNull(database.dao().equipment("equipment"))
+            assertEquals("program", repository.observeTodayState().first().activeProgramId)
         }
     }
 
     @Test
-    fun emptyCancellationDeletesWorkoutAndDraftsAndAllowsRestart() = runBlocking {
-        import(program())
-        val id = repository.startWorkout("program", 1, "session")
-        database.dao().upsertDraft(draft(id))
-        assertEquals(CancelEmptyResult.Cancelled, repository.cancelEmptyWorkout(id))
-        assertNull(database.dao().workout(id))
-        assertEquals(0, database.dao().draftCount(id))
-        assertNotEquals(id, repository.startWorkout("program", 1, "session"))
-    }
-
-    @Test
-    fun finishedEmptyWorkoutCannotBeCancelled() = runBlocking {
-        import(program())
-        val id = repository.startWorkout("program", 1, "session")
-        assertEquals(CompletionStatus.ENDED_EARLY, repository.finishWorkout(id))
-        val finishedAt = database.dao().workout(id)?.finishedAt
-
-        assertEquals(CancelEmptyResult.NotActive, repository.cancelEmptyWorkout(id))
-        assertNotNull(database.dao().workout(id))
-        assertEquals(finishedAt, database.dao().workout(id)?.finishedAt)
-    }
-
-    @Test
-    fun cancellationAfterSetOrSkipIsRejected() = runBlocking {
-        import(program())
-        val setWorkout = repository.startWorkout("program", 1, "session")
-        repository.saveSet(setCommand("set", setWorkout, 1))
-        assertEquals(CancelEmptyResult.HasFacts, repository.cancelEmptyWorkout(setWorkout))
-        repository.finishWorkout(setWorkout)
-        import(program(id = "other"))
-        val skipWorkout = repository.startWorkout("other", 1, "session")
-        repository.skipSet(SkipSetCommand(skipWorkout, "exercise", 1, "now"))
-        assertEquals(CancelEmptyResult.HasFacts, repository.cancelEmptyWorkout(skipWorkout))
-    }
-
-    @Test
-    fun sequenceAndPlannedSlotConstraintsPreventDuplicateFacts() = runBlocking {
-        import(program())
-        val id = repository.startWorkout("program", 1, "session")
-        assertTrue(repository.saveSet(setCommand("one", id, 1)) is SaveSetResult.Saved)
-        assertTrue(repository.saveSet(setCommand("two", id, 1)) is SaveSetResult.Conflict)
-        assertThrows(Exception::class.java) {
-            runBlocking { database.dao().insertSet(entity("three", id, 1, null)) }
+    fun maximumOneActiveWorkout() {
+        runBlocking {
+            import(program())
+            repository.startWorkout("program", 1, "session")
+            assertThrows(IllegalStateException::class.java) {
+                runBlocking { repository.startWorkout("program", 1, "session") }
+            }
         }
     }
 
     @Test
-    fun plannedSlotCannotContainBothSetAndSkip() = runBlocking {
-        import(program())
-        val id = repository.startWorkout("program", 1, "session")
-        repository.skipSet(SkipSetCommand(id, "exercise", 1, "now"))
-        assertTrue(repository.saveSet(setCommand("set", id, 1)) is SaveSetResult.Conflict)
-    }
-
-    @Test
-    fun factsMustReferenceExercisesAndPlannedSlotsInImmutableSnapshot() = runBlocking {
-        import(program())
-        val id = repository.startWorkout("program", 1, "session")
-
-        assertThrows(IllegalStateException::class.java) {
-            runBlocking { repository.saveSet(setCommand("unknown-exercise", id, 1, exerciseId = "unknown")) }
+    fun consumedWorkoutInstanceIsUniqueAcrossProgramVersions() {
+        runBlocking {
+            import(program())
+            val first = repository.startWorkout("program", 1, "session")
+            repository.finishWorkout(first)
+            import(program(version = 2))
+            assertThrows(Exception::class.java) {
+                runBlocking { repository.startWorkout("program", 2, "session") }
+            }
         }
-        assertThrows(IllegalStateException::class.java) {
-            runBlocking { repository.saveSet(setCommand("unknown-slot", id, 2)) }
+    }
+
+    @Test
+    fun emptyCancellationDeletesWorkoutAndDraftsAndAllowsRestart() {
+        runBlocking {
+            import(program())
+            val id = repository.startWorkout("program", 1, "session")
+            database.dao().upsertDraft(draft(id))
+            assertEquals(CancelEmptyResult.Cancelled, repository.cancelEmptyWorkout(id))
+            assertNull(database.dao().workout(id))
+            assertEquals(0, database.dao().draftCount(id))
+            assertNotEquals(id, repository.startWorkout("program", 1, "session"))
         }
-        assertThrows(IllegalStateException::class.java) {
-            runBlocking { repository.skipSet(SkipSetCommand(id, "exercise", 2, "now")) }
+    }
+
+    @Test
+    fun finishedEmptyWorkoutCannotBeCancelled() {
+        runBlocking {
+            import(program())
+            val id = repository.startWorkout("program", 1, "session")
+            assertEquals(CompletionStatus.ENDED_EARLY, repository.finishWorkout(id))
+            val finishedAt = database.dao().workout(id)?.finishedAt
+
+            assertEquals(CancelEmptyResult.NotActive, repository.cancelEmptyWorkout(id))
+            assertNotNull(database.dao().workout(id))
+            assertEquals(finishedAt, database.dao().workout(id)?.finishedAt)
         }
-        assertThrows(IllegalArgumentException::class.java) {
-            runBlocking { repository.saveSet(setCommand("wrong-type", id, 1, setType = "warmup")) }
+    }
+
+    @Test
+    fun cancellationAfterSetOrSkipIsRejected() {
+        runBlocking {
+            import(program())
+            val setWorkout = repository.startWorkout("program", 1, "session")
+            repository.saveSet(setCommand("set", setWorkout, 1))
+            assertEquals(CancelEmptyResult.HasFacts, repository.cancelEmptyWorkout(setWorkout))
+            repository.finishWorkout(setWorkout)
+            import(program(id = "other"))
+            val skipWorkout = repository.startWorkout("other", 1, "session")
+            repository.skipSet(SkipSetCommand(skipWorkout, "exercise", 1, "now"))
+            assertEquals(CancelEmptyResult.HasFacts, repository.cancelEmptyWorkout(skipWorkout))
         }
-
-        assertTrue(repository.saveSet(setCommand("extra", id, null)) is SaveSetResult.Saved)
     }
 
     @Test
-    fun saveRetryIsIdempotentAndSuccessfulSaveRemovesDraft() = runBlocking {
-        import(program())
-        val id = repository.startWorkout("program", 1, "session")
-        database.dao().upsertDraft(draft(id))
-        val first = repository.saveSet(setCommand("set", id, 1)) as SaveSetResult.Saved
-        val retry = repository.saveSet(setCommand("set", id, 1)) as SaveSetResult.Saved
-        assertEquals(first.sequenceNo, retry.sequenceNo)
-        assertTrue(retry.idempotent)
-        assertEquals(0, database.dao().draftCount(id))
+    fun sequenceAndPlannedSlotConstraintsPreventDuplicateFacts() {
+        runBlocking {
+            import(program())
+            val id = repository.startWorkout("program", 1, "session")
+            assertTrue(repository.saveSet(setCommand("one", id, 1)) is SaveSetResult.Saved)
+            assertTrue(repository.saveSet(setCommand("two", id, 1)) is SaveSetResult.Conflict)
+            assertThrows(Exception::class.java) {
+                runBlocking { database.dao().insertSet(entity("three", id, 1, null)) }
+            }
+        }
     }
 
     @Test
-    fun draftDoesNotCountAsFactOrCompletion() = runBlocking {
-        import(program())
-        val id = repository.startWorkout("program", 1, "session")
-        database.dao().upsertDraft(draft(id))
-        assertEquals(CompletionStatus.ENDED_EARLY, repository.finishWorkout(id))
+    fun plannedSlotCannotContainBothSetAndSkip() {
+        runBlocking {
+            import(program())
+            val id = repository.startWorkout("program", 1, "session")
+            repository.skipSet(SkipSetCommand(id, "exercise", 1, "now"))
+            assertTrue(repository.saveSet(setCommand("set", id, 1)) is SaveSetResult.Conflict)
+        }
     }
 
     @Test
-    fun completionRequiresEveryPlannedSlotAndNoSkipsWhileExtraSetsDoNotFillSlots() = runBlocking {
-        import(program(sets = 2))
-        val zero = repository.startWorkout("program", 1, "session")
-        assertEquals(CompletionStatus.ENDED_EARLY, repository.finishWorkout(zero))
+    fun factsMustReferenceExercisesAndPlannedSlotsInImmutableSnapshot() {
+        runBlocking {
+            import(program())
+            val id = repository.startWorkout("program", 1, "session")
 
-        import(program(id = "partial", sets = 3))
-        val partial = repository.startWorkout("partial", 1, "session")
-        repository.saveSet(setCommand("p1", partial, 1))
-        repository.saveSet(setCommand("p2", partial, 2))
-        assertEquals(CompletionStatus.ENDED_EARLY, repository.finishWorkout(partial))
+            assertThrows(IllegalStateException::class.java) {
+                runBlocking { repository.saveSet(setCommand("unknown-exercise", id, 1, exerciseId = "unknown")) }
+            }
+            assertThrows(IllegalStateException::class.java) {
+                runBlocking { repository.saveSet(setCommand("unknown-slot", id, 2)) }
+            }
+            assertThrows(IllegalStateException::class.java) {
+                runBlocking { repository.skipSet(SkipSetCommand(id, "exercise", 2, "now")) }
+            }
+            assertThrows(IllegalArgumentException::class.java) {
+                runBlocking { repository.saveSet(setCommand("wrong-type", id, 1, setType = "warmup")) }
+            }
 
-        import(program(id = "complete", sets = 2))
-        val complete = repository.startWorkout("complete", 1, "session")
-        repository.saveSet(setCommand("c1", complete, 1))
-        repository.saveSet(setCommand("c2", complete, 2))
-        assertEquals(CompletionStatus.COMPLETED, repository.finishWorkout(complete))
-
-        import(program(id = "extra", sets = 2))
-        val extra = repository.startWorkout("extra", 1, "session")
-        repository.saveSet(setCommand("e1", extra, 1))
-        repository.saveSet(setCommand("e2", extra, null))
-        assertEquals(CompletionStatus.ENDED_EARLY, repository.finishWorkout(extra))
+            assertTrue(repository.saveSet(setCommand("extra", id, null)) is SaveSetResult.Saved)
+        }
     }
 
     @Test
-    fun explicitSkipAlwaysEndsEarly() = runBlocking {
-        import(program())
-        val id = repository.startWorkout("program", 1, "session")
-        repository.skipSet(SkipSetCommand(id, "exercise", 1, "now"))
-        assertEquals(CompletionStatus.ENDED_EARLY, repository.finishWorkout(id))
+    fun saveRetryIsIdempotentAndSuccessfulSaveRemovesDraft() {
+        runBlocking {
+            import(program())
+            val id = repository.startWorkout("program", 1, "session")
+            database.dao().upsertDraft(draft(id))
+            val first = repository.saveSet(setCommand("set", id, 1)) as SaveSetResult.Saved
+            val retry = repository.saveSet(setCommand("set", id, 1)) as SaveSetResult.Saved
+            assertEquals(first.sequenceNo, retry.sequenceNo)
+            assertTrue(retry.idempotent)
+            assertEquals(0, database.dao().draftCount(id))
+        }
     }
 
     @Test
-    fun normalLoggingAndRepeatedFinishRequireActiveWorkout() = runBlocking {
-        import(program())
-        val id = repository.startWorkout("program", 1, "session")
-        repository.finishWorkout(id)
-        val finishedAt = database.dao().workout(id)?.finishedAt
-        assertThrows(IllegalStateException::class.java) { runBlocking { repository.finishWorkout(id) } }
-        assertThrows(IllegalStateException::class.java) { runBlocking { repository.saveSet(setCommand("late", id, 1)) } }
-        assertThrows(IllegalStateException::class.java) { runBlocking { repository.skipSet(SkipSetCommand(id, "exercise", 1, "now")) } }
-        assertEquals(finishedAt, database.dao().workout(id)?.finishedAt)
+    fun draftDoesNotCountAsFactOrCompletion() {
+        runBlocking {
+            import(program())
+            val id = repository.startWorkout("program", 1, "session")
+            database.dao().upsertDraft(draft(id))
+            assertEquals(CompletionStatus.ENDED_EARLY, repository.finishWorkout(id))
+        }
     }
 
     @Test
-    fun deletingSetFromFinishedWorkoutRecalculatesCompletionTransactionally() = runBlocking {
-        import(program())
-        val id = repository.startWorkout("program", 1, "session")
-        repository.saveSet(setCommand("set", id, 1))
-        assertEquals(CompletionStatus.COMPLETED, repository.finishWorkout(id))
-        repository.deleteSet("set")
-        assertEquals("ended_early", database.dao().workout(id)?.completionStatus)
+    fun completionRequiresEveryPlannedSlotAndNoSkipsWhileExtraSetsDoNotFillSlots() {
+        runBlocking {
+            import(program(sets = 2))
+            val zero = repository.startWorkout("program", 1, "session")
+            assertEquals(CompletionStatus.ENDED_EARLY, repository.finishWorkout(zero))
+
+            import(program(id = "partial", sets = 3))
+            val partial = repository.startWorkout("partial", 1, "session")
+            repository.saveSet(setCommand("p1", partial, 1))
+            repository.saveSet(setCommand("p2", partial, 2))
+            assertEquals(CompletionStatus.ENDED_EARLY, repository.finishWorkout(partial))
+
+            import(program(id = "complete", sets = 2))
+            val complete = repository.startWorkout("complete", 1, "session")
+            repository.saveSet(setCommand("c1", complete, 1))
+            repository.saveSet(setCommand("c2", complete, 2))
+            assertEquals(CompletionStatus.COMPLETED, repository.finishWorkout(complete))
+
+            import(program(id = "extra", sets = 2))
+            val extra = repository.startWorkout("extra", 1, "session")
+            repository.saveSet(setCommand("e1", extra, 1))
+            repository.saveSet(setCommand("e2", extra, null))
+            assertEquals(CompletionStatus.ENDED_EARLY, repository.finishWorkout(extra))
+        }
     }
 
     @Test
-    fun programAndEquipmentUpdatesDoNotMutateWorkoutSnapshots() = runBlocking {
-        import(program())
-        val id = repository.startWorkout("program", 1, "session")
-        val before = database.dao().workout(id)!!
-        import(program(version = 2, equipmentName = "changed"))
-        val after = database.dao().workout(id)!!
-        assertEquals(before.planSnapshotJson, after.planSnapshotJson)
-        assertEquals(before.equipmentAtStartJson, after.equipmentAtStartJson)
+    fun explicitSkipAlwaysEndsEarly() {
+        runBlocking {
+            import(program())
+            val id = repository.startWorkout("program", 1, "session")
+            repository.skipSet(SkipSetCommand(id, "exercise", 1, "now"))
+            assertEquals(CompletionStatus.ENDED_EARLY, repository.finishWorkout(id))
+        }
     }
 
     @Test
-    fun equipmentPatchPreservesPhotoAndAbsentFieldsButNullClearsAndValueUpdates() = runBlocking {
-        database.dao().insertEquipment(EquipmentEntity("equipment", "old", null, 2.5, "[1.0]", "old notes", "/photo", "old"))
-        val absent = program()
-        val absentJson = withoutEquipmentKeys(StrictJson.encodeToString(absent), "weight_step_kg", "available_weights_kg", "notes")
-        repository.importProgram(absent, absentJson, "one")
-        var equipment = database.dao().equipment("equipment")!!
-        assertEquals("/photo", equipment.photoPath)
-        assertEquals(2.5, equipment.weightStepKg!!, 0.0)
-        assertEquals("old notes", equipment.notes)
+    fun normalLoggingAndRepeatedFinishRequireActiveWorkout() {
+        runBlocking {
+            import(program())
+            val id = repository.startWorkout("program", 1, "session")
+            repository.finishWorkout(id)
+            val finishedAt = database.dao().workout(id)?.finishedAt
+            assertThrows(IllegalStateException::class.java) { runBlocking { repository.finishWorkout(id) } }
+            assertThrows(IllegalStateException::class.java) { runBlocking { repository.saveSet(setCommand("late", id, 1)) } }
+            assertThrows(IllegalStateException::class.java) { runBlocking { repository.skipSet(SkipSetCommand(id, "exercise", 1, "now")) } }
+            assertEquals(finishedAt, database.dao().workout(id)?.finishedAt)
+        }
+    }
 
-        val clear = program(version = 2, weightStep = null, notes = null)
-        repository.importProgram(clear, StrictJson.encodeToString(clear), "two")
-        equipment = database.dao().equipment("equipment")!!
-        assertNull(equipment.weightStepKg)
-        assertNull(equipment.notes)
-        assertEquals("/photo", equipment.photoPath)
+    @Test
+    fun deletingSetFromFinishedWorkoutRecalculatesCompletionTransactionally() {
+        runBlocking {
+            import(program())
+            val id = repository.startWorkout("program", 1, "session")
+            repository.saveSet(setCommand("set", id, 1))
+            assertEquals(CompletionStatus.COMPLETED, repository.finishWorkout(id))
+            repository.deleteSet("set")
+            assertEquals("ended_early", database.dao().workout(id)?.completionStatus)
+        }
+    }
 
-        val update = program(version = 3, weightStep = 5.0, notes = "new")
-        repository.importProgram(update, StrictJson.encodeToString(update), "three")
-        equipment = database.dao().equipment("equipment")!!
-        assertEquals(5.0, equipment.weightStepKg!!, 0.0)
-        assertEquals("new", equipment.notes)
+    @Test
+    fun programAndEquipmentUpdatesDoNotMutateWorkoutSnapshots() {
+        runBlocking {
+            import(program())
+            val id = repository.startWorkout("program", 1, "session")
+            val before = database.dao().workout(id)!!
+            import(program(version = 2, equipmentName = "changed"))
+            val after = database.dao().workout(id)!!
+            assertEquals(before.planSnapshotJson, after.planSnapshotJson)
+            assertEquals(before.equipmentAtStartJson, after.equipmentAtStartJson)
+        }
+    }
+
+    @Test
+    fun equipmentPatchPreservesPhotoAndAbsentFieldsButNullClearsAndValueUpdates() {
+        runBlocking {
+            database.dao().insertEquipment(EquipmentEntity("equipment", "old", null, 2.5, "[1.0]", "old notes", "/photo", "old"))
+            val absent = program()
+            val absentJson = withoutEquipmentKeys(StrictJson.encodeToString(absent), "weight_step_kg", "available_weights_kg", "notes")
+            repository.importProgram(absent, absentJson, "one")
+            var equipment = database.dao().equipment("equipment")!!
+            assertEquals("/photo", equipment.photoPath)
+            assertEquals(2.5, equipment.weightStepKg!!, 0.0)
+            assertEquals("old notes", equipment.notes)
+
+            val clear = program(version = 2, weightStep = null, notes = null)
+            repository.importProgram(clear, StrictJson.encodeToString(clear), "two")
+            equipment = database.dao().equipment("equipment")!!
+            assertNull(equipment.weightStepKg)
+            assertNull(equipment.notes)
+            assertEquals("/photo", equipment.photoPath)
+
+            val update = program(version = 3, weightStep = 5.0, notes = "new")
+            repository.importProgram(update, StrictJson.encodeToString(update), "three")
+            equipment = database.dao().equipment("equipment")!!
+            assertEquals(5.0, equipment.weightStepKg!!, 0.0)
+            assertEquals("new", equipment.notes)
+        }
     }
 
     private suspend fun import(value: ProgramDocument) {
