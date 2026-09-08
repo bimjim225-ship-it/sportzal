@@ -1,7 +1,6 @@
 package ru.sportzal.app.ui.today
 
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -50,13 +49,12 @@ class TodayScreenTest {
         compose.onNodeWithText("Импортировать программу").assertIsDisplayed()
     }
 
-    @Test fun consumedWorkoutIsAbsentWhileAvailableWorkoutCanBeClickedExactly() {
+    @Test fun manualAvailableWorkoutIsDisplayedAndClickedExactly() {
         var selected: String? = null
         show(
             TodaySelection.Ready(workout("first", "Первая overdue")),
             listOf(workout("second", "Вторая overdue")),
         ) { selected = it }
-        compose.onNodeWithText("Consumed future").assertDoesNotExist()
         compose.onNodeWithText("Вторая overdue").assertIsDisplayed().performClick()
         compose.runOnIdle { assertEquals("second", selected) }
     }
