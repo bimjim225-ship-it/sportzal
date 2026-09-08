@@ -93,6 +93,9 @@ interface SportzalDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertDraft(value: DraftEntity)
 
+    @Query("SELECT * FROM drafts WHERE workout_id=:id")
+    suspend fun drafts(id: String): List<DraftEntity>
+
     @Query("SELECT COUNT(*) FROM drafts WHERE workout_id=:id")
     suspend fun draftCount(id: String): Int
 
