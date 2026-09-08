@@ -4,6 +4,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -37,21 +39,23 @@ class FastSetLoggingTest {
         var ui by mutableStateOf(WorkoutUiState("workout", "Тренировка", listOf(BlockUiState("block", "Straight", "straight", listOf(
             ExerciseUiState(exercise, slot(1), SetDraft(100.0, 5, null, slot(1).plannedContext), emptyList())))),
             ClockReading(Instant.parse("2026-09-08T12:02:00Z"), "boot", 120_000)))
-        compose.setContent { SportzalTheme { WorkoutScreen(ui, { "0:00" }, { _, weight, reps, rir ->
+        compose.setContent { SportzalTheme { WorkoutScreen(ui, { "0:00" }, { _, weight, reps, rir, answered ->
             val block = ui.blocks.single()
-            ui = ui.copy(blocks = listOf(block.copy(cards = listOf(block.cards.single().copy(draft = SetDraft(weight, reps, rir, slot(1).plannedContext))))))
-        }, {
+            ui = ui.copy(blocks = listOf(block.copy(cards = listOf(block.cards.single().copy(draft = SetDraft(weight, reps, rir, slot(1).plannedContext, answered))))))
+        }, { _, setNo ->
             saves++
-            if (saves == 1) {
+            if (saves == 1 && setNo == 1) {
                 val row = result(reps = ui.blocks.single().cards.single().draft!!.reps!!)
                 ui = ui.copy(blocks = listOf(ui.blocks.single().copy(cards = listOf(ExerciseUiState(exercise, slot(2), SetDraft(100.0, 7, null, slot(2).plannedContext), listOf(row), 120)))))
             }
         }, {}, {}) } }
 
         compose.onNodeWithText("Цель: 100 кг · 5–8 · RIR 2").assertIsDisplayed()
+        compose.onNodeWithText("Ещё не записывали").assertIsDisplayed()
+        compose.onNodeWithTag("rir-2").assertIsNotSelected()
         compose.onNodeWithTag("reps-instance").performTextClearance()
         compose.onNodeWithTag("reps-instance").performTextInput("7")
-        compose.onNodeWithText("2").performClick()
+        compose.onNodeWithTag("rir-2").performClick().assertIsSelected()
         compose.onNodeWithTag("save-instance").performClick()
         compose.onNodeWithText("1. 100 кг × 7 · RIR 2").assertIsDisplayed()
         compose.onNodeWithText("Подход 2 · work").assertIsDisplayed()

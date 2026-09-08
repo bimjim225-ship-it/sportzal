@@ -26,7 +26,7 @@ fun ExerciseCard(
     state: ExerciseUiState,
     elapsed: String,
     saving: Boolean,
-    onDraft: (Double?, Int?, Int?) -> Unit,
+    onDraft: (Double?, Int?, Int?, Boolean) -> Unit,
     onSave: () -> Unit,
     onInteraction: (Boolean) -> Unit,
 ) {
@@ -42,7 +42,7 @@ fun ExerciseCard(
         .testTag("exercise-${state.exercise.exerciseInstanceId}")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(state.exercise.title, style = MaterialTheme.typography.headlineSmall)
-            Text(listOfNotNull(state.exercise.equipmentId, state.exercise.setupHint, state.exercise.loadBasis, state.exercise.side).joinToString(" · "))
+            Text(listOfNotNull(state.exercise.equipmentId, slot?.plannedContext?.setup, state.exercise.loadBasis, state.exercise.side).joinToString(" · "))
             Text("Подходы: ${state.saved.size}/${state.exercise.plannedSets.size}")
             state.saved.forEach { SetResultRow(it) }
             if (slot != null && draft != null) {
@@ -50,17 +50,18 @@ fun ExerciseCard(
                 Text("Цель: ${slot.targetWeightKg.display()} кг · ${slot.repsMin}–${slot.repsMax}" + (slot.targetRir?.let { " · RIR ${it.rirText()}" } ?: ""))
                 val rest = state.restReferenceSec ?: slot.restTargetSec
                 Text("Ориентир до следующего подхода: ${rest / 60}:${(rest % 60).toString().padStart(2, '0')}")
-                Text("С записи: $elapsed", modifier = Modifier.testTag("elapsed-${state.exercise.exerciseInstanceId}"))
+                Text(if (state.saved.isEmpty()) "Ещё не записывали" else "С записи: $elapsed",
+                    modifier = Modifier.testTag("elapsed-${state.exercise.exerciseInstanceId}"))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NumericField(weightText, "Вес", NumericKind.WEIGHT, {
-                        weightText = it; onDraft(parseNumeric(it, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), draft.rir)
+                        weightText = it; onDraft(parseNumeric(it, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), draft.rir, draft.rirAnswered)
                     }, Modifier.testTag("weight-${state.exercise.exerciseInstanceId}"), enabled = !saving && state.exercise.loadBasis != "bodyweight")
                     NumericField(repsText, "Повторы", NumericKind.REPS, {
-                        repsText = it; onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(it, NumericKind.REPS)?.toInt(), draft.rir)
+                        repsText = it; onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(it, NumericKind.REPS)?.toInt(), draft.rir, draft.rirAnswered)
                     }, Modifier.testTag("reps-${state.exercise.exerciseInstanceId}"), enabled = !saving)
                 }
-                if (requiresRir(state)) RirSelector(draft.rir, enabled = !saving) {
-                    onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), it)
+                if (requiresRir(state)) RirSelector(draft.rir, draft.rirAnswered, enabled = !saving) {
+                    onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), it, true)
                 }
                 Button(onClick = onSave, enabled = !saving, modifier = Modifier.testTag("save-${state.exercise.exerciseInstanceId}")) {
                     Text("Записать подход")

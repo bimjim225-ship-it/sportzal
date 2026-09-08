@@ -19,8 +19,8 @@ import ru.sportzal.app.ui.components.ExerciseCard
 fun WorkoutScreen(
     state: WorkoutUiState,
     elapsedFor: (ru.sportzal.app.data.db.SetResultEntity?) -> String,
-    onDraft: (String, Double?, Int?, Int?) -> Unit,
-    onSave: (String) -> Unit,
+    onDraft: (String, Double?, Int?, Int?, Boolean) -> Unit,
+    onSave: (String, Int) -> Unit,
     onInteraction: (Boolean) -> Unit,
     onTick: () -> Unit,
 ) {
@@ -32,8 +32,8 @@ fun WorkoutScreen(
             item(key = "block-${block.blockId}") { Text(block.title, style = MaterialTheme.typography.titleMedium) }
             items(block.cards, key = { it.exercise.exerciseInstanceId }) { card ->
                 ExerciseCard(card, elapsedFor(card.saved.maxByOrNull { it.sequenceNo }), state.saving,
-                    { weight, reps, rir -> onDraft(card.exercise.exerciseInstanceId, weight, reps, rir) },
-                    { onSave(card.exercise.exerciseInstanceId) }, onInteraction)
+                    { weight, reps, rir, answered -> onDraft(card.exercise.exerciseInstanceId, weight, reps, rir, answered) },
+                    { card.currentSlot?.let { onSave(card.exercise.exerciseInstanceId, it.plannedSetNo) } }, onInteraction)
             }
         }
     }
