@@ -25,6 +25,8 @@ data class SetDraft(
     val reps: Int?,
     val rir: Int? = null,
     val context: ActualContext,
+    /** Distinguishes an untouched RIR from the explicit "not assessed" choice. */
+    val rirAnswered: Boolean = rir != null,
 )
 
 data class PreviousSetFact(

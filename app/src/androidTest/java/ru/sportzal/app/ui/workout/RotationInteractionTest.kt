@@ -40,8 +40,8 @@ class RotationInteractionTest {
         compose.setContent {
             SportzalTheme {
                 focusManager = LocalFocusManager.current
-                WorkoutScreen(ui, { "0:00" }, { id, weight, reps, rir ->
-                    drafts[id] = SetDraft(weight, reps, rir, drafts.getValue(id).plannedContext)
+                WorkoutScreen(ui, { "0:00" }, { id, weight, reps, rir, answered ->
+                    drafts[id] = SetDraft(weight, reps, rir, drafts.getValue(id).context, answered)
                     publish()
                 }, {}, { focused ->
                     if (focused) coordinator.beginInteraction() else coordinator.endInteraction()

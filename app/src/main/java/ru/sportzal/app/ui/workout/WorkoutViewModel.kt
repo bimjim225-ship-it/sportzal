@@ -75,7 +75,7 @@ class WorkoutViewModel(
             val exercise = byId[entity.exerciseInstanceId] ?: return@forEach
             drafts[entity.exerciseInstanceId to entity.plannedSetNo] = SetDraft(
                 entity.weightText.replace(',', '.').toDoubleOrNull(), entity.repsText.toIntOrNull(), entity.rir,
-                exercise.context(),
+                exercise.resolvedContext(), rirAnswered = entity.rir != null,
             )
         }
         mutableState.value = mutableState.value.copy(workoutId = workoutId)
@@ -88,11 +88,12 @@ class WorkoutViewModel(
         publish()
     }
 
-    suspend fun updateDraft(exerciseId: String, weight: Double?, reps: Int?, rir: Int?) {
+    suspend fun updateDraft(exerciseId: String, weight: Double?, reps: Int?, rir: Int?, rirAnswered: Boolean) {
         if (mutableState.value.saving) return
         val exercise = exercises().first { it.exerciseInstanceId == exerciseId }
         val slot = currentSlot(exercise) ?: return
-        val value = SetDraft(if (exercise.loadBasis == "bodyweight") 0.0 else weight, reps, rir, exercise.context())
+        val value = SetDraft(if (exercise.loadBasis == "bodyweight") 0.0 else weight, reps, rir,
+            exercise.resolvedContext(), rirAnswered)
         drafts[exerciseId to slot.plannedSetNo] = value
         repository.saveDraft(DraftEntity(mutableState.value.workoutId, exerciseId, slot.plannedSetNo,
             value.weightKg?.toString().orEmpty(), value.reps?.toString().orEmpty(), value.rir, null,
@@ -100,22 +101,24 @@ class WorkoutViewModel(
         publish()
     }
 
-    suspend fun saveSet(exerciseId: String) {
+    suspend fun saveSet(exerciseId: String, plannedSetNo: Int) {
         if (mutableState.value.saving) return
         val exercise = exercises().first { it.exerciseInstanceId == exerciseId }
-        val slot = currentSlot(exercise) ?: return
+        val slot = currentSlot(exercise)?.takeIf { it.plannedSetNo == plannedSetNo } ?: return
+        if (sets.any { it.exerciseInstanceId == exerciseId && it.plannedSetNo == plannedSetNo }) return
         val key = exerciseId to slot.plannedSetNo
         val draft = resolvedDraft(exercise, slot)
         val weight = draft.weightKg ?: return fail("Введите вес")
         val reps = draft.reps ?: return fail("Введите повторы")
+        if (requiresRir(exercise, slot) && !draft.rirAnswered) return fail("Выберите RIR или «Не оценил»")
         // Created before entering repository/Room transaction, and retained on every retry.
         val command = pending.getOrPut(key) {
             val reading = readClock()
             val equipment = exercise.equipmentId?.let(equipmentAtStart::get)
+            val context = exercise.resolvedContext()
             SaveSetCommand(newId(), mutableState.value.workoutId, exerciseId, slot.plannedSetNo, slot.setType,
-                exercise.exerciseId, exercise.title, exercise.equipmentId, equipment?.name,
-                exercise.setupHint ?: equipment?.setupHint,
-                exercise.loadBasis, exercise.side, weight, reps, draft.rir, reading.wall.toString(),
+                context.exerciseId, exercise.title, context.equipmentId, equipment?.name, context.setup,
+                context.loadBasis, context.side, weight, reps, draft.rir, reading.wall.toString(),
                 reading.bootId, reading.elapsedRealtimeMs)
         }
         mutableState.value = mutableState.value.copy(saving = true, error = null)
@@ -171,9 +174,10 @@ class WorkoutViewModel(
     private fun fail(message: String) { mutableState.value = mutableState.value.copy(saving = false, error = message) }
     private fun readClock() = ClockReading(clock.wallNow(), clock.bootIdOrNull(), clock.elapsedRealtimeMs())
     private fun exercises() = plan?.blocks?.flatMap { it.exercises }.orEmpty()
-    private fun ExerciseDocument.context() = ActualContext(exerciseId, equipmentId, setupHint, loadBasis, side)
+    private fun ExerciseDocument.resolvedContext() = ActualContext(exerciseId, equipmentId,
+        setupHint ?: equipmentId?.let(equipmentAtStart::get)?.setupHint, loadBasis, side)
     private fun ExerciseDocument.slots() = plannedSets.map { PlannedSlot(it.setNo, it.setType, it.targetWeightKg,
-        it.repsMin, it.repsMax, it.targetRir, it.restTargetSec, context()) }
+        it.repsMin, it.repsMax, it.targetRir, it.restTargetSec, resolvedContext()) }
     private fun currentSlot(exercise: ExerciseDocument) = exercise.slots().firstOrNull { slot ->
         sets.none { it.exerciseInstanceId == exercise.exerciseInstanceId && it.plannedSetNo == slot.plannedSetNo }
     }
@@ -182,7 +186,7 @@ class WorkoutViewModel(
         val fact = previous?.let { prior -> sets.lastOrNull { it.exerciseInstanceId == exercise.exerciseInstanceId && it.plannedSetNo == prior.plannedSetNo } }
         return PrefillResolver.resolve(slot, previous, fact?.let { PreviousSetFact(priorNo(it), it.weightKg, it.reps, it.rir,
             ActualContext(it.exerciseIdActual, it.equipmentIdActual, it.setupActual, it.loadBasisActual, it.sideActual)) },
-            drafts[exercise.exerciseInstanceId to slot.plannedSetNo], exercise.context())
+            drafts[exercise.exerciseInstanceId to slot.plannedSetNo], exercise.resolvedContext())
     }
     private fun priorNo(set: SetResultEntity) = requireNotNull(set.plannedSetNo)
     private fun runtimeCards(exercises: List<ExerciseDocument>) = exercises.map { exercise ->
@@ -194,8 +198,14 @@ class WorkoutViewModel(
     }
 
     fun elapsedText(set: SetResultEntity?, now: ClockReading = state.value.now): String {
-        if (set == null) return "0:00"
+        if (set == null) return ""
         val seconds = elapsedBetween(ClockAnchor(Instant.parse(set.completedAt), set.bootId, set.elapsedRealtimeMs), now.anchor()).duration.seconds
         return "%d:%02d".format(seconds / 60, seconds % 60)
+    }
+
+    private fun requiresRir(exercise: ExerciseDocument, slot: PlannedSlot): Boolean = when (exercise.rirCapture) {
+        "all_work_sets" -> slot.setType == "work"
+        "last_work_set" -> slot.setType == "work" && slot.plannedSetNo == exercise.plannedSets.lastOrNull { it.setType == "work" }?.setNo
+        else -> false
     }
 }

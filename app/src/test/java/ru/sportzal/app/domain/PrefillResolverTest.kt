@@ -14,9 +14,9 @@ class PrefillResolverTest {
         assertSame(draft, PrefillResolver.resolve(slot(2), slot(1), fact(1), draft, context))
     }
     @Test fun `new target uses target value`() = assertEquals(105.0,
-        PrefillResolver.resolve(slot(2, weight = 105.0), slot(1), fact(1), null, context).weightKg, 0.0)
+        PrefillResolver.resolve(slot(2, weight = 105.0), slot(1), fact(1), null, context).weightKg!!, 0.0)
     @Test fun `warmup to work uses work target`() = assertEquals(100.0,
-        PrefillResolver.resolve(slot(2), slot(1, "warmup", 50.0), fact(1), null, context).weightKg, 0.0)
+        PrefillResolver.resolve(slot(2), slot(1, "warmup", 50.0), fact(1), null, context).weightKg!!, 0.0)
     @Test fun `identical adjacent target may reuse fact without rir or deviations`() {
         val result = PrefillResolver.resolve(slot(2), slot(1), fact(1), null, context)
         assertEquals(97.5, result.weightKg!!, 0.0); assertEquals(7, result.reps); assertNull(result.rir)
