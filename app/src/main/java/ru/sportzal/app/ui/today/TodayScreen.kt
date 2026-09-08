@@ -22,7 +22,7 @@ import ru.sportzal.app.domain.TodaySelection
 @Composable
 fun TodayScreen(
     selection: TodaySelection,
-    futureChoices: List<PlannedWorkout>,
+    manualChoices: List<PlannedWorkout>,
     preview: ImportPreview?,
     message: String?,
     onPickProgram: () -> Unit,
@@ -39,7 +39,10 @@ fun TodayScreen(
                     Text("Нет активной программы")
                     Button(onClick = onPickProgram) { Text("Импортировать программу") }
                 }
-                TodaySelection.Exhausted -> Text("Программа пройдена")
+                TodaySelection.Exhausted -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("План выполнен")
+                    OutlinedButton(onClick = onPickProgram) { Text("Импортировать программу") }
+                }
                 is TodaySelection.Resume -> Button(onClick = onResume) { Text("Продолжить тренировку") }
                 is TodaySelection.Ready -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(selection.workout.title, style = MaterialTheme.typography.titleLarge)
@@ -48,9 +51,12 @@ fun TodayScreen(
                 }
             }
         }
-        if (futureChoices.isNotEmpty() && selection !is TodaySelection.Resume) {
-            item { Text("Выбрать будущую тренировку", style = MaterialTheme.typography.titleMedium) }
-            items(futureChoices, key = { it.workoutInstanceId }) { workout ->
+        if (selection is TodaySelection.Ready || selection is TodaySelection.Resume) {
+            item { OutlinedButton(onClick = onPickProgram) { Text("Импортировать программу") } }
+        }
+        if (manualChoices.isNotEmpty() && selection !is TodaySelection.Resume) {
+            item { Text("Выбрать другую тренировку", style = MaterialTheme.typography.titleMedium) }
+            items(manualChoices, key = { it.workoutInstanceId }) { workout ->
                 OutlinedButton(onClick = { onChooseWorkout(workout.workoutInstanceId) }, modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(workout.title); Text(workout.plannedDate.toString())
