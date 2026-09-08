@@ -2,7 +2,6 @@ package ru.sportzal.app.data.files
 
 import android.content.ContentResolver
 import android.net.Uri
-import android.provider.OpenableColumns
 import java.io.InputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,23 +19,27 @@ sealed interface ImportPreview {
 }
 
 class ProgramImporter(
-    private val resolver: ContentResolver,
+    private val resolver: ContentResolver?,
     private val validator: ProgramValidator,
     private val repository: SportzalRepository,
 ) {
     suspend fun import(uri: Uri): ImportPreview = withContext(Dispatchers.IO) {
-        val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) cursor.getString(0) else null
-        }
-        if (name != null && name != FILE_NAME) {
-            return@withContext ImportPreview.Error("Выберите файл $FILE_NAME")
-        }
+        val resolver = checkNotNull(resolver) { "ContentResolver is required for URI imports" }
         val bytes = try {
             resolver.openInputStream(uri)?.use(::readLimited) ?: return@withContext ImportPreview.Error("Не удалось открыть файл")
         } catch (_: FileTooLargeException) {
             return@withContext ImportPreview.Error("Файл больше 10 МиБ")
         } catch (error: Exception) {
             return@withContext ImportPreview.Error("Не удалось прочитать файл: ${error.message ?: "неизвестная ошибка"}")
+        }
+        preview(bytes.toString(Charsets.UTF_8))
+    }
+
+    suspend fun import(stream: InputStream): ImportPreview = withContext(Dispatchers.IO) {
+        val bytes = try {
+            stream.use(::readLimited)
+        } catch (_: FileTooLargeException) {
+            return@withContext ImportPreview.Error("Файл больше 10 МиБ")
         }
         preview(bytes.toString(Charsets.UTF_8))
     }

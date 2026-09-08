@@ -100,6 +100,18 @@ class SportzalDatabaseTest {
     }
 
     @Test
+    fun workoutServiceFinishDelegatesAndEndsActiveLifecycle() {
+        runBlocking {
+            import(program())
+            val service = WorkoutService(repository)
+            val id = service.start("program", 1, "session")
+            assertEquals(CompletionStatus.ENDED_EARLY, service.finish(id))
+            assertNull(repository.observeActiveWorkout().first())
+            assertEquals("ended_early", database.dao().workout(id)?.completionStatus)
+        }
+    }
+
+    @Test
     fun consumedWorkoutInstanceIsUniqueAcrossProgramVersions() {
         runBlocking {
             import(program())
