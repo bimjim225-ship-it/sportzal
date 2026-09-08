@@ -34,16 +34,17 @@ class FastSetLoggingTest {
         fun slot(no: Int) = PlannedSlot(no, "work", 100.0, 5, 8, 2, 120,
             ActualContext("squat", "rack", "Высокий гриф", "external", "bilateral"))
         var saves = 0
-        var ui by mutableStateOf(WorkoutUiState("workout", "Тренировка", listOf(
-            ExerciseUiState(exercise, slot(1), SetDraft(100.0, 5, null, slot(1).plannedContext), emptyList())),
+        var ui by mutableStateOf(WorkoutUiState("workout", "Тренировка", listOf(BlockUiState("block", "Straight", "straight", listOf(
+            ExerciseUiState(exercise, slot(1), SetDraft(100.0, 5, null, slot(1).plannedContext), emptyList())))),
             ClockReading(Instant.parse("2026-09-08T12:02:00Z"), "boot", 120_000)))
         compose.setContent { SportzalTheme { WorkoutScreen(ui, { "0:00" }, { _, weight, reps, rir ->
-            ui = ui.copy(cards = listOf(ui.cards.single().copy(draft = SetDraft(weight, reps, rir, slot(1).plannedContext))))
+            val block = ui.blocks.single()
+            ui = ui.copy(blocks = listOf(block.copy(cards = listOf(block.cards.single().copy(draft = SetDraft(weight, reps, rir, slot(1).plannedContext))))))
         }, {
             saves++
             if (saves == 1) {
-                val row = result(reps = ui.cards.single().draft!!.reps!!)
-                ui = ui.copy(cards = listOf(ExerciseUiState(exercise, slot(2), SetDraft(100.0, 7, null, slot(2).plannedContext), listOf(row))))
+                val row = result(reps = ui.blocks.single().cards.single().draft!!.reps!!)
+                ui = ui.copy(blocks = listOf(ui.blocks.single().copy(cards = listOf(ExerciseUiState(exercise, slot(2), SetDraft(100.0, 7, null, slot(2).plannedContext), listOf(row), 120)))))
             }
         }, {}, {}) } }
 
@@ -56,7 +57,7 @@ class FastSetLoggingTest {
         compose.onNodeWithText("Подход 2 · work").assertIsDisplayed()
         compose.onNodeWithText("С записи: 0:00").assertIsDisplayed()
         compose.onNodeWithTag("save-instance").performClick()
-        assertEquals("UI exposes only one fact for the planned slot", 1, ui.cards.single().saved.size)
+        assertEquals("UI exposes only one fact for the planned slot", 1, ui.blocks.single().cards.single().saved.size)
     }
 
     private fun result(reps: Int) = SetResultEntity("set", "workout", 1, "instance", 1, "work", "squat", "Присед",

@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -37,7 +38,8 @@ fun ExerciseCard(
     var repsText by remember(state.exercise.exerciseInstanceId, slot?.plannedSetNo, draft?.reps) {
         mutableStateOf(draft?.reps?.toString().orEmpty())
     }
-    Card(Modifier.fillMaxWidth().testTag("exercise-${state.exercise.exerciseInstanceId}")) {
+    Card(Modifier.fillMaxWidth().focusGroup().onFocusChanged { onInteraction(it.hasFocus) }
+        .testTag("exercise-${state.exercise.exerciseInstanceId}")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(state.exercise.title, style = MaterialTheme.typography.headlineSmall)
             Text(listOfNotNull(state.exercise.equipmentId, state.exercise.setupHint, state.exercise.loadBasis, state.exercise.side).joinToString(" · "))
@@ -45,18 +47,19 @@ fun ExerciseCard(
             state.saved.forEach { SetResultRow(it) }
             if (slot != null && draft != null) {
                 Text("Подход ${slot.plannedSetNo} · ${slot.setType}")
-                Text("Цель: ${slot.targetWeightKg.display()} кг · ${slot.repsMin}–${slot.repsMax}" + (slot.targetRir?.let { " · RIR $it" } ?: ""))
-                Text("Ориентир до следующего подхода: ${slot.restTargetSec / 60}:${(slot.restTargetSec % 60).toString().padStart(2, '0')}")
+                Text("Цель: ${slot.targetWeightKg.display()} кг · ${slot.repsMin}–${slot.repsMax}" + (slot.targetRir?.let { " · RIR ${it.rirText()}" } ?: ""))
+                val rest = state.restReferenceSec ?: slot.restTargetSec
+                Text("Ориентир до следующего подхода: ${rest / 60}:${(rest % 60).toString().padStart(2, '0')}")
                 Text("С записи: $elapsed", modifier = Modifier.testTag("elapsed-${state.exercise.exerciseInstanceId}"))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NumericField(weightText, "Вес", NumericKind.WEIGHT, {
                         weightText = it; onDraft(parseNumeric(it, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), draft.rir)
-                    }, Modifier.onFocusChanged { onInteraction(it.hasFocus) }.testTag("weight-${state.exercise.exerciseInstanceId}"), enabled = state.exercise.loadBasis != "bodyweight")
+                    }, Modifier.testTag("weight-${state.exercise.exerciseInstanceId}"), enabled = !saving && state.exercise.loadBasis != "bodyweight")
                     NumericField(repsText, "Повторы", NumericKind.REPS, {
                         repsText = it; onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(it, NumericKind.REPS)?.toInt(), draft.rir)
-                    }, Modifier.onFocusChanged { onInteraction(it.hasFocus) }.testTag("reps-${state.exercise.exerciseInstanceId}"))
+                    }, Modifier.testTag("reps-${state.exercise.exerciseInstanceId}"), enabled = !saving)
                 }
-                if (requiresRir(state)) RirSelector(draft.rir) {
+                if (requiresRir(state)) RirSelector(draft.rir, enabled = !saving) {
                     onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), it)
                 }
                 Button(onClick = onSave, enabled = !saving, modifier = Modifier.testTag("save-${state.exercise.exerciseInstanceId}")) {
@@ -73,3 +76,4 @@ private fun requiresRir(state: ExerciseUiState): Boolean = when (state.exercise.
     else -> false
 }
 private fun Double.display() = if (this % 1.0 == 0.0) toInt().toString() else toString()
+internal fun Int.rirText() = if (this == 4) "4+" else toString()

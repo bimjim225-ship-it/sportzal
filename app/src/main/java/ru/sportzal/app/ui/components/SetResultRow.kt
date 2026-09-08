@@ -10,7 +10,7 @@ import ru.sportzal.app.data.db.SetResultEntity
 @Composable
 fun SetResultRow(result: SetResultEntity) {
     Row(Modifier.fillMaxWidth()) {
-        Text("${result.plannedSetNo}. ${result.weightKg.g} кг × ${result.reps}" + (result.rir?.let { " · RIR $it" } ?: ""))
+        Text("${result.plannedSetNo}. ${result.weightKg.g} кг × ${result.reps}" + (result.rir?.let { " · RIR ${it.rirText()}" } ?: ""))
     }
 }
 

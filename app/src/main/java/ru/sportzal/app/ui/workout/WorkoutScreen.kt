@@ -2,6 +2,7 @@ package ru.sportzal.app.ui.workout
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,13 +25,16 @@ fun WorkoutScreen(
     onTick: () -> Unit,
 ) {
     LaunchedEffect(Unit) { while (true) { delay(1_000); onTick() } }
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text(state.title, style = MaterialTheme.typography.headlineLarge) }
         state.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
-        items(state.cards, key = { it.exercise.exerciseInstanceId }) { card ->
-            ExerciseCard(card, elapsedFor(card.saved.maxByOrNull { it.sequenceNo }), state.saving,
-                { weight, reps, rir -> onDraft(card.exercise.exerciseInstanceId, weight, reps, rir) },
-                { onSave(card.exercise.exerciseInstanceId) }, onInteraction)
+        state.blocks.forEach { block ->
+            item(key = "block-${block.blockId}") { Text(block.title, style = MaterialTheme.typography.titleMedium) }
+            items(block.cards, key = { it.exercise.exerciseInstanceId }) { card ->
+                ExerciseCard(card, elapsedFor(card.saved.maxByOrNull { it.sequenceNo }), state.saving,
+                    { weight, reps, rir -> onDraft(card.exercise.exerciseInstanceId, weight, reps, rir) },
+                    { onSave(card.exercise.exerciseInstanceId) }, onInteraction)
+            }
         }
     }
 }

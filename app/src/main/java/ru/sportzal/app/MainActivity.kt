@@ -12,6 +12,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.launch
 import ru.sportzal.app.ui.theme.SportzalTheme
 import ru.sportzal.app.ui.today.TodayScreen
@@ -33,6 +37,14 @@ class MainActivity : ComponentActivity() {
                 val state by viewModel.state.collectAsState()
                 val workoutViewModel = remember { WorkoutViewModel(container.repository, container.clockProvider) }
                 val workoutState by workoutViewModel.state.collectAsState()
+                val lifecycleOwner = LocalLifecycleOwner.current
+                DisposableEffect(lifecycleOwner, workoutViewModel) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME) workoutViewModel.onForegroundReturn()
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+                }
                 var activeWorkoutId by remember { mutableStateOf<String?>(null) }
                 LaunchedEffect(Unit) { viewModel.refresh() }
                 LaunchedEffect(state.selection) {
