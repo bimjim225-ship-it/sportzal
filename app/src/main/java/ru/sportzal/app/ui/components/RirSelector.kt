@@ -8,10 +8,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun RirSelector(value: Int?, onValueChange: (Int?) -> Unit) {
+fun RirSelector(value: Int?, enabled: Boolean = true, onValueChange: (Int?) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf("0" to 0, "1" to 1, "2" to 2, "3" to 3, "4+" to 4, "Не оценил" to null).forEach { (label, item) ->
-            FilterChip(selected = value == item, onClick = { onValueChange(item) }, label = { Text(label) })
+            FilterChip(selected = value == item, onClick = { onValueChange(item) }, enabled = enabled, label = { Text(label) })
         }
     }
 }
