@@ -60,7 +60,8 @@ class ProgramValidator(private val json: Json = StrictJson) {
     }
 
     private fun validateSemantics(program: ProgramDocument) {
-        require(program.schema == "sportzal.program" && program.schemaVersion == 1) { "unsupported schema" }
+        require(program.schema == "sportzal.program") { "wrong schema: expected sportzal.program" }
+        require(program.schemaVersion == 1) { "unsupported schema version: ${program.schemaVersion}" }
         require(program.programId.isNotBlank() && program.programVersion >= 1) { "invalid program identity" }
         Instant.parse(program.generatedAt)
         require(program.equipmentUpserts.map { it.equipmentId }.distinct().size == program.equipmentUpserts.size) {

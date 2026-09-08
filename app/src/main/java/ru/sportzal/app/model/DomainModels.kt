@@ -1,7 +1,14 @@
 package ru.sportzal.app.model
 
 data class TodayData(val activeProgramId: String?, val activeProgramVersion: Int?)
-data class WorkoutRuntime(val workoutId: String, val planSnapshotJson: String, val equipmentAtStartJson: String)
+data class WorkoutRuntime(
+    val workoutId: String,
+    val planSnapshotJson: String,
+    val equipmentAtStartJson: String,
+    val programId: String = "",
+    val programVersion: Int = 0,
+    val workoutInstanceId: String = "",
+)
 data class SnapshotSource(val programs: List<String>, val workouts: List<WorkoutRuntime>)
 
 enum class CompletionStatus { ACTIVE, COMPLETED, ENDED_EARLY }
