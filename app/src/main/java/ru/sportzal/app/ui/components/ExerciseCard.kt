@@ -38,7 +38,7 @@ fun ExerciseCard(
     var repsText by remember(state.exercise.exerciseInstanceId, slot?.plannedSetNo, draft?.reps) {
         mutableStateOf(draft?.reps?.toString().orEmpty())
     }
-    Card(Modifier.fillMaxWidth().focusGroup().onFocusChanged { onInteraction(it.hasFocus) }
+    Card(Modifier.fillMaxWidth().onFocusChanged { onInteraction(it.hasFocus) }.focusGroup()
         .testTag("exercise-${state.exercise.exerciseInstanceId}")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(state.exercise.title, style = MaterialTheme.typography.headlineSmall)

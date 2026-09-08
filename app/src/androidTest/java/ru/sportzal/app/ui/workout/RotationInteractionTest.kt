@@ -43,7 +43,7 @@ class RotationInteractionTest {
                 WorkoutScreen(ui, { "0:00" }, { id, weight, reps, rir, answered ->
                     drafts[id] = SetDraft(weight, reps, rir, drafts.getValue(id).context, answered)
                     publish()
-                }, { _, _ -> }, { focused ->
+                }, { _, _ -> }, { _, focused ->
                     if (focused) coordinator.beginInteraction() else coordinator.endInteraction()
                     publish()
                 }, { publish() })

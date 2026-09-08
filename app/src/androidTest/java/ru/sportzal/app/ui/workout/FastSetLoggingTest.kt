@@ -10,6 +10,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import org.junit.Assert.assertEquals
@@ -48,19 +49,19 @@ class FastSetLoggingTest {
                 val row = result(reps = ui.blocks.single().cards.single().draft!!.reps!!)
                 ui = ui.copy(blocks = listOf(ui.blocks.single().copy(cards = listOf(ExerciseUiState(exercise, slot(2), SetDraft(100.0, 7, null, slot(2).plannedContext), listOf(row), 120)))))
             }
-        }, {}, {}) } }
+        }, { _, _ -> }, {}) } }
 
         compose.onNodeWithText("Цель: 100 кг · 5–8 · RIR 2").assertIsDisplayed()
         compose.onNodeWithText("Ещё не записывали").assertIsDisplayed()
         compose.onNodeWithTag("rir-2").assertIsNotSelected()
         compose.onNodeWithTag("reps-instance").performTextClearance()
         compose.onNodeWithTag("reps-instance").performTextInput("7")
-        compose.onNodeWithTag("rir-2").performClick().assertIsSelected()
-        compose.onNodeWithTag("save-instance").performClick()
-        compose.onNodeWithText("1. 100 кг × 7 · RIR 2").assertIsDisplayed()
-        compose.onNodeWithText("Подход 2 · work").assertIsDisplayed()
-        compose.onNodeWithText("С записи: 0:00").assertIsDisplayed()
-        compose.onNodeWithTag("save-instance").performClick()
+        compose.onNodeWithTag("rir-2").performScrollTo().assertIsDisplayed().performClick().assertIsSelected()
+        compose.onNodeWithTag("save-instance").performScrollTo().assertIsDisplayed().performClick()
+        compose.onNodeWithText("1. 100 кг × 7 · RIR 2").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Подход 2 · work").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("С записи: 0:00").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("save-instance").performScrollTo().assertIsDisplayed().performClick()
         assertEquals("UI exposes only one fact for the planned slot", 1, ui.blocks.single().cards.single().saved.size)
     }
 
