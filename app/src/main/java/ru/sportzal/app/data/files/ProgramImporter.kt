@@ -3,6 +3,10 @@ package ru.sportzal.app.data.files
 import android.content.ContentResolver
 import android.net.Uri
 import java.io.InputStream
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
+import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.sportzal.app.data.repository.SportzalRepository
@@ -32,7 +36,12 @@ class ProgramImporter(
         } catch (error: Exception) {
             return@withContext ImportPreview.Error("Не удалось прочитать файл: ${error.message ?: "неизвестная ошибка"}")
         }
-        preview(bytes.toString(Charsets.UTF_8))
+        val source = try {
+            decodeUtf8Strict(bytes)
+        } catch (_: CharacterCodingException) {
+            return@withContext ImportPreview.Error("Файл не является корректным UTF-8")
+        }
+        preview(source)
     }
 
     suspend fun import(stream: InputStream): ImportPreview = withContext(Dispatchers.IO) {
@@ -41,7 +50,12 @@ class ProgramImporter(
         } catch (_: FileTooLargeException) {
             return@withContext ImportPreview.Error("Файл больше 10 МиБ")
         }
-        preview(bytes.toString(Charsets.UTF_8))
+        val source = try {
+            decodeUtf8Strict(bytes)
+        } catch (_: CharacterCodingException) {
+            return@withContext ImportPreview.Error("Файл не является корректным UTF-8")
+        }
+        preview(source)
     }
 
     fun preview(source: String): ImportPreview =
@@ -53,6 +67,13 @@ class ProgramImporter(
     suspend fun confirm(preview: ImportPreview.Valid): ImportResult = repository.importProgram(
         preview.program, preview.canonicalJson, preview.canonicalHash,
     )
+
+    private fun decodeUtf8Strict(bytes: ByteArray): String =
+        StandardCharsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+            .decode(ByteBuffer.wrap(bytes))
+            .toString()
 
     private fun readLimited(stream: InputStream): ByteArray {
         val output = java.io.ByteArrayOutputStream()

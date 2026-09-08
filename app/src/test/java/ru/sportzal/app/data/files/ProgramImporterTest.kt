@@ -63,4 +63,10 @@ class ProgramImporterTest {
         assertTrue(result is ImportPreview.Error)
         assertEquals(0, writes)
     }
+
+    @Test fun invalidUtf8IsRejectedBeforeDatabaseMutation() = runBlocking {
+        val result = importer.import(ByteArrayInputStream(byteArrayOf(0xC3.toByte(), 0x28)))
+        assertTrue(result is ImportPreview.Error)
+        assertEquals(0, writes)
+    }
 }
