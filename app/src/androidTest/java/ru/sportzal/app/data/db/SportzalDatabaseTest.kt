@@ -21,6 +21,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import ru.sportzal.app.data.repository.RoomSportzalRepository
+import ru.sportzal.app.domain.WorkoutService
 import ru.sportzal.app.model.BlockDocument
 import ru.sportzal.app.model.CancelEmptyResult
 import ru.sportzal.app.model.CompletionStatus
@@ -84,6 +85,17 @@ class SportzalDatabaseTest {
             assertThrows(IllegalStateException::class.java) {
                 runBlocking { repository.startWorkout("program", 1, "session") }
             }
+        }
+    }
+
+    @Test
+    fun recreatedWorkoutServiceResumesTheSameWorkoutId() {
+        runBlocking {
+            import(program())
+            val original = WorkoutService(repository).start("program", 1, "session")
+            val afterRecreation = WorkoutService(repository).start("program", 1, "session")
+            assertEquals(original, afterRecreation)
+            assertEquals(1, database.dao().workouts().count { it.completionStatus == "active" })
         }
     }
 

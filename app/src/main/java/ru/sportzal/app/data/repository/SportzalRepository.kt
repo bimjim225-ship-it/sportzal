@@ -303,13 +303,15 @@ class RoomSportzalRepository(
     }
 
     override fun observeActiveWorkout() = dao.observeActiveWorkout().map {
-        it?.let { workout -> WorkoutRuntime(workout.workoutId, workout.planSnapshotJson, workout.equipmentAtStartJson) }
+        it?.let { workout -> WorkoutRuntime(workout.workoutId, workout.planSnapshotJson, workout.equipmentAtStartJson,
+            workout.programId, workout.programVersion, workout.workoutInstanceId) }
     }
 
     override suspend fun snapshotSource(focusWorkoutId: String?) = SnapshotSource(
         dao.programs().map { it.canonicalJson },
         dao.workouts().filter { focusWorkoutId == null || it.workoutId == focusWorkoutId }.map {
-            WorkoutRuntime(it.workoutId, it.planSnapshotJson, it.equipmentAtStartJson)
+            WorkoutRuntime(it.workoutId, it.planSnapshotJson, it.equipmentAtStartJson,
+                it.programId, it.programVersion, it.workoutInstanceId)
         },
     )
 }
