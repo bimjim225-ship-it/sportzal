@@ -62,6 +62,7 @@ class WorkoutViewModel(
     private val sets = mutableListOf<SetResultEntity>()
     private val pending = mutableMapOf<Pair<String, Int>, SaveSetCommand>()
     private val rotations = mutableMapOf<String, RotationCoordinator>()
+    private val interactingCards = mutableMapOf<String, MutableSet<String>>()
 
     suspend fun open(workoutId: String) {
         val details = repository.workoutDetails(workoutId)
@@ -80,6 +81,7 @@ class WorkoutViewModel(
         }
         mutableState.value = mutableState.value.copy(workoutId = workoutId)
         rotations.clear()
+        interactingCards.clear()
         plan!!.blocks.filter { it.mode == "rotation" }.forEach { block ->
             rotations[block.blockId] = RotationCoordinator(runtimeCards(block.exercises)).also {
                 it.update(runtimeCards(block.exercises), readClock(), committed = true)
@@ -142,8 +144,20 @@ class WorkoutViewModel(
     }
 
     fun tick() { publish() }
-    fun beginInteraction() { rotations.values.forEach { it.beginInteraction() } }
-    fun endInteraction() { rotations.values.forEach { it.endInteraction() }; publish() }
+    fun setInteraction(exerciseId: String, interacting: Boolean) {
+        val block = plan?.blocks?.firstOrNull { candidate ->
+            candidate.mode == "rotation" && candidate.exercises.any { it.exerciseInstanceId == exerciseId }
+        } ?: return
+        val owners = interactingCards.getOrPut(block.blockId) { mutableSetOf() }
+        val wasInteracting = owners.isNotEmpty()
+        if (interacting) owners += exerciseId else owners -= exerciseId
+        val isInteracting = owners.isNotEmpty()
+        if (!wasInteracting && isInteracting) rotations[block.blockId]?.beginInteraction()
+        if (wasInteracting && !isInteracting) {
+            rotations[block.blockId]?.endInteraction()
+            publish()
+        }
+    }
     fun onForegroundReturn() { updateRotations(); publish() }
     fun onCommittedSkipOrDelete() { updateRotations(); publish() }
 

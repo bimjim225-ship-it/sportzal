@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
                     elapsedFor = { workoutViewModel.elapsedText(it) },
                     onDraft = { id, weight, reps, rir, answered -> scope.launch { workoutViewModel.updateDraft(id, weight, reps, rir, answered) } },
                     onSave = { id, setNo -> scope.launch { workoutViewModel.saveSet(id, setNo) } },
-                    onInteraction = { if (it) workoutViewModel.beginInteraction() else workoutViewModel.endInteraction() },
+                    onInteraction = workoutViewModel::setInteraction,
                     onTick = workoutViewModel::tick,
                 ) else TodayScreen(
                     selection = state.selection,
