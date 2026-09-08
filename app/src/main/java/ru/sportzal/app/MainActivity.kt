@@ -11,10 +11,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import kotlinx.coroutines.launch
 import ru.sportzal.app.ui.theme.SportzalTheme
 import ru.sportzal.app.ui.today.TodayScreen
 import ru.sportzal.app.ui.today.TodayViewModel
+import ru.sportzal.app.ui.workout.WorkoutScreen
+import ru.sportzal.app.ui.workout.WorkoutViewModel
 
 class MainActivity : ComponentActivity() {
     private var pickedUri by mutableStateOf<Uri?>(null)
@@ -28,11 +31,25 @@ class MainActivity : ComponentActivity() {
             SportzalTheme {
                 val scope = rememberCoroutineScope()
                 val state by viewModel.state.collectAsState()
+                val workoutViewModel = remember { WorkoutViewModel(container.repository, container.clockProvider) }
+                val workoutState by workoutViewModel.state.collectAsState()
+                var activeWorkoutId by remember { mutableStateOf<String?>(null) }
                 LaunchedEffect(Unit) { viewModel.refresh() }
+                LaunchedEffect(state.selection) {
+                    val id = (state.selection as? ru.sportzal.app.domain.TodaySelection.Resume)?.workout?.workoutId
+                    if (id != null) { activeWorkoutId = id; workoutViewModel.open(id) }
+                }
                 LaunchedEffect(pickedUri) {
                     pickedUri?.let { viewModel.preview(it) }
                 }
-                TodayScreen(
+                if (activeWorkoutId != null) WorkoutScreen(
+                    state = workoutState,
+                    elapsedFor = { workoutViewModel.elapsedText(it) },
+                    onDraft = { id, weight, reps, rir -> scope.launch { workoutViewModel.updateDraft(id, weight, reps, rir) } },
+                    onSave = { scope.launch { workoutViewModel.saveSet(it) } },
+                    onInteraction = { if (it) workoutViewModel.beginInteraction() else workoutViewModel.endInteraction() },
+                    onTick = workoutViewModel::tick,
+                ) else TodayScreen(
                     selection = state.selection,
                     manualChoices = state.manualChoices,
                     preview = state.preview,
@@ -43,7 +60,10 @@ class MainActivity : ComponentActivity() {
                     },
                     onChooseWorkout = { scope.launch { viewModel.chooseWorkout(it) } },
                     onStart = { scope.launch { viewModel.start() } },
-                    onResume = viewModel::resume,
+                    onResume = {
+                        val id = (state.selection as? ru.sportzal.app.domain.TodaySelection.Resume)?.workout?.workoutId
+                        if (id != null) { activeWorkoutId = id; scope.launch { workoutViewModel.open(id) } }
+                    },
                 )
             }
         }

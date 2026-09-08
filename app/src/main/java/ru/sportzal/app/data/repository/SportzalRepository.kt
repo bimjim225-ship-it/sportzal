@@ -31,6 +31,8 @@ import ru.sportzal.app.model.SnapshotSource
 import ru.sportzal.app.model.StrictJson
 import ru.sportzal.app.model.TodayData
 import ru.sportzal.app.model.WorkoutRuntime
+import ru.sportzal.app.model.WorkoutDetails
+import ru.sportzal.app.data.db.DraftEntity
 
 interface SportzalRepository {
     suspend fun importProgram(validated: ProgramDocument, canonicalJson: String, canonicalHash: String): ImportResult
@@ -38,6 +40,8 @@ interface SportzalRepository {
     suspend fun startWorkout(programId: String, programVersion: Int, workoutInstanceId: String): String
     suspend fun cancelEmptyWorkout(workoutId: String): CancelEmptyResult
     suspend fun saveSet(command: SaveSetCommand): SaveSetResult
+    suspend fun saveDraft(draft: DraftEntity)
+    suspend fun workoutDetails(workoutId: String): WorkoutDetails
     suspend fun editSet(command: EditSetCommand)
     suspend fun deleteSet(setResultId: String)
     suspend fun skipSet(command: SkipSetCommand)
@@ -218,6 +222,20 @@ class RoomSportzalRepository(
         )
         command.plannedSetNo?.let { dao.deleteDraft(command.workoutId, command.exerciseInstanceId, it) }
         SaveSetResult.Saved(command.setResultId, sequence, false)
+    }
+
+    override suspend fun saveDraft(draft: DraftEntity) = db.withTransaction {
+        requireActive(draft.workoutId)
+        dao.upsertDraft(draft)
+    }
+
+    override suspend fun workoutDetails(workoutId: String): WorkoutDetails = db.withTransaction {
+        val workout = checkNotNull(dao.workout(workoutId))
+        WorkoutDetails(
+            WorkoutRuntime(workout.workoutId, workout.planSnapshotJson, workout.equipmentAtStartJson,
+                workout.programId, workout.programVersion, workout.workoutInstanceId),
+            dao.sets(workoutId), dao.drafts(workoutId),
+        )
     }
 
     override suspend fun editSet(command: EditSetCommand) = db.withTransaction {

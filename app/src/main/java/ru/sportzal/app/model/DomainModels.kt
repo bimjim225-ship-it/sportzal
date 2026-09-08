@@ -9,6 +9,11 @@ data class WorkoutRuntime(
     val programVersion: Int = 0,
     val workoutInstanceId: String = "",
 )
+data class WorkoutDetails(
+    val runtime: WorkoutRuntime,
+    val sets: List<ru.sportzal.app.data.db.SetResultEntity>,
+    val drafts: List<ru.sportzal.app.data.db.DraftEntity>,
+)
 data class SnapshotSource(val programs: List<String>, val workouts: List<WorkoutRuntime>)
 
 enum class CompletionStatus { ACTIVE, COMPLETED, ENDED_EARLY }

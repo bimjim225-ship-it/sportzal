@@ -1,0 +1,169 @@
+package ru.sportzal.app.ui.workout
+
+import java.time.Instant
+import java.util.UUID
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.serialization.decodeFromString
+import ru.sportzal.app.data.db.DraftEntity
+import ru.sportzal.app.data.db.SetResultEntity
+import ru.sportzal.app.data.repository.SportzalRepository
+import ru.sportzal.app.domain.ActualContext
+import ru.sportzal.app.domain.ClockReading
+import ru.sportzal.app.domain.ExerciseRuntimeCard
+import ru.sportzal.app.domain.PlannedSlot
+import ru.sportzal.app.domain.PrefillResolver
+import ru.sportzal.app.domain.PreviousSetFact
+import ru.sportzal.app.domain.RotationCoordinator
+import ru.sportzal.app.domain.SetDraft
+import ru.sportzal.app.model.ClockAnchor
+import ru.sportzal.app.model.ExerciseDocument
+import ru.sportzal.app.model.PlannedWorkoutDocument
+import ru.sportzal.app.model.SaveSetCommand
+import ru.sportzal.app.model.SaveSetResult
+import ru.sportzal.app.model.StrictJson
+import ru.sportzal.app.model.elapsedBetween
+import ru.sportzal.app.platform.ClockProvider
+
+data class ExerciseUiState(
+    val exercise: ExerciseDocument,
+    val currentSlot: PlannedSlot?,
+    val draft: SetDraft?,
+    val saved: List<SetResultEntity>,
+)
+data class WorkoutUiState(
+    val workoutId: String = "",
+    val title: String = "",
+    val cards: List<ExerciseUiState> = emptyList(),
+    val now: ClockReading = ClockReading(Instant.EPOCH, null, null),
+    val saving: Boolean = false,
+    val error: String? = null,
+)
+
+/** Owns drafts, idempotent save attempts, progression and rotation ordering. */
+class WorkoutViewModel(
+    private val repository: SportzalRepository,
+    private val clock: ClockProvider,
+    private val newId: () -> String = { UUID.randomUUID().toString() },
+) {
+    private val mutableState = MutableStateFlow(WorkoutUiState())
+    val state: StateFlow<WorkoutUiState> = mutableState
+    private var plan: PlannedWorkoutDocument? = null
+    private val drafts = linkedMapOf<Pair<String, Int>, SetDraft>()
+    private val sets = mutableListOf<SetResultEntity>()
+    private val pending = mutableMapOf<Pair<String, Int>, SaveSetCommand>()
+    private var rotation: RotationCoordinator? = null
+
+    suspend fun open(workoutId: String) {
+        val details = repository.workoutDetails(workoutId)
+        plan = StrictJson.decodeFromString(details.runtime.planSnapshotJson)
+        sets.clear(); sets += details.sets
+        drafts.clear()
+        val byId = exercises().associateBy { it.exerciseInstanceId }
+        details.drafts.forEach { entity ->
+            val exercise = byId[entity.exerciseInstanceId] ?: return@forEach
+            drafts[entity.exerciseInstanceId to entity.plannedSetNo] = SetDraft(
+                entity.weightText.replace(',', '.').toDoubleOrNull(), entity.repsText.toIntOrNull(), entity.rir,
+                exercise.context(),
+            )
+        }
+        mutableState.value = mutableState.value.copy(workoutId = workoutId)
+        rotation = RotationCoordinator(runtimeCards())
+        publish()
+    }
+
+    suspend fun updateDraft(exerciseId: String, weight: Double?, reps: Int?, rir: Int?) {
+        val exercise = exercises().first { it.exerciseInstanceId == exerciseId }
+        val slot = currentSlot(exercise) ?: return
+        val value = SetDraft(if (exercise.loadBasis == "bodyweight") 0.0 else weight, reps, rir, exercise.context())
+        drafts[exerciseId to slot.plannedSetNo] = value
+        repository.saveDraft(DraftEntity(mutableState.value.workoutId, exerciseId, slot.plannedSetNo,
+            value.weightKg?.toString().orEmpty(), value.reps?.toString().orEmpty(), value.rir, null,
+            clock.wallNow().toString()))
+        publish()
+    }
+
+    suspend fun saveSet(exerciseId: String) {
+        if (mutableState.value.saving) return
+        val exercise = exercises().first { it.exerciseInstanceId == exerciseId }
+        val slot = currentSlot(exercise) ?: return
+        val key = exerciseId to slot.plannedSetNo
+        val draft = resolvedDraft(exercise, slot)
+        val weight = draft.weightKg ?: return fail("Введите вес")
+        val reps = draft.reps ?: return fail("Введите повторы")
+        // Created before entering repository/Room transaction, and retained on every retry.
+        val command = pending.getOrPut(key) {
+            val reading = readClock()
+            SaveSetCommand(newId(), mutableState.value.workoutId, exerciseId, slot.plannedSetNo, slot.setType,
+                exercise.exerciseId, exercise.title, exercise.equipmentId, null, exercise.setupHint,
+                exercise.loadBasis, exercise.side, weight, reps, draft.rir, reading.wall.toString(),
+                reading.bootId, reading.elapsedRealtimeMs)
+        }
+        mutableState.value = mutableState.value.copy(saving = true, error = null)
+        runCatching { repository.saveSet(command) }.onSuccess { result ->
+            when (result) {
+                is SaveSetResult.Saved -> {
+                    pending.remove(key); drafts.remove(key)
+                    // Re-read committed state: the row is not presented before commit.
+                    val details = repository.workoutDetails(command.workoutId)
+                    sets.clear(); sets += details.sets
+                    rotation?.update(runtimeCards(), readClock(), committed = true)
+                    publish()
+                }
+                is SaveSetResult.Conflict -> fail(result.message)
+            }
+        }.onFailure { fail(it.message ?: "Не удалось записать подход") }
+    }
+
+    fun tick() { publish() }
+    fun beginInteraction() { rotation?.beginInteraction() }
+    fun endInteraction() { rotation?.endInteraction(); publish() }
+    fun onForegroundReturn() { rotation?.update(runtimeCards(), readClock(), committed = true); publish() }
+    fun onCommittedSkipOrDelete() { rotation?.update(runtimeCards(), readClock(), committed = true); publish() }
+
+    private fun publish() {
+        val p = plan ?: return
+        val now = readClock()
+        rotation?.update(runtimeCards(), now)
+        val order = rotation?.cards?.map { it.exerciseInstanceId } ?: exercises().map { it.exerciseInstanceId }
+        val byId = exercises().associateBy { it.exerciseInstanceId }
+        mutableState.value = mutableState.value.copy(
+            title = p.title, now = now, saving = false,
+            cards = order.mapNotNull { id -> byId[id]?.let { ex ->
+                val slot = currentSlot(ex)
+                ExerciseUiState(ex, slot, slot?.let { resolvedDraft(ex, it) }, sets.filter { it.exerciseInstanceId == id })
+            } },
+        )
+    }
+
+    private fun fail(message: String) { mutableState.value = mutableState.value.copy(saving = false, error = message) }
+    private fun readClock() = ClockReading(clock.wallNow(), clock.bootIdOrNull(), clock.elapsedRealtimeMs())
+    private fun exercises() = plan?.blocks?.flatMap { it.exercises }.orEmpty()
+    private fun ExerciseDocument.context() = ActualContext(exerciseId, equipmentId, setupHint, loadBasis, side)
+    private fun ExerciseDocument.slots() = plannedSets.map { PlannedSlot(it.setNo, it.setType, it.targetWeightKg,
+        it.repsMin, it.repsMax, it.targetRir, it.restTargetSec, context()) }
+    private fun currentSlot(exercise: ExerciseDocument) = exercise.slots().firstOrNull { slot ->
+        sets.none { it.exerciseInstanceId == exercise.exerciseInstanceId && it.plannedSetNo == slot.plannedSetNo }
+    }
+    private fun resolvedDraft(exercise: ExerciseDocument, slot: PlannedSlot): SetDraft {
+        val slots = exercise.slots(); val index = slots.indexOf(slot); val previous = slots.getOrNull(index - 1)
+        val fact = previous?.let { prior -> sets.lastOrNull { it.exerciseInstanceId == exercise.exerciseInstanceId && it.plannedSetNo == prior.plannedSetNo } }
+        return PrefillResolver.resolve(slot, previous, fact?.let { PreviousSetFact(priorNo(it), it.weightKg, it.reps, it.rir,
+            ActualContext(it.exerciseIdActual, it.equipmentIdActual, it.setupActual, it.loadBasisActual, it.sideActual)) },
+            drafts[exercise.exerciseInstanceId to slot.plannedSetNo], exercise.context())
+    }
+    private fun priorNo(set: SetResultEntity) = requireNotNull(set.plannedSetNo)
+    private fun runtimeCards() = exercises().map { exercise ->
+        val own = sets.filter { it.exerciseInstanceId == exercise.exerciseInstanceId }
+        val latest = own.maxByOrNull { it.sequenceNo }
+        ExerciseRuntimeCard(exercise.exerciseInstanceId, exercise.plannedOrder, latest?.let {
+            ClockAnchor(Instant.parse(it.completedAt), it.bootId, it.elapsedRealtimeMs)
+        }, currentSlot(exercise) == null)
+    }
+
+    fun elapsedText(set: SetResultEntity?, now: ClockReading = state.value.now): String {
+        if (set == null) return "0:00"
+        val seconds = elapsedBetween(ClockAnchor(Instant.parse(set.completedAt), set.bootId, set.elapsedRealtimeMs), now.anchor()).duration.seconds
+        return "%d:%02d".format(seconds / 60, seconds % 60)
+    }
+}
