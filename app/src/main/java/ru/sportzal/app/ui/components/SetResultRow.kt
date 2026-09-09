@@ -2,8 +2,11 @@ package ru.sportzal.app.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -84,18 +87,25 @@ fun SetResultRow(
     val valid = parsedWeight != null && parsedWeight.isFinite() && parsedWeight >= 0 && parsedReps != null && parsedReps >= 0 &&
         (loadBasis != "bodyweight" || parsedWeight == 0.0)
     AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text("Подход ${result.plannedSetNo ?: result.sequenceNo}") },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        text = { Column(
+            modifier = Modifier.verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             OutlinedTextField(weight, { weight = it }, label = { Text("Вес") }, enabled = loadBasis != "bodyweight")
             OutlinedTextField(reps, { reps = it }, label = { Text("Повторы") }, modifier = Modifier.testTag("edit-reps"))
             OutlinedTextField(equipmentId, { value -> if (value != equipmentId) { equipmentId = value; weight = "" } },
                 label = { Text("ID оборудования") }, modifier = Modifier.testTag("edit-equipment-id"))
             OutlinedTextField(equipmentName, { equipmentName = it }, label = { Text("Название оборудования") })
             OutlinedTextField(setup, { setup = it }, label = { Text("Настройка / setup") }, modifier = Modifier.testTag("edit-setup"))
-            Row { loadBases.forEach { value -> FilterChip(loadBasis == value, { if (loadBasis != value) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                loadBases.forEach { value -> FilterChip(loadBasis == value, { if (loadBasis != value) {
                 loadBasis = value; weight = if (value == "bodyweight") "0" else ""
-            } }, { Text(value) }) } }
-            Row { listOf("bilateral", "left", "right").forEach { value -> FilterChip(side == value, { side = value }, { Text(value) }) } }
-            if (showRir) Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            } }, { Text(value) }) }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("bilateral", "left", "right").forEach { value -> FilterChip(side == value, { side = value }, { Text(value) }) }
+            }
+            if (showRir) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 (0..4).forEach { value -> FilterChip(rir == value, { rir = value }, { Text(if (value == 4) "4+" else "$value") }) }
                 FilterChip(rir == null, { rir = null }, { Text("Не оценил") })
             }
