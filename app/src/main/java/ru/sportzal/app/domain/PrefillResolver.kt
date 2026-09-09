@@ -1,12 +1,15 @@
 package ru.sportzal.app.domain
 
+import kotlinx.serialization.Serializable
+
 /** The identity of what the athlete is actually using for a set. */
-data class ActualContext(
+@Serializable data class ActualContext(
     val exerciseId: String,
     val equipmentId: String?,
     val setup: String?,
     val loadBasis: String,
     val side: String,
+    val equipmentName: String? = null,
 )
 
 data class PlannedSlot(
@@ -69,8 +72,7 @@ object PrefillResolver {
             previousPlannedSlot.targetRir == slot.targetRir &&
             previousPlannedSlot.restTargetSec == slot.restTargetSec
         val sameContext = previousFact.context == actualContext &&
-            previousPlannedSlot.plannedContext == slot.plannedContext &&
-            actualContext == slot.plannedContext
+            previousPlannedSlot.plannedContext == slot.plannedContext
         return if (adjacent && sameTarget && sameContext) {
             // RIR, deviations and notes describe one fact and never flow into another slot.
             SetDraft(previousFact.weightKg, previousFact.reps, null, actualContext)

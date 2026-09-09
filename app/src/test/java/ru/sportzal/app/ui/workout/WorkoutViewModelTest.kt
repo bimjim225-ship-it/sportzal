@@ -19,6 +19,8 @@ import org.junit.Test
 import ru.sportzal.app.data.repository.SportzalRepository
 import ru.sportzal.app.data.db.SetResultEntity
 import ru.sportzal.app.data.db.SkippedSetEntity
+import ru.sportzal.app.data.db.DraftEntity
+import ru.sportzal.app.domain.ActualContext
 import ru.sportzal.app.model.BlockDocument
 import ru.sportzal.app.model.ExerciseDocument
 import ru.sportzal.app.model.PlannedSetDocument
@@ -31,6 +33,78 @@ import ru.sportzal.app.model.WorkoutRuntime
 import ru.sportzal.app.platform.ClockProvider
 
 class WorkoutViewModelTest {
+    @Test fun `draft actual context is restored and equipment changes clear only incompatible weight`() = runBlocking {
+        val context = ActualContext("squat", "machine-b", "Сиденье 5", "external", "bilateral", "Machine B")
+        val draft = DraftEntity("workout", "instance", 1, "97.5", "7", null,
+            StrictJson.encodeToString(context), "2026-09-08T12:00:00Z")
+        var persisted = draft
+        val repository = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, method, args -> when (method.name) {
+                "workoutDetails" -> details(exercise()).copy(drafts = listOf(persisted))
+                "saveDraft" -> persisted = args!![0] as DraftEntity
+                else -> error("Unexpected ${method.name}")
+            } } as SportzalRepository
+        val vm = WorkoutViewModel(repository, fixedClock())
+        vm.open("workout")
+        assertEquals(context, vm.state.value.blocks.single().cards.single().draft!!.context)
+
+        val setupOnly = context.copy(setup = "Сиденье 6")
+        assertTrue(vm.updateActualContext("instance", setupOnly))
+        assertEquals(97.5, vm.state.value.blocks.single().cards.single().draft!!.weightKg!!, 0.0)
+        val changed = setupOnly.copy(equipmentId = "machine-c", equipmentName = "Machine C")
+        assertTrue(vm.updateActualContext("instance", changed))
+        assertNull(vm.state.value.blocks.single().cards.single().draft!!.weightKg)
+
+        vm.open("workout")
+        assertEquals(changed, vm.state.value.blocks.single().cards.single().draft!!.context)
+    }
+
+    @Test fun `extra set uses null planned slot next sequence and does not consume planned slot`() = runBlocking {
+        var current = details(exercise())
+        var command: SaveSetCommand? = null
+        val repository = repository({ current }) { value ->
+            command = value
+            current = current.copy(sets = listOf(entity(value).copy(sequenceNo = 4)))
+            SaveSetResult.Saved(value.setResultId, 4, false)
+        }
+        val vm = WorkoutViewModel(repository, fixedClock()) { "extra-id" }
+        vm.open("workout")
+        assertTrue(vm.saveExtraSet("instance", "work", 110.0, 4, null, "bonus"))
+        assertNull(command!!.plannedSetNo)
+        assertEquals("extra-id", command!!.setResultId)
+        val card = vm.state.value.blocks.single().cards.single()
+        assertEquals(1, card.currentSlot!!.plannedSetNo)
+        assertEquals(4, card.saved.single().sequenceNo)
+    }
+
+    @Test fun `saved substitution becomes the next planned slot actual context`() = runBlocking {
+        val exercise = exercise(sets = listOf(
+            PlannedSetDocument(1, "work", 100.0, 5, 5, null, 60),
+            PlannedSetDocument(2, "work", 100.0, 5, 5, null, 60)))
+        var current = details(exercise, listOf(
+            ru.sportzal.app.model.EquipmentDocument("rack", "Rack", null),
+            ru.sportzal.app.model.EquipmentDocument("machine-b", "Machine B", "Сиденье 5")))
+        val commands = mutableListOf<SaveSetCommand>()
+        val vm = WorkoutViewModel(repository({ current }) { command ->
+            commands += command
+            current = current.copy(sets = current.sets + entity(command).copy(sequenceNo = current.sets.size + 1))
+            SaveSetResult.Saved(command.setResultId, current.sets.size, false)
+        }, fixedClock())
+        vm.open("workout")
+        vm.updateActualContext("instance", ActualContext("squat", "machine-b", "Сиденье 5", "external",
+            "bilateral", "Machine B"))
+        assertNull(vm.state.value.blocks.single().cards.single().draft!!.weightKg)
+        vm.updateDraft("instance", 97.5, 7, null, false)
+        vm.saveSet("instance", 1)
+        assertEquals("machine-b", commands.single().equipmentIdActual)
+        assertEquals("Machine B", commands.single().equipmentNameActual)
+        assertEquals("Сиденье 5", commands.single().setupActual)
+        val next = vm.state.value.blocks.single().cards.single()
+        assertEquals(2, next.currentSlot!!.plannedSetNo)
+        assertEquals("machine-b", next.draft!!.context.equipmentId)
+        assertEquals("Сиденье 5", next.draft.context.setup)
+    }
+
     @Test fun `overlapping focus and overlay owners defer committed rotation until final release`() = runBlocking {
         fun rotationExercise(id: String, order: Int) = ExerciseDocument(id, id, id.uppercase(), null, null,
             "external", "bilateral", order, "none",
@@ -201,6 +275,12 @@ class WorkoutViewModelTest {
 
         vm.open("workout")
 
+        assertEquals(listOf("a", "b", "c"), vm.state.value.blocks.map { it.blockId })
+        vm.setInteraction("straight", InteractionSource.FOCUS, true)
+        vm.setInteraction("straight", InteractionSource.FOCUS, false)
+        assertTrue(vm.state.value.blocks.flatMap { it.cards }.all { it.skipped.isEmpty() })
+        assertEquals(2, vm.state.value.blocks[1].cards.single().exercise.plannedSets.size)
+        assertEquals(1, vm.state.value.blocks[1].cards.single().exercise.plannedOrder)
         assertEquals(listOf("a", "b", "c"), vm.state.value.blocks.map { it.blockId })
         assertEquals(listOf("a-never", "a-started"), vm.state.value.blocks[0].cards.map { it.exercise.exerciseInstanceId })
         assertEquals(listOf("straight"), vm.state.value.blocks[1].cards.map { it.exercise.exerciseInstanceId })

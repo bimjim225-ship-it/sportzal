@@ -65,6 +65,11 @@ class MainActivity : ComponentActivity() {
                     onSkip = { id, setNo, reason, note, completed -> scope.launch {
                         completed(workoutViewModel.skipSet(id, setNo, reason, note)) } },
                     onRestore = { id, setNo -> scope.launch { workoutViewModel.restoreSkippedSet(id, setNo) } },
+                    onContext = { id, context, completed -> scope.launch { completed(workoutViewModel.updateActualContext(id, context)) } },
+                    onExtra = { id, type, weight, reps, rir, note, completed -> scope.launch {
+                        completed(workoutViewModel.saveExtraSet(id, type, weight, reps, rir, note)) } },
+                    onEditActual = { id, weight, reps, rir, deviations, note, context, completed -> scope.launch {
+                        completed(workoutViewModel.editSet(id, weight, reps, rir, deviations, note, context)) } },
                     onInteraction = workoutViewModel::setInteraction,
                     onTick = workoutViewModel::tick,
                 ) else TodayScreen(

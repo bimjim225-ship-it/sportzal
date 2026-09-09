@@ -210,6 +210,12 @@ class SportzalDatabaseTest {
             }
 
             assertTrue(repository.saveSet(setCommand("extra", id, null)) is SaveSetResult.Saved)
+            assertNull(database.dao().set("extra")!!.plannedSetNo)
+            assertTrue(repository.saveSet(setCommand("planned-after-extra", id, 1)) is SaveSetResult.Saved)
+            assertEquals(listOf(1, 2), database.dao().sets(id).map { it.sequenceNo })
+            assertThrows(IllegalStateException::class.java) {
+                runBlocking { repository.saveSet(setCommand("unknown-extra", id, null, exerciseId = "unknown")) }
+            }
         }
     }
 
@@ -308,10 +314,14 @@ class SportzalDatabaseTest {
         repository.saveSet(setCommand("two", id, 2))
         val before = database.dao().set("one")!!
         repository.editSet(EditSetCommand("one", 12.5, 7, 3, "edited",
-            listOf("technique_changed", "discomfort"), " note "))
+            listOf("technique_changed", "discomfort"), " note ", "machine-b",
+            "Machine B", "Сиденье 5", "machine_display", "left"))
         val edited = database.dao().set("one")!!
         assertEquals(before.copy(weightKg = 12.5, reps = 7, rir = 3, editedAt = "edited",
-            deviationsJson = "[\"technique_changed\",\"discomfort\"]", note = "note"), edited)
+            deviationsJson = "[\"technique_changed\",\"discomfort\"]", note = "note",
+            equipmentIdActual = "machine-b", equipmentNameActual = "Machine B", setupActual = "Сиденье 5",
+            loadBasisActual = "machine_display", sideActual = "left"), edited)
+        assertEquals(before.completedAt, edited.completedAt)
 
         repository.deleteSet("one")
         assertEquals(listOf(2), database.dao().sets(id).map { it.sequenceNo })

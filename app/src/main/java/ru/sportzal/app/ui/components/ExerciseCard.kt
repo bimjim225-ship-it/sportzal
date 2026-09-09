@@ -13,6 +13,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +28,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import ru.sportzal.app.ui.workout.ExerciseUiState
 import ru.sportzal.app.ui.workout.InteractionSource
+import ru.sportzal.app.domain.ActualContext
+import java.util.UUID
 
 @Composable
 fun ExerciseCard(
@@ -38,6 +43,9 @@ fun ExerciseCard(
     onDelete: (String, (Boolean) -> Unit) -> Unit,
     onSkip: (Int, String?, String?, (Boolean) -> Unit) -> Unit,
     onRestore: (Int) -> Unit,
+    onContext: (ActualContext, (Boolean) -> Unit) -> Unit = { _, _ -> },
+    onExtra: (String, Double, Int, Int?, String?, (Boolean) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
+    onEditActual: ((String, Double, Int, Int?, List<String>, String?, ActualContext, (Boolean) -> Unit) -> Unit)? = null,
 ) {
     val slot = state.currentSlot
     val draft = state.draft
@@ -48,17 +56,32 @@ fun ExerciseCard(
         mutableStateOf(draft?.reps?.toString().orEmpty())
     }
     var skipDialog by remember { mutableStateOf(false) }
+    var secondaryMenu by remember { mutableStateOf(false) }
+    var contextDialog by remember { mutableStateOf(false) }
+    var extraDialog by remember { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth().onFocusChanged { onInteraction(InteractionSource.FOCUS, it.hasFocus) }.focusGroup()
         .testTag("exercise-${state.exercise.exerciseInstanceId}")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(state.exercise.title, style = MaterialTheme.typography.headlineSmall)
-            Text(listOfNotNull(state.exercise.equipmentId, slot?.plannedContext?.setup, state.exercise.loadBasis, state.exercise.side).joinToString(" · "))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(state.exercise.title, style = MaterialTheme.typography.headlineSmall)
+                IconButton({ secondaryMenu = true }, enabled = !saving, modifier = Modifier.testTag("secondary-${state.exercise.exerciseInstanceId}")) { Text("⋮") }
+                DropdownMenu(secondaryMenu, onDismissRequest = { secondaryMenu = false }) {
+                    DropdownMenuItem({ Text("Изменить оборудование / настройку") }, { secondaryMenu = false; contextDialog = true; onInteraction(InteractionSource.CONTEXT_DIALOG, true) })
+                    DropdownMenuItem({ Text("Дополнительный подход") }, { secondaryMenu = false; extraDialog = true; onInteraction(InteractionSource.EXTRA_SET_DIALOG, true) })
+                }
+            }
+            Text(listOfNotNull(draft?.context?.equipmentName ?: draft?.context?.equipmentId,
+                draft?.context?.setup, draft?.context?.loadBasis, draft?.context?.side).joinToString(" · "))
             Text("Подходы: ${state.saved.size}/${state.exercise.plannedSets.size}")
             state.saved.forEach { result -> SetResultRow(result, saving, requiresRir(state, result.plannedSetNo), onInteraction,
                 { weight, reps, rir, deviations, note, completed ->
                     onEdit(result.setResultId, weight, reps, rir, deviations, note, completed)
                 },
-                { completed -> onDelete(result.setResultId, completed) }) }
+                { completed -> onDelete(result.setResultId, completed) },
+                { weight, reps, rir, deviations, note, context, completed ->
+                    if (onEditActual != null) onEditActual(result.setResultId, weight, reps, rir, deviations, note, context, completed)
+                    else onEdit(result.setResultId, weight, reps, rir, deviations, note, completed)
+                }) }
             state.skipped.sortedBy { it.plannedSetNo }.forEach { skipped ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("${skipped.plannedSetNo}. Пропущено" + (skipped.reason?.let { " · ${skipReasonLabels[it] ?: it}" } ?: ""))
@@ -76,7 +99,7 @@ fun ExerciseCard(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NumericField(weightText, "Вес", NumericKind.WEIGHT, {
                         weightText = it; onDraft(parseNumeric(it, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), draft.rir, draft.rirAnswered)
-                    }, Modifier.testTag("weight-${state.exercise.exerciseInstanceId}"), enabled = !saving && state.exercise.loadBasis != "bodyweight")
+                    }, Modifier.testTag("weight-${state.exercise.exerciseInstanceId}"), enabled = !saving && draft.context.loadBasis != "bodyweight")
                     NumericField(repsText, "Повторы", NumericKind.REPS, {
                         repsText = it; onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(it, NumericKind.REPS)?.toInt(), draft.rir, draft.rirAnswered)
                     }, Modifier.testTag("reps-${state.exercise.exerciseInstanceId}"), enabled = !saving)
@@ -102,6 +125,65 @@ fun ExerciseCard(
             }
         }
     }
+    if (contextDialog && draft != null) ActualContextDialog(draft.context, state.equipmentChoices, saving, {
+        contextDialog = false; onInteraction(InteractionSource.CONTEXT_DIALOG, false)
+    }) { context -> onContext(context) { committed -> if (committed) {
+        contextDialog = false; onInteraction(InteractionSource.CONTEXT_DIALOG, false)
+    } } }
+    if (extraDialog && draft != null) ExtraSetDialog(draft.context, saving, {
+        extraDialog = false; onInteraction(InteractionSource.EXTRA_SET_DIALOG, false)
+    }) { type, weight, reps, rir, note -> onExtra(type, weight, reps, rir, note) { committed -> if (committed) {
+        extraDialog = false; onInteraction(InteractionSource.EXTRA_SET_DIALOG, false)
+    } } }
+}
+
+private val loadBases = listOf("machine_display", "total_external", "per_hand", "assistance", "bodyweight")
+
+@Composable private fun ActualContextDialog(current: ActualContext, equipment: List<ru.sportzal.app.model.EquipmentDocument>,
+    saving: Boolean, onDismiss: () -> Unit, onSave: (ActualContext) -> Unit) {
+    var selectedId by remember { mutableStateOf(current.equipmentId) }
+    var manual by remember { mutableStateOf(current.equipmentId?.startsWith("local:") == true) }
+    var manualId by remember { mutableStateOf(current.equipmentId?.takeIf { it.startsWith("local:") } ?: "local:${UUID.randomUUID()}") }
+    var name by remember { mutableStateOf(current.equipmentName.orEmpty()) }
+    var setup by remember { mutableStateOf(current.setup.orEmpty()) }
+    var basis by remember { mutableStateOf(current.loadBasis) }
+    AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text("Оборудование и настройка") }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            equipment.forEach { item -> FilterChip(!manual && selectedId == item.equipmentId, {
+                manual = false; selectedId = item.equipmentId; name = item.name; setup = item.setupHint.orEmpty()
+            }, { Text(item.name) }, modifier = Modifier.testTag("equipment-${item.equipmentId}")) }
+            FilterChip(manual, { manual = true; selectedId = manualId }, { Text("Другое оборудование") })
+            if (manual) OutlinedTextField(name, { name = it }, label = { Text("Название") }, modifier = Modifier.testTag("manual-equipment-name"))
+            OutlinedTextField(setup, { setup = it }, label = { Text("Настройка / setup") }, modifier = Modifier.testTag("actual-setup"))
+            if (manual) loadBases.forEach { value -> FilterChip(basis == value, { basis = value }, { Text(value) }) }
+        }
+    }, dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } }, confirmButton = {
+        TextButton({ onSave(current.copy(equipmentId = if (manual) manualId else selectedId,
+            equipmentName = name.trim().ifEmpty { null }, setup = setup.trim().ifEmpty { null }, loadBasis = basis)) },
+            enabled = !saving && (!manual || name.isNotBlank()), modifier = Modifier.testTag("save-context")) { Text("Сохранить") }
+    })
+}
+
+@Composable private fun ExtraSetDialog(context: ActualContext, saving: Boolean, onDismiss: () -> Unit,
+    onSave: (String, Double, Int, Int?, String?) -> Unit) {
+    var weight by remember { mutableStateOf(if (context.loadBasis == "bodyweight") "0" else "") }
+    var reps by remember { mutableStateOf("") }; var rir by remember { mutableStateOf<Int?>(null) }
+    var type by remember { mutableStateOf("work") }; var note by remember { mutableStateOf("") }
+    val w = weight.replace(',', '.').toDoubleOrNull(); val r = reps.toIntOrNull()
+    AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text("Дополнительный подход") }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(listOfNotNull(context.equipmentName ?: context.equipmentId, context.setup).joinToString(" · "))
+            OutlinedTextField(weight, { weight = it }, label = { Text("Вес") }, enabled = context.loadBasis != "bodyweight", modifier = Modifier.testTag("extra-weight"))
+            OutlinedTextField(reps, { reps = it }, label = { Text("Повторы") }, modifier = Modifier.testTag("extra-reps"))
+            Row { listOf("work", "warmup").forEach { value -> FilterChip(type == value, { type = value }, { Text(value) }) } }
+            Row { (0..4).forEach { value -> FilterChip(rir == value, { rir = value }, { Text(if (value == 4) "4+" else "$value") }) }
+                FilterChip(rir == null, { rir = null }, { Text("Не оценил") }) }
+            OutlinedTextField(note, { note = it }, label = { Text("Комментарий") })
+        }
+    }, dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } }, confirmButton = {
+        TextButton({ onSave(type, w!!, r!!, rir, note.trim().ifEmpty { null }) }, enabled = !saving && w != null && w >= 0 && r != null && r >= 0,
+            modifier = Modifier.testTag("save-extra")) { Text("Записать") }
+    })
 }
 
 private fun requiresRir(state: ExerciseUiState, setNo: Int? = state.currentSlot?.plannedSetNo): Boolean = when (state.exercise.rirCapture) {
