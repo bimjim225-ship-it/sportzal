@@ -24,6 +24,7 @@ import kotlinx.serialization.decodeFromString
 import ru.sportzal.app.data.db.SetResultEntity
 import ru.sportzal.app.model.StrictJson
 import ru.sportzal.app.ui.workout.InteractionSource
+import ru.sportzal.app.domain.ActualContext
 
 internal val deviationLabels = linkedMapOf(
     "range_shortened" to "Амплитуда сокращена", "technique_changed" to "Техника изменилась",
@@ -39,6 +40,7 @@ fun SetResultRow(
     onInteraction: (InteractionSource, Boolean) -> Unit,
     onEdit: (Double, Int, Int?, List<String>, String?, (Boolean) -> Unit) -> Unit,
     onDelete: ((Boolean) -> Unit) -> Unit,
+    onEditContext: (Double, Int, Int?, List<String>, String?, ActualContext, (Boolean) -> Unit) -> Unit = { _, _, _, _, _, _, _ -> },
 ) {
     var menu by remember { mutableStateOf(false) }
     var edit by remember { mutableStateOf(false) }
@@ -53,8 +55,8 @@ fun SetResultRow(
             DropdownMenuItem({ Text("Удалить") }, { menu = false; confirmDelete = true })
         }
     }
-    if (edit) EditSetDialog(result, showRir, saving, ::closeAll) { weight, reps, rir, deviations, note ->
-        onEdit(weight, reps, rir, deviations, note) { committed -> if (committed) closeAll() }
+    if (edit) EditSetDialog(result, showRir, saving, ::closeAll) { weight, reps, rir, deviations, note, context ->
+        onEditContext(weight, reps, rir, deviations, note, context) { committed -> if (committed) closeAll() }
     }
     if (confirmDelete) AlertDialog(onDismissRequest = { if (!saving) closeAll() }, title = { Text("Удалить этот подход?") },
         text = { Text("Подход снова станет незаполненным.") },
@@ -65,21 +67,34 @@ fun SetResultRow(
 
 @Composable private fun EditSetDialog(
     result: SetResultEntity, showRir: Boolean, saving: Boolean, onDismiss: () -> Unit,
-    onSave: (Double, Int, Int?, List<String>, String?) -> Unit,
+    onSave: (Double, Int, Int?, List<String>, String?, ActualContext) -> Unit,
 ) {
     var weight by remember { mutableStateOf(result.weightKg.g) }
     var reps by remember { mutableStateOf(result.reps.toString()) }
     var rir by remember { mutableStateOf(result.rir) }
     var deviations by remember { mutableStateOf(runCatching { StrictJson.decodeFromString<List<String>>(result.deviationsJson) }.getOrDefault(emptyList()).toSet()) }
     var note by remember { mutableStateOf(result.note.orEmpty()) }
+    var equipmentId by remember { mutableStateOf(result.equipmentIdActual.orEmpty()) }
+    var equipmentName by remember { mutableStateOf(result.equipmentNameActual.orEmpty()) }
+    var setup by remember { mutableStateOf(result.setupActual.orEmpty()) }
+    var loadBasis by remember { mutableStateOf(result.loadBasisActual) }
+    var side by remember { mutableStateOf(result.sideActual) }
     val parsedWeight = weight.replace(',', '.').toDoubleOrNull()
     val parsedReps = reps.toIntOrNull()
     val valid = parsedWeight != null && parsedWeight.isFinite() && parsedWeight >= 0 && parsedReps != null && parsedReps >= 0 &&
-        (result.loadBasisActual != "bodyweight" || parsedWeight == 0.0)
+        (loadBasis != "bodyweight" || parsedWeight == 0.0)
     AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text("Подход ${result.plannedSetNo ?: result.sequenceNo}") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(weight, { weight = it }, label = { Text("Вес") }, enabled = result.loadBasisActual != "bodyweight")
+            OutlinedTextField(weight, { weight = it }, label = { Text("Вес") }, enabled = loadBasis != "bodyweight")
             OutlinedTextField(reps, { reps = it }, label = { Text("Повторы") }, modifier = Modifier.testTag("edit-reps"))
+            OutlinedTextField(equipmentId, { value -> if (value != equipmentId) { equipmentId = value; weight = "" } },
+                label = { Text("ID оборудования") }, modifier = Modifier.testTag("edit-equipment-id"))
+            OutlinedTextField(equipmentName, { equipmentName = it }, label = { Text("Название оборудования") })
+            OutlinedTextField(setup, { setup = it }, label = { Text("Настройка / setup") }, modifier = Modifier.testTag("edit-setup"))
+            Row { loadBases.forEach { value -> FilterChip(loadBasis == value, { if (loadBasis != value) {
+                loadBasis = value; weight = if (value == "bodyweight") "0" else ""
+            } }, { Text(value) }) } }
+            Row { listOf("bilateral", "left", "right").forEach { value -> FilterChip(side == value, { side = value }, { Text(value) }) } }
             if (showRir) Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 (0..4).forEach { value -> FilterChip(rir == value, { rir = value }, { Text(if (value == 4) "4+" else "$value") }) }
                 FilterChip(rir == null, { rir = null }, { Text("Не оценил") })
@@ -91,8 +106,12 @@ fun SetResultRow(
             OutlinedTextField(note, { note = it }, label = { Text("Комментарий") })
         } },
         dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } },
-        confirmButton = { TextButton({ onSave(parsedWeight!!, parsedReps!!, rir, deviations.toList(), note) },
+        confirmButton = { TextButton({ onSave(parsedWeight!!, parsedReps!!, rir, deviations.toList(), note,
+            ActualContext(result.exerciseIdActual, equipmentId.trim().ifEmpty { null }, setup.trim().ifEmpty { null },
+                loadBasis, side, equipmentName.trim().ifEmpty { null })) },
             enabled = valid && !saving, modifier = Modifier.testTag("save-edit")) { Text("Сохранить") } })
 }
+
+private val loadBases = listOf("machine_display", "total_external", "per_hand", "assistance", "bodyweight")
 
 private val Double.g: String get() = if (this % 1.0 == 0.0) toInt().toString() else toString()

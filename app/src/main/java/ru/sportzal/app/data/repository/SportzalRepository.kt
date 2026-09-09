@@ -244,7 +244,7 @@ class RoomSportzalRepository(
         require(command.weightKg.isFinite() && command.weightKg >= 0) { "Weight must be finite and non-negative" }
         require(command.reps >= 0) { "Reps must be non-negative" }
         require(command.rir == null || command.rir in 0..4) { "RIR must be between 0 and 4" }
-        require(old.loadBasisActual != "bodyweight" || command.weightKg == 0.0) { "Bodyweight load must remain zero" }
+        require(command.loadBasisActual != "bodyweight" || command.weightKg == 0.0) { "Bodyweight load must remain zero" }
         val deviations = command.deviations.distinct()
         require(deviations.size == command.deviations.size && deviations.all { it in DEVIATIONS }) {
             "Unknown or duplicate deviation"
@@ -257,6 +257,11 @@ class RoomSportzalRepository(
                 editedAt = command.editedAt,
                 deviationsJson = StrictJson.encodeToString(deviations),
                 note = command.note?.trim()?.ifEmpty { null },
+                equipmentIdActual = command.equipmentIdActual,
+                equipmentNameActual = command.equipmentNameActual,
+                setupActual = command.setupActual,
+                loadBasisActual = command.loadBasisActual,
+                sideActual = command.sideActual,
             ),
         )
     }

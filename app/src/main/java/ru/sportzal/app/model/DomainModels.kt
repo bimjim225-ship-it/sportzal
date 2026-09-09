@@ -68,6 +68,11 @@ data class EditSetCommand(
     val editedAt: String,
     val deviations: List<String>,
     val note: String?,
+    val equipmentIdActual: String?,
+    val equipmentNameActual: String?,
+    val setupActual: String?,
+    val loadBasisActual: String,
+    val sideActual: String,
 )
 
 data class SkipSetCommand(
