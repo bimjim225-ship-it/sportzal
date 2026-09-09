@@ -53,7 +53,7 @@ class WorkoutCorrectionsTest {
         var ui by mutableStateOf(workout(saved = listOf(result())))
         val interactions = mutableListOf<Boolean>()
         compose.setContent { SportzalTheme { WorkoutScreen(ui, { "0:00" }, { _, _, _, _, _ -> }, { _, _ -> },
-            { _, active -> interactions += active }, {}, onEdit = { _, _, _, _, _, _, completed -> completed(false) }) } }
+            { _, _, active -> interactions += active }, {}, onEdit = { _, _, _, _, _, _, completed -> completed(false) }) } }
         compose.onNodeWithTag("set-actions-set-1").performClick()
         compose.onNodeWithText("Изменить").performClick()
         compose.onNodeWithTag("edit-reps").performTextClearance()
@@ -113,7 +113,7 @@ class WorkoutCorrectionsTest {
     @Composable
     private fun content(state: WorkoutUiState, update: (WorkoutUiState) -> Unit, interactions: MutableList<Boolean>) {
         SportzalTheme { WorkoutScreen(state, { "0:00" }, { _, _, _, _, _ -> }, { _, _ -> },
-            { _, active -> interactions += active }, {},
+            { _, _, active -> interactions += active }, {},
             onEdit = { id, weight, reps, rir, deviations, note, completed ->
                 val card = state.card()
                 update(state.withCard(card.copy(saved = card.saved.map { if (it.setResultId == id) it.copy(

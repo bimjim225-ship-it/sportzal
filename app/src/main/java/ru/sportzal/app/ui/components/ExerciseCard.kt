@@ -24,6 +24,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import ru.sportzal.app.ui.workout.ExerciseUiState
+import ru.sportzal.app.ui.workout.InteractionSource
 
 @Composable
 fun ExerciseCard(
@@ -32,7 +33,7 @@ fun ExerciseCard(
     saving: Boolean,
     onDraft: (Double?, Int?, Int?, Boolean) -> Unit,
     onSave: () -> Unit,
-    onInteraction: (Boolean) -> Unit,
+    onInteraction: (InteractionSource, Boolean) -> Unit,
     onEdit: (String, Double, Int, Int?, List<String>, String?, (Boolean) -> Unit) -> Unit,
     onDelete: (String, (Boolean) -> Unit) -> Unit,
     onSkip: (Int, String?, String?, (Boolean) -> Unit) -> Unit,
@@ -47,7 +48,7 @@ fun ExerciseCard(
         mutableStateOf(draft?.reps?.toString().orEmpty())
     }
     var skipDialog by remember { mutableStateOf(false) }
-    Card(Modifier.fillMaxWidth().onFocusChanged { onInteraction(it.hasFocus) }.focusGroup()
+    Card(Modifier.fillMaxWidth().onFocusChanged { onInteraction(InteractionSource.FOCUS, it.hasFocus) }.focusGroup()
         .testTag("exercise-${state.exercise.exerciseInstanceId}")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(state.exercise.title, style = MaterialTheme.typography.headlineSmall)
@@ -86,18 +87,18 @@ fun ExerciseCard(
                 Button(onClick = onSave, enabled = !saving, modifier = Modifier.testTag("save-${state.exercise.exerciseInstanceId}")) {
                     Text("Записать подход")
                 }
-                TextButton({ skipDialog = true; onInteraction(true) }, enabled = !saving,
+                TextButton({ skipDialog = true; onInteraction(InteractionSource.SKIP_DIALOG, true) }, enabled = !saving,
                     modifier = Modifier.testTag("skip-${state.exercise.exerciseInstanceId}")) { Text("Пропустить подход") }
             } else Text("Все подходы записаны")
         }
     }
     if (skipDialog && slot != null) SkipSetDialog(saving, {
-        skipDialog = false; onInteraction(false)
+        skipDialog = false; onInteraction(InteractionSource.SKIP_DIALOG, false)
     }) { reason, note ->
         onSkip(slot.plannedSetNo, reason, note) { committed ->
             if (committed) {
                 skipDialog = false
-                onInteraction(false)
+                onInteraction(InteractionSource.SKIP_DIALOG, false)
             }
         }
     }

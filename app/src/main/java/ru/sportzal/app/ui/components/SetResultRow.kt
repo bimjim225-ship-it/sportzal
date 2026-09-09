@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.serialization.decodeFromString
 import ru.sportzal.app.data.db.SetResultEntity
 import ru.sportzal.app.model.StrictJson
+import ru.sportzal.app.ui.workout.InteractionSource
 
 internal val deviationLabels = linkedMapOf(
     "range_shortened" to "Амплитуда сокращена", "technique_changed" to "Техника изменилась",
@@ -35,17 +36,17 @@ fun SetResultRow(
     result: SetResultEntity,
     saving: Boolean,
     showRir: Boolean,
-    onInteraction: (Boolean) -> Unit,
+    onInteraction: (InteractionSource, Boolean) -> Unit,
     onEdit: (Double, Int, Int?, List<String>, String?, (Boolean) -> Unit) -> Unit,
     onDelete: ((Boolean) -> Unit) -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
     var edit by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
-    fun closeAll() { menu = false; edit = false; confirmDelete = false; onInteraction(false) }
+    fun closeAll() { menu = false; edit = false; confirmDelete = false; onInteraction(InteractionSource.SET_ACTIONS, false) }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text("${result.plannedSetNo}. ${result.weightKg.g} кг × ${result.reps}" + (result.rir?.let { " · RIR ${it.rirText()}" } ?: ""))
-        IconButton({ menu = true; onInteraction(true) }, enabled = !saving,
+        IconButton({ menu = true; onInteraction(InteractionSource.SET_ACTIONS, true) }, enabled = !saving,
             modifier = Modifier.testTag("set-actions-${result.setResultId}")) { Text("⋮") }
         DropdownMenu(menu, onDismissRequest = ::closeAll) {
             DropdownMenuItem({ Text("Изменить") }, { menu = false; edit = true })

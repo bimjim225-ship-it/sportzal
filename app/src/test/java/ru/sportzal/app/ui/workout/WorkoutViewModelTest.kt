@@ -31,6 +31,38 @@ import ru.sportzal.app.model.WorkoutRuntime
 import ru.sportzal.app.platform.ClockProvider
 
 class WorkoutViewModelTest {
+    @Test fun `overlapping focus and overlay owners defer committed rotation until final release`() = runBlocking {
+        fun rotationExercise(id: String, order: Int) = ExerciseDocument(id, id, id.uppercase(), null, null,
+            "external", "bilateral", order, "none",
+            listOf(PlannedSetDocument(1, "work", 10.0, 1, 1, null, 60)))
+        val plan = PlannedWorkoutDocument("planned", "template", "Workout", "2026-09-08", listOf(
+            BlockDocument("rotation", "Rotation", "rotation", listOf(rotationExercise("a", 1), rotationExercise("b", 2)))))
+        var current = WorkoutDetails(WorkoutRuntime("workout", StrictJson.encodeToString(plan), "[]"), emptyList(), emptyList())
+        val repository = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, method, args -> when (method.name) {
+                "workoutDetails" -> current
+                "skipSet" -> {
+                    val command = args!![0] as ru.sportzal.app.model.SkipSetCommand
+                    current = current.copy(skippedSets = listOf(SkippedSetEntity(command.workoutId,
+                        command.exerciseInstanceId, command.plannedSetNo, command.recordedAt, command.reason, command.note)))
+                }
+                else -> error("Unexpected ${method.name}")
+            } } as SportzalRepository
+        val vm = WorkoutViewModel(repository, fixedClock())
+        vm.open("workout")
+
+        vm.setInteraction("a", InteractionSource.FOCUS, true)
+        vm.setInteraction("a", InteractionSource.SET_ACTIONS, true)
+        vm.setInteraction("a", InteractionSource.FOCUS, false)
+        assertEquals(listOf("a", "b"), vm.state.value.blocks.single().cards.map { it.exercise.exerciseInstanceId })
+
+        assertTrue(vm.skipSet("a", 1, null, null))
+        assertEquals(listOf("a", "b"), vm.state.value.blocks.single().cards.map { it.exercise.exerciseInstanceId })
+
+        vm.setInteraction("a", InteractionSource.SET_ACTIONS, false)
+        assertEquals(listOf("b", "a"), vm.state.value.blocks.single().cards.map { it.exercise.exerciseInstanceId })
+    }
+
     @Test fun `delete skip and restore reload committed facts and unresolved slot`() = runBlocking {
         val exercise = exercise(sets = (1..3).map { PlannedSetDocument(it, "work", 100.0, 5, 5, null, 60) })
         val base = details(exercise)
