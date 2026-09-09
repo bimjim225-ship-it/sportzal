@@ -167,25 +167,25 @@ class WorkoutViewModel(
     fun onForegroundReturn() { updateRotations(); publish() }
     fun onCommittedSkipOrDelete() { updateRotations(); publish() }
 
-    suspend fun editSet(setResultId: String, weight: Double, reps: Int, rir: Int?, deviations: List<String>, note: String?) {
-        if (mutableState.value.saving) return
-        val old = sets.firstOrNull { it.setResultId == setResultId } ?: return
+    suspend fun editSet(setResultId: String, weight: Double, reps: Int, rir: Int?, deviations: List<String>, note: String?): Boolean {
+        if (mutableState.value.saving) return false
+        val old = sets.firstOrNull { it.setResultId == setResultId } ?: return false
         if (!weight.isFinite() || weight < 0 || reps < 0 || (rir != null && rir !in 0..4) ||
-            (old.loadBasisActual == "bodyweight" && weight != 0.0)) return fail("Проверьте введённые значения")
-        mutate { repository.editSet(EditSetCommand(setResultId, weight, reps, rir, clock.wallNow().toString(),
+            (old.loadBasisActual == "bodyweight" && weight != 0.0)) { fail("Проверьте введённые значения"); return false }
+        return mutate { repository.editSet(EditSetCommand(setResultId, weight, reps, rir, clock.wallNow().toString(),
             deviations.distinct(), note?.trim()?.ifEmpty { null })) }
     }
 
-    suspend fun deleteSet(setResultId: String) {
-        if (mutableState.value.saving || sets.none { it.setResultId == setResultId }) return
-        mutate { repository.deleteSet(setResultId) }
+    suspend fun deleteSet(setResultId: String): Boolean {
+        if (mutableState.value.saving || sets.none { it.setResultId == setResultId }) return false
+        return mutate { repository.deleteSet(setResultId) }
     }
 
-    suspend fun skipSet(exerciseId: String, plannedSetNo: Int, reason: String?, note: String?) {
-        if (mutableState.value.saving) return
-        val exercise = exercises().firstOrNull { it.exerciseInstanceId == exerciseId } ?: return
-        if (currentSlot(exercise)?.plannedSetNo != plannedSetNo) return
-        mutate { repository.skipSet(SkipSetCommand(state.value.workoutId, exerciseId, plannedSetNo,
+    suspend fun skipSet(exerciseId: String, plannedSetNo: Int, reason: String?, note: String?): Boolean {
+        if (mutableState.value.saving) return false
+        val exercise = exercises().firstOrNull { it.exerciseInstanceId == exerciseId } ?: return false
+        if (currentSlot(exercise)?.plannedSetNo != plannedSetNo) return false
+        return mutate { repository.skipSet(SkipSetCommand(state.value.workoutId, exerciseId, plannedSetNo,
             clock.wallNow().toString(), reason, note?.trim()?.ifEmpty { null })) }
     }
 
@@ -194,7 +194,7 @@ class WorkoutViewModel(
         mutate { repository.restoreSkippedSet(state.value.workoutId, exerciseId, plannedSetNo) }
     }
 
-    private suspend fun mutate(action: suspend () -> Unit) {
+    private suspend fun mutate(action: suspend () -> Unit): Boolean {
         mutableState.value = mutableState.value.copy(saving = true, error = null)
         runCatching { action() }.onSuccess {
             val details = repository.workoutDetails(state.value.workoutId)
@@ -205,7 +205,7 @@ class WorkoutViewModel(
             updateRotations()
             mutableState.value = mutableState.value.copy(saving = false)
             publish()
-        }.onFailure { fail(it.message ?: "Не удалось сохранить изменение") }
+        }.onFailure { fail(it.message ?: "Не удалось сохранить изменение") }.isSuccess
     }
 
     private fun updateRotations() = rotations.forEach { (blockId, coordinator) ->

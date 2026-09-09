@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
 import kotlinx.serialization.decodeFromString
 import ru.sportzal.app.data.db.SetResultEntity
 import ru.sportzal.app.model.StrictJson
@@ -35,8 +36,8 @@ fun SetResultRow(
     saving: Boolean,
     showRir: Boolean,
     onInteraction: (Boolean) -> Unit,
-    onEdit: (Double, Int, Int?, List<String>, String?) -> Unit,
-    onDelete: () -> Unit,
+    onEdit: (Double, Int, Int?, List<String>, String?, (Boolean) -> Unit) -> Unit,
+    onDelete: ((Boolean) -> Unit) -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
     var edit by remember { mutableStateOf(false) }
@@ -52,12 +53,13 @@ fun SetResultRow(
         }
     }
     if (edit) EditSetDialog(result, showRir, saving, ::closeAll) { weight, reps, rir, deviations, note ->
-        onEdit(weight, reps, rir, deviations, note)
+        onEdit(weight, reps, rir, deviations, note) { committed -> if (committed) closeAll() }
     }
-    if (confirmDelete) AlertDialog(onDismissRequest = ::closeAll, title = { Text("Удалить этот подход?") },
+    if (confirmDelete) AlertDialog(onDismissRequest = { if (!saving) closeAll() }, title = { Text("Удалить этот подход?") },
         text = { Text("Подход снова станет незаполненным.") },
-        dismissButton = { TextButton(::closeAll) { Text("Отмена") } },
-        confirmButton = { TextButton({ onDelete() }, enabled = !saving, modifier = Modifier.testTag("confirm-delete")) { Text("Удалить") } })
+        dismissButton = { TextButton(::closeAll, enabled = !saving) { Text("Отмена") } },
+        confirmButton = { TextButton({ onDelete { committed -> if (committed) closeAll() } }, enabled = !saving,
+            modifier = Modifier.testTag("confirm-delete")) { Text("Удалить") } })
 }
 
 @Composable private fun EditSetDialog(
@@ -73,11 +75,11 @@ fun SetResultRow(
     val parsedReps = reps.toIntOrNull()
     val valid = parsedWeight != null && parsedWeight.isFinite() && parsedWeight >= 0 && parsedReps != null && parsedReps >= 0 &&
         (result.loadBasisActual != "bodyweight" || parsedWeight == 0.0)
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Подход ${result.plannedSetNo ?: result.sequenceNo}") },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.dp(8))) {
+    AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text("Подход ${result.plannedSetNo ?: result.sequenceNo}") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(weight, { weight = it }, label = { Text("Вес") }, enabled = result.loadBasisActual != "bodyweight")
             OutlinedTextField(reps, { reps = it }, label = { Text("Повторы") }, modifier = Modifier.testTag("edit-reps"))
-            if (showRir) Row(horizontalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.dp(4))) {
+            if (showRir) Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 (0..4).forEach { value -> FilterChip(rir == value, { rir = value }, { Text(if (value == 4) "4+" else "$value") }) }
                 FilterChip(rir == null, { rir = null }, { Text("Не оценил") })
             }
@@ -87,7 +89,7 @@ fun SetResultRow(
             }, { Text(label) }, modifier = Modifier.testTag("deviation-$value")) }
             OutlinedTextField(note, { note = it }, label = { Text("Комментарий") })
         } },
-        dismissButton = { TextButton(onDismiss) { Text("Отмена") } },
+        dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } },
         confirmButton = { TextButton({ onSave(parsedWeight!!, parsedReps!!, rir, deviations.toList(), note) },
             enabled = valid && !saving, modifier = Modifier.testTag("save-edit")) { Text("Сохранить") } })
 }

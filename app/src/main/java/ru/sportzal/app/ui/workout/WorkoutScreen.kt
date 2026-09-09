@@ -23,9 +23,9 @@ fun WorkoutScreen(
     onSave: (String, Int) -> Unit,
     onInteraction: (String, Boolean) -> Unit,
     onTick: () -> Unit,
-    onEdit: (String, Double, Int, Int?, List<String>, String?) -> Unit = { _, _, _, _, _, _ -> },
-    onDelete: (String) -> Unit = {},
-    onSkip: (String, Int, String?, String?) -> Unit = { _, _, _, _ -> },
+    onEdit: (String, Double, Int, Int?, List<String>, String?, (Boolean) -> Unit) -> Unit = { _, _, _, _, _, _, _ -> },
+    onDelete: (String, (Boolean) -> Unit) -> Unit = { _, _ -> },
+    onSkip: (String, Int, String?, String?, (Boolean) -> Unit) -> Unit = { _, _, _, _, _ -> },
     onRestore: (String, Int) -> Unit = { _, _ -> },
 ) {
     LaunchedEffect(Unit) { while (true) { delay(1_000); onTick() } }
@@ -40,7 +40,7 @@ fun WorkoutScreen(
                     { card.currentSlot?.let { onSave(card.exercise.exerciseInstanceId, it.plannedSetNo) } },
                     { interacting -> onInteraction(card.exercise.exerciseInstanceId, interacting) },
                     onEdit, onDelete,
-                    { setNo, reason, note -> onSkip(card.exercise.exerciseInstanceId, setNo, reason, note) },
+                    { setNo, reason, note, completed -> onSkip(card.exercise.exerciseInstanceId, setNo, reason, note, completed) },
                     { setNo -> onRestore(card.exercise.exerciseInstanceId, setNo) })
             }
         }
