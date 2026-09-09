@@ -33,9 +33,9 @@ fun ExerciseCard(
     onDraft: (Double?, Int?, Int?, Boolean) -> Unit,
     onSave: () -> Unit,
     onInteraction: (Boolean) -> Unit,
-    onEdit: (String, Double, Int, Int?, List<String>, String?) -> Unit,
-    onDelete: (String) -> Unit,
-    onSkip: (Int, String?, String?) -> Unit,
+    onEdit: (String, Double, Int, Int?, List<String>, String?, (Boolean) -> Unit) -> Unit,
+    onDelete: (String, (Boolean) -> Unit) -> Unit,
+    onSkip: (Int, String?, String?, (Boolean) -> Unit) -> Unit,
     onRestore: (Int) -> Unit,
 ) {
     val slot = state.currentSlot
@@ -54,8 +54,10 @@ fun ExerciseCard(
             Text(listOfNotNull(state.exercise.equipmentId, slot?.plannedContext?.setup, state.exercise.loadBasis, state.exercise.side).joinToString(" · "))
             Text("Подходы: ${state.saved.size}/${state.exercise.plannedSets.size}")
             state.saved.forEach { result -> SetResultRow(result, saving, requiresRir(state, result.plannedSetNo), onInteraction,
-                { weight, reps, rir, deviations, note -> onEdit(result.setResultId, weight, reps, rir, deviations, note) },
-                { onDelete(result.setResultId) }) }
+                { weight, reps, rir, deviations, note, completed ->
+                    onEdit(result.setResultId, weight, reps, rir, deviations, note, completed)
+                },
+                { completed -> onDelete(result.setResultId, completed) }) }
             state.skipped.sortedBy { it.plannedSetNo }.forEach { skipped ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("${skipped.plannedSetNo}. Пропущено" + (skipped.reason?.let { " · ${skipReasonLabels[it] ?: it}" } ?: ""))
@@ -91,7 +93,14 @@ fun ExerciseCard(
     }
     if (skipDialog && slot != null) SkipSetDialog(saving, {
         skipDialog = false; onInteraction(false)
-    }) { reason, note -> onSkip(slot.plannedSetNo, reason, note) }
+    }) { reason, note ->
+        onSkip(slot.plannedSetNo, reason, note) { committed ->
+            if (committed) {
+                skipDialog = false
+                onInteraction(false)
+            }
+        }
+    }
 }
 
 private fun requiresRir(state: ExerciseUiState, setNo: Int? = state.currentSlot?.plannedSetNo): Boolean = when (state.exercise.rirCapture) {
@@ -105,11 +114,11 @@ private val skipReasonLabels = linkedMapOf<String?, String>(null to "Без пр
 @Composable private fun SkipSetDialog(saving: Boolean, onDismiss: () -> Unit, onSkip: (String?, String?) -> Unit) {
     var reason by remember { mutableStateOf<String?>(null) }
     var note by remember { mutableStateOf("") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Пропустить подход") }, text = {
+    AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text("Пропустить подход") }, text = {
         Column { skipReasonLabels.forEach { (value, label) -> FilterChip(reason == value, { reason = value }, { Text(label) },
             modifier = Modifier.testTag("skip-reason-${value ?: "none"}")) }
             OutlinedTextField(note, { note = it }, label = { Text("Комментарий") }) }
-    }, dismissButton = { TextButton(onDismiss) { Text("Отмена") } }, confirmButton = {
+    }, dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } }, confirmButton = {
         TextButton({ onSkip(reason, note) }, enabled = !saving, modifier = Modifier.testTag("confirm-skip")) { Text("Пропустить") }
     })
 }
