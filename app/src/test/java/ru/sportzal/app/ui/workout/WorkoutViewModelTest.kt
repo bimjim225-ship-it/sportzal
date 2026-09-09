@@ -18,6 +18,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import ru.sportzal.app.data.repository.SportzalRepository
 import ru.sportzal.app.data.db.SetResultEntity
+import ru.sportzal.app.data.db.SkippedSetEntity
 import ru.sportzal.app.model.BlockDocument
 import ru.sportzal.app.model.ExerciseDocument
 import ru.sportzal.app.model.PlannedSetDocument
@@ -30,6 +31,34 @@ import ru.sportzal.app.model.WorkoutRuntime
 import ru.sportzal.app.platform.ClockProvider
 
 class WorkoutViewModelTest {
+    @Test fun `delete skip and restore reload committed facts and unresolved slot`() = runBlocking {
+        val exercise = exercise(sets = (1..3).map { PlannedSetDocument(it, "work", 100.0, 5, 5, null, 60) })
+        val base = details(exercise)
+        var current = base.copy(sets = listOf(saved("instance", 1)))
+        val repository = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, method, args -> when (method.name) {
+                "workoutDetails" -> current
+                "deleteSet" -> current = current.copy(sets = emptyList())
+                "skipSet" -> {
+                    val command = args!![0] as ru.sportzal.app.model.SkipSetCommand
+                    current = current.copy(skippedSets = listOf(SkippedSetEntity(command.workoutId,
+                        command.exerciseInstanceId, command.plannedSetNo, command.recordedAt, command.reason, command.note)))
+                }
+                "restoreSkippedSet" -> current = current.copy(skippedSets = emptyList())
+                else -> error("Unexpected ${method.name}")
+            } } as SportzalRepository
+        val vm = WorkoutViewModel(repository, fixedClock())
+        vm.open("workout")
+        assertEquals(2, vm.state.value.blocks.single().cards.single().currentSlot!!.plannedSetNo)
+        vm.deleteSet("set-instance")
+        assertEquals(1, vm.state.value.blocks.single().cards.single().currentSlot!!.plannedSetNo)
+        assertEquals("", vm.elapsedText(null))
+        vm.skipSet("instance", 1, "equipment_busy", null)
+        assertEquals(2, vm.state.value.blocks.single().cards.single().currentSlot!!.plannedSetNo)
+        vm.restoreSkippedSet("instance", 1)
+        assertEquals(1, vm.state.value.blocks.single().cards.single().currentSlot!!.plannedSetNo)
+    }
+
     @Test fun `required RIR is unanswered until an explicit choice and maps choices to facts`() = runBlocking {
         suspend fun commandFor(rir: Int?): SaveSetCommand {
             val commands = mutableListOf<SaveSetCommand>()

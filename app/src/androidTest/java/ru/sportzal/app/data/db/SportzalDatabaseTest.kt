@@ -26,6 +26,7 @@ import ru.sportzal.app.model.BlockDocument
 import ru.sportzal.app.model.CancelEmptyResult
 import ru.sportzal.app.model.CompletionStatus
 import ru.sportzal.app.model.EquipmentDocument
+import ru.sportzal.app.model.EditSetCommand
 import ru.sportzal.app.model.ExerciseDocument
 import ru.sportzal.app.model.ImportResult
 import ru.sportzal.app.model.PlannedSetDocument
@@ -297,6 +298,36 @@ class SportzalDatabaseTest {
             repository.deleteSet("set")
             assertEquals("ended_early", database.dao().workout(id)?.completionStatus)
         }
+    }
+
+    @Test
+    fun editDeleteSkipAndRestorePreserveFactualInvariants() = runBlocking {
+        import(program(sets = 3))
+        val id = repository.startWorkout("program", 1, "session")
+        repository.saveSet(setCommand("one", id, 1))
+        repository.saveSet(setCommand("two", id, 2))
+        val before = database.dao().set("one")!!
+        repository.editSet(EditSetCommand("one", 12.5, 7, 3, "edited",
+            listOf("technique_changed", "discomfort"), " note "))
+        val edited = database.dao().set("one")!!
+        assertEquals(before.copy(weightKg = 12.5, reps = 7, rir = 3, editedAt = "edited",
+            deviationsJson = "[\"technique_changed\",\"discomfort\"]", note = "note"), edited)
+
+        repository.deleteSet("one")
+        assertEquals(listOf(2), database.dao().sets(id).map { it.sequenceNo })
+        assertTrue(repository.saveSet(setCommand("replacement", id, 1)) is SaveSetResult.Saved)
+        assertEquals(3, database.dao().set("replacement")!!.sequenceNo)
+
+        database.dao().upsertDraft(DraftEntity(id, "exercise", 3, "1", "1", null, null, "now"))
+        repository.skipSet(SkipSetCommand(id, "exercise", 3, "recorded", "equipment_busy", "later"))
+        assertEquals(0, database.dao().drafts(id).count { it.plannedSetNo == 3 })
+        assertTrue(repository.saveSet(setCommand("blocked", id, 3)) is SaveSetResult.Conflict)
+        assertThrows(Exception::class.java) {
+            runBlocking { repository.skipSet(SkipSetCommand(id, "exercise", 3, "again")) }
+        }
+        repository.restoreSkippedSet(id, "exercise", 3)
+        assertNull(database.dao().skipped(id, "exercise", 3))
+        assertTrue(repository.saveSet(setCommand("restored", id, 3)) is SaveSetResult.Saved)
     }
 
     @Test

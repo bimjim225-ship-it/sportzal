@@ -9,6 +9,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +33,10 @@ fun ExerciseCard(
     onDraft: (Double?, Int?, Int?, Boolean) -> Unit,
     onSave: () -> Unit,
     onInteraction: (Boolean) -> Unit,
+    onEdit: (String, Double, Int, Int?, List<String>, String?) -> Unit,
+    onDelete: (String) -> Unit,
+    onSkip: (Int, String?, String?) -> Unit,
+    onRestore: (Int) -> Unit,
 ) {
     val slot = state.currentSlot
     val draft = state.draft
@@ -38,13 +46,23 @@ fun ExerciseCard(
     var repsText by remember(state.exercise.exerciseInstanceId, slot?.plannedSetNo, draft?.reps) {
         mutableStateOf(draft?.reps?.toString().orEmpty())
     }
+    var skipDialog by remember { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth().onFocusChanged { onInteraction(it.hasFocus) }.focusGroup()
         .testTag("exercise-${state.exercise.exerciseInstanceId}")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(state.exercise.title, style = MaterialTheme.typography.headlineSmall)
             Text(listOfNotNull(state.exercise.equipmentId, slot?.plannedContext?.setup, state.exercise.loadBasis, state.exercise.side).joinToString(" · "))
             Text("Подходы: ${state.saved.size}/${state.exercise.plannedSets.size}")
-            state.saved.forEach { SetResultRow(it) }
+            state.saved.forEach { result -> SetResultRow(result, saving, requiresRir(state, result.plannedSetNo), onInteraction,
+                { weight, reps, rir, deviations, note -> onEdit(result.setResultId, weight, reps, rir, deviations, note) },
+                { onDelete(result.setResultId) }) }
+            state.skipped.sortedBy { it.plannedSetNo }.forEach { skipped ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("${skipped.plannedSetNo}. Пропущено" + (skipped.reason?.let { " · ${skipReasonLabels[it] ?: it}" } ?: ""))
+                    TextButton({ onRestore(skipped.plannedSetNo) }, enabled = !saving,
+                        modifier = Modifier.testTag("restore-${state.exercise.exerciseInstanceId}-${skipped.plannedSetNo}")) { Text("Вернуть подход") }
+                }
+            }
             if (slot != null && draft != null) {
                 Text("Подход ${slot.plannedSetNo} · ${slot.setType}")
                 Text("Цель: ${slot.targetWeightKg.display()} кг · ${slot.repsMin}–${slot.repsMax}" + (slot.targetRir?.let { " · RIR ${it.rirText()}" } ?: ""))
@@ -66,15 +84,34 @@ fun ExerciseCard(
                 Button(onClick = onSave, enabled = !saving, modifier = Modifier.testTag("save-${state.exercise.exerciseInstanceId}")) {
                     Text("Записать подход")
                 }
+                TextButton({ skipDialog = true; onInteraction(true) }, enabled = !saving,
+                    modifier = Modifier.testTag("skip-${state.exercise.exerciseInstanceId}")) { Text("Пропустить подход") }
             } else Text("Все подходы записаны")
         }
     }
+    if (skipDialog && slot != null) SkipSetDialog(saving, {
+        skipDialog = false; onInteraction(false)
+    }) { reason, note -> onSkip(slot.plannedSetNo, reason, note) }
 }
 
-private fun requiresRir(state: ExerciseUiState): Boolean = when (state.exercise.rirCapture) {
-    "all_work_sets" -> state.currentSlot?.setType == "work"
-    "last_work_set" -> state.currentSlot?.setType == "work" && state.currentSlot.plannedSetNo == state.exercise.plannedSets.lastOrNull { it.setType == "work" }?.setNo
+private fun requiresRir(state: ExerciseUiState, setNo: Int? = state.currentSlot?.plannedSetNo): Boolean = when (state.exercise.rirCapture) {
+    "all_work_sets" -> state.exercise.plannedSets.firstOrNull { it.setNo == setNo }?.setType == "work"
+    "last_work_set" -> setNo == state.exercise.plannedSets.lastOrNull { it.setType == "work" }?.setNo
     else -> false
+}
+private val skipReasonLabels = linkedMapOf<String?, String>(null to "Без причины", "equipment_busy" to "Оборудование занято",
+    "time_limit" to "Не хватает времени", "fatigue" to "Усталость", "discomfort" to "Дискомфорт", "other" to "Другое")
+
+@Composable private fun SkipSetDialog(saving: Boolean, onDismiss: () -> Unit, onSkip: (String?, String?) -> Unit) {
+    var reason by remember { mutableStateOf<String?>(null) }
+    var note by remember { mutableStateOf("") }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Пропустить подход") }, text = {
+        Column { skipReasonLabels.forEach { (value, label) -> FilterChip(reason == value, { reason = value }, { Text(label) },
+            modifier = Modifier.testTag("skip-reason-${value ?: "none"}")) }
+            OutlinedTextField(note, { note = it }, label = { Text("Комментарий") }) }
+    }, dismissButton = { TextButton(onDismiss) { Text("Отмена") } }, confirmButton = {
+        TextButton({ onSkip(reason, note) }, enabled = !saving, modifier = Modifier.testTag("confirm-skip")) { Text("Пропустить") }
+    })
 }
 private fun Double.display() = if (this % 1.0 == 0.0) toInt().toString() else toString()
 internal fun Int.rirText() = if (this == 4) "4+" else toString()

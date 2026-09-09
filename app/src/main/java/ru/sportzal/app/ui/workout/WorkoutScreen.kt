@@ -23,6 +23,10 @@ fun WorkoutScreen(
     onSave: (String, Int) -> Unit,
     onInteraction: (String, Boolean) -> Unit,
     onTick: () -> Unit,
+    onEdit: (String, Double, Int, Int?, List<String>, String?) -> Unit = { _, _, _, _, _, _ -> },
+    onDelete: (String) -> Unit = {},
+    onSkip: (String, Int, String?, String?) -> Unit = { _, _, _, _ -> },
+    onRestore: (String, Int) -> Unit = { _, _ -> },
 ) {
     LaunchedEffect(Unit) { while (true) { delay(1_000); onTick() } }
     LazyColumn(Modifier.fillMaxSize().imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -34,7 +38,10 @@ fun WorkoutScreen(
                 ExerciseCard(card, elapsedFor(card.saved.maxByOrNull { it.sequenceNo }), state.saving,
                     { weight, reps, rir, answered -> onDraft(card.exercise.exerciseInstanceId, weight, reps, rir, answered) },
                     { card.currentSlot?.let { onSave(card.exercise.exerciseInstanceId, it.plannedSetNo) } },
-                    { interacting -> onInteraction(card.exercise.exerciseInstanceId, interacting) })
+                    { interacting -> onInteraction(card.exercise.exerciseInstanceId, interacting) },
+                    onEdit, onDelete,
+                    { setNo, reason, note -> onSkip(card.exercise.exerciseInstanceId, setNo, reason, note) },
+                    { setNo -> onRestore(card.exercise.exerciseInstanceId, setNo) })
             }
         }
     }

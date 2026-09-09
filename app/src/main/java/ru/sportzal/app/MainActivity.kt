@@ -59,6 +59,11 @@ class MainActivity : ComponentActivity() {
                     elapsedFor = { workoutViewModel.elapsedText(it) },
                     onDraft = { id, weight, reps, rir, answered -> scope.launch { workoutViewModel.updateDraft(id, weight, reps, rir, answered) } },
                     onSave = { id, setNo -> scope.launch { workoutViewModel.saveSet(id, setNo) } },
+                    onEdit = { id, weight, reps, rir, deviations, note -> scope.launch {
+                        workoutViewModel.editSet(id, weight, reps, rir, deviations, note) } },
+                    onDelete = { id -> scope.launch { workoutViewModel.deleteSet(id) } },
+                    onSkip = { id, setNo, reason, note -> scope.launch { workoutViewModel.skipSet(id, setNo, reason, note) } },
+                    onRestore = { id, setNo -> scope.launch { workoutViewModel.restoreSkippedSet(id, setNo) } },
                     onInteraction = workoutViewModel::setInteraction,
                     onTick = workoutViewModel::tick,
                 ) else TodayScreen(

@@ -13,6 +13,7 @@ data class WorkoutDetails(
     val runtime: WorkoutRuntime,
     val sets: List<ru.sportzal.app.data.db.SetResultEntity>,
     val drafts: List<ru.sportzal.app.data.db.DraftEntity>,
+    val skippedSets: List<ru.sportzal.app.data.db.SkippedSetEntity> = emptyList(),
 )
 data class SnapshotSource(val programs: List<String>, val workouts: List<WorkoutRuntime>)
 

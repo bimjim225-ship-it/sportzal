@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.decodeFromString
 import ru.sportzal.app.data.db.DraftEntity
 import ru.sportzal.app.data.db.SetResultEntity
+import ru.sportzal.app.data.db.SkippedSetEntity
 import ru.sportzal.app.data.repository.SportzalRepository
 import ru.sportzal.app.domain.ActualContext
 import ru.sportzal.app.domain.ClockReading
@@ -22,6 +23,8 @@ import ru.sportzal.app.model.EquipmentDocument
 import ru.sportzal.app.model.PlannedWorkoutDocument
 import ru.sportzal.app.model.SaveSetCommand
 import ru.sportzal.app.model.SaveSetResult
+import ru.sportzal.app.model.EditSetCommand
+import ru.sportzal.app.model.SkipSetCommand
 import ru.sportzal.app.model.StrictJson
 import ru.sportzal.app.model.elapsedBetween
 import ru.sportzal.app.platform.ClockProvider
@@ -32,6 +35,7 @@ data class ExerciseUiState(
     val draft: SetDraft?,
     val saved: List<SetResultEntity>,
     val restReferenceSec: Int? = null,
+    val skipped: List<SkippedSetEntity> = emptyList(),
 )
 data class BlockUiState(
     val blockId: String,
@@ -60,6 +64,7 @@ class WorkoutViewModel(
     private var equipmentAtStart = emptyMap<String, EquipmentDocument>()
     private val drafts = linkedMapOf<Pair<String, Int>, SetDraft>()
     private val sets = mutableListOf<SetResultEntity>()
+    private val skips = mutableListOf<SkippedSetEntity>()
     private val pending = mutableMapOf<Pair<String, Int>, SaveSetCommand>()
     private val rotations = mutableMapOf<String, RotationCoordinator>()
     private val interactingCards = mutableMapOf<String, MutableSet<String>>()
@@ -70,6 +75,7 @@ class WorkoutViewModel(
         equipmentAtStart = StrictJson.decodeFromString<List<EquipmentDocument>>(details.runtime.equipmentAtStartJson)
             .associateBy { it.equipmentId }
         sets.clear(); sets += details.sets
+        skips.clear(); skips += details.skippedSets
         drafts.clear()
         val byId = exercises().associateBy { it.exerciseInstanceId }
         details.drafts.forEach { entity ->
@@ -161,6 +167,47 @@ class WorkoutViewModel(
     fun onForegroundReturn() { updateRotations(); publish() }
     fun onCommittedSkipOrDelete() { updateRotations(); publish() }
 
+    suspend fun editSet(setResultId: String, weight: Double, reps: Int, rir: Int?, deviations: List<String>, note: String?) {
+        if (mutableState.value.saving) return
+        val old = sets.firstOrNull { it.setResultId == setResultId } ?: return
+        if (!weight.isFinite() || weight < 0 || reps < 0 || (rir != null && rir !in 0..4) ||
+            (old.loadBasisActual == "bodyweight" && weight != 0.0)) return fail("Проверьте введённые значения")
+        mutate { repository.editSet(EditSetCommand(setResultId, weight, reps, rir, clock.wallNow().toString(),
+            deviations.distinct(), note?.trim()?.ifEmpty { null })) }
+    }
+
+    suspend fun deleteSet(setResultId: String) {
+        if (mutableState.value.saving || sets.none { it.setResultId == setResultId }) return
+        mutate { repository.deleteSet(setResultId) }
+    }
+
+    suspend fun skipSet(exerciseId: String, plannedSetNo: Int, reason: String?, note: String?) {
+        if (mutableState.value.saving) return
+        val exercise = exercises().firstOrNull { it.exerciseInstanceId == exerciseId } ?: return
+        if (currentSlot(exercise)?.plannedSetNo != plannedSetNo) return
+        mutate { repository.skipSet(SkipSetCommand(state.value.workoutId, exerciseId, plannedSetNo,
+            clock.wallNow().toString(), reason, note?.trim()?.ifEmpty { null })) }
+    }
+
+    suspend fun restoreSkippedSet(exerciseId: String, plannedSetNo: Int) {
+        if (mutableState.value.saving || skips.none { it.exerciseInstanceId == exerciseId && it.plannedSetNo == plannedSetNo }) return
+        mutate { repository.restoreSkippedSet(state.value.workoutId, exerciseId, plannedSetNo) }
+    }
+
+    private suspend fun mutate(action: suspend () -> Unit) {
+        mutableState.value = mutableState.value.copy(saving = true, error = null)
+        runCatching { action() }.onSuccess {
+            val details = repository.workoutDetails(state.value.workoutId)
+            sets.clear(); sets += details.sets
+            skips.clear(); skips += details.skippedSets
+            val validDrafts = details.drafts.map { it.exerciseInstanceId to it.plannedSetNo }.toSet()
+            drafts.keys.retainAll(validDrafts)
+            updateRotations()
+            mutableState.value = mutableState.value.copy(saving = false)
+            publish()
+        }.onFailure { fail(it.message ?: "Не удалось сохранить изменение") }
+    }
+
     private fun updateRotations() = rotations.forEach { (blockId, coordinator) ->
         val block = plan!!.blocks.first { it.blockId == blockId }
         coordinator.update(runtimeCards(block.exercises), readClock(), committed = true)
@@ -180,7 +227,8 @@ class WorkoutViewModel(
                 val saved = sets.filter { it.exerciseInstanceId == id }
                 val lastPlanned = saved.filter { it.plannedSetNo != null }.maxByOrNull { it.sequenceNo }
                 val rest = lastPlanned?.plannedSetNo?.let { no -> ex.plannedSets.firstOrNull { it.setNo == no }?.restTargetSec }
-                ExerciseUiState(ex, slot, slot?.let { resolvedDraft(ex, it) }, saved, rest)
+                ExerciseUiState(ex, slot, slot?.let { resolvedDraft(ex, it) }, saved, rest,
+                    skips.filter { it.exerciseInstanceId == id })
             } }) },
         )
     }
@@ -194,6 +242,7 @@ class WorkoutViewModel(
         it.repsMin, it.repsMax, it.targetRir, it.restTargetSec, resolvedContext()) }
     private fun currentSlot(exercise: ExerciseDocument) = exercise.slots().firstOrNull { slot ->
         sets.none { it.exerciseInstanceId == exercise.exerciseInstanceId && it.plannedSetNo == slot.plannedSetNo }
+            && skips.none { it.exerciseInstanceId == exercise.exerciseInstanceId && it.plannedSetNo == slot.plannedSetNo }
     }
     private fun resolvedDraft(exercise: ExerciseDocument, slot: PlannedSlot): SetDraft {
         val slots = exercise.slots(); val index = slots.indexOf(slot); val previous = slots.getOrNull(index - 1)
