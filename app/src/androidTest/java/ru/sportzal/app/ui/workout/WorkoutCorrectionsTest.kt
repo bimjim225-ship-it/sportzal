@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import org.junit.Assert.assertEquals
@@ -32,7 +33,7 @@ class WorkoutCorrectionsTest {
 
     @Test fun editClosesOnlyAfterCommitAndDisplaysCommittedValues() {
         var ui by mutableStateOf(workout(saved = listOf(result())))
-        val interactions = mutableListOf<Boolean>()
+        val interactions = mutableListOf<Pair<InteractionSource, Boolean>>()
         compose.setContent { content(ui, { ui = it }, interactions) }
 
         compose.onNodeWithTag("set-actions-set-1").performClick()
@@ -40,19 +41,20 @@ class WorkoutCorrectionsTest {
         compose.onNodeWithTag("edit-reps").performTextClearance()
         compose.onNodeWithTag("edit-reps").performTextInput("8")
         compose.onNodeWithText("3").performClick()
-        compose.onNodeWithTag("deviation-technique_changed").performClick()
+        compose.onNodeWithTag("deviation-technique_changed").performScrollTo().performClick()
         compose.onNodeWithTag("save-edit").performClick()
 
         compose.onNodeWithTag("save-edit").assertDoesNotExist()
         compose.onNodeWithText("1. 100 кг × 8 · RIR 3").assertIsDisplayed()
-        assertEquals(listOf(true, false), interactions)
+        assertEquals(listOf(InteractionSource.SET_ACTIONS to true, InteractionSource.SET_ACTIONS to false),
+            interactions.filter { it.first == InteractionSource.SET_ACTIONS })
     }
 
     @Test fun failedEditKeepsDialogAndEnteredValuesForRetry() {
         var ui by mutableStateOf(workout(saved = listOf(result())))
-        val interactions = mutableListOf<Boolean>()
+        val interactions = mutableListOf<Pair<InteractionSource, Boolean>>()
         compose.setContent { SportzalTheme { WorkoutScreen(ui, { "0:00" }, { _, _, _, _, _ -> }, { _, _ -> },
-            { _, _, active -> interactions += active }, {}, onEdit = { _, _, _, _, _, _, completed -> completed(false) }) } }
+            { _, source, active -> interactions += source to active }, {}, onEdit = { _, _, _, _, _, _, completed -> completed(false) }) } }
         compose.onNodeWithTag("set-actions-set-1").performClick()
         compose.onNodeWithText("Изменить").performClick()
         compose.onNodeWithTag("edit-reps").performTextClearance()
@@ -60,12 +62,13 @@ class WorkoutCorrectionsTest {
         compose.onNodeWithTag("save-edit").performClick()
         compose.onNodeWithTag("save-edit").assertIsDisplayed()
         compose.onNodeWithTag("edit-reps").assertIsDisplayed()
-        assertEquals(listOf(true), interactions)
+        assertEquals(listOf(InteractionSource.SET_ACTIONS to true),
+            interactions.filter { it.first == InteractionSource.SET_ACTIONS })
     }
 
     @Test fun deleteCommitClosesDialogReleasesInteractionAndReturnsSlot() {
         var ui by mutableStateOf(workout(saved = listOf(result())))
-        val interactions = mutableListOf<Boolean>()
+        val interactions = mutableListOf<Pair<InteractionSource, Boolean>>()
         compose.setContent { content(ui, { ui = it }, interactions) }
         compose.onNodeWithTag("set-actions-set-1").performClick()
         compose.onNodeWithText("Удалить").performClick()
@@ -73,46 +76,52 @@ class WorkoutCorrectionsTest {
         compose.onNodeWithTag("confirm-delete").assertDoesNotExist()
         compose.onNodeWithText("1. 100 кг × 5 · RIR 2").assertDoesNotExist()
         compose.onNodeWithText("Подход 1 · work").assertIsDisplayed()
-        assertEquals(listOf(true, false), interactions)
+        assertEquals(listOf(InteractionSource.SET_ACTIONS to true, InteractionSource.SET_ACTIONS to false),
+            interactions.filter { it.first == InteractionSource.SET_ACTIONS })
     }
 
     @Test fun skipCommitAdvancesSlotClosesDialogAndReleasesInteraction() {
         var ui by mutableStateOf(workout(current = 1))
-        val interactions = mutableListOf<Boolean>()
+        val interactions = mutableListOf<Pair<InteractionSource, Boolean>>()
         compose.setContent { content(ui, { ui = it }, interactions) }
         compose.onNodeWithTag("skip-instance").performClick()
-        compose.onNodeWithTag("skip-reason-equipment_busy").performClick()
+        compose.onNodeWithTag("skip-reason-equipment_busy").performScrollTo().performClick()
         compose.onNodeWithTag("confirm-skip").performClick()
         compose.onNodeWithTag("confirm-skip").assertDoesNotExist()
         compose.onNodeWithText("1. Пропущено · Оборудование занято").assertIsDisplayed()
         compose.onNodeWithText("Подход 2 · work").assertIsDisplayed()
-        assertEquals(listOf(true, false), interactions)
+        assertEquals(listOf(InteractionSource.SKIP_DIALOG to true, InteractionSource.SKIP_DIALOG to false),
+            interactions.filter { it.first == InteractionSource.SKIP_DIALOG })
     }
 
     @Test fun skippingLastSlotStillClosesDialogAndReleasesInteraction() {
-        var ui by mutableStateOf(workout(current = 2))
-        val interactions = mutableListOf<Boolean>()
+        var ui by mutableStateOf(workout(current = 2, saved = listOf(result())))
+        val interactions = mutableListOf<Pair<InteractionSource, Boolean>>()
         compose.setContent { content(ui, { ui = it }, interactions) }
         compose.onNodeWithTag("skip-instance").performClick()
         compose.onNodeWithTag("confirm-skip").performClick()
         compose.onNodeWithTag("confirm-skip").assertDoesNotExist()
+        compose.onNodeWithText("1. 100 кг × 5 · RIR 2").assertIsDisplayed()
+        compose.onNodeWithText("2. Пропущено").assertIsDisplayed()
         compose.onNodeWithText("Все подходы записаны").assertIsDisplayed()
-        assertEquals(listOf(true, false), interactions)
+        assertEquals(listOf(InteractionSource.SKIP_DIALOG to true, InteractionSource.SKIP_DIALOG to false),
+            interactions.filter { it.first == InteractionSource.SKIP_DIALOG })
     }
 
     @Test fun restoreRemovesSkippedFactAndMakesSlotCurrent() {
         val skipped = SkippedSetEntity("workout", "instance", 1, "2026-09-08T12:00:00Z", "equipment_busy", null)
         var ui by mutableStateOf(workout(current = 2, skipped = listOf(skipped)))
-        compose.setContent { content(ui, { ui = it }, mutableListOf()) }
+        compose.setContent { content(ui, { ui = it }, mutableListOf<Pair<InteractionSource, Boolean>>()) }
         compose.onNodeWithTag("restore-instance-1").performClick()
         compose.onNodeWithText("1. Пропущено · Оборудование занято").assertDoesNotExist()
         compose.onNodeWithText("Подход 1 · work").assertIsDisplayed()
     }
 
     @Composable
-    private fun content(state: WorkoutUiState, update: (WorkoutUiState) -> Unit, interactions: MutableList<Boolean>) {
+    private fun content(state: WorkoutUiState, update: (WorkoutUiState) -> Unit,
+        interactions: MutableList<Pair<InteractionSource, Boolean>>) {
         SportzalTheme { WorkoutScreen(state, { "0:00" }, { _, _, _, _, _ -> }, { _, _ -> },
-            { _, _, active -> interactions += active }, {},
+            { _, source, active -> interactions += source to active }, {},
             onEdit = { id, weight, reps, rir, deviations, note, completed ->
                 val card = state.card()
                 update(state.withCard(card.copy(saved = card.saved.map { if (it.setResultId == id) it.copy(

@@ -2,9 +2,12 @@ package ru.sportzal.app.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +25,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
@@ -83,8 +87,9 @@ fun ExerciseCard(
                     else onEdit(result.setResultId, weight, reps, rir, deviations, note, completed)
                 }) }
             state.skipped.sortedBy { it.plannedSetNo }.forEach { skipped ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("${skipped.plannedSetNo}. Пропущено" + (skipped.reason?.let { " · ${skipReasonLabels[it] ?: it}" } ?: ""))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("${skipped.plannedSetNo}. Пропущено" + (skipped.reason?.let { " · ${skipReasonLabels[it] ?: it}" } ?: ""),
+                        modifier = Modifier.weight(1f))
                     TextButton({ onRestore(skipped.plannedSetNo) }, enabled = !saving,
                         modifier = Modifier.testTag("restore-${state.exercise.exerciseInstanceId}-${skipped.plannedSetNo}")) { Text("Вернуть подход") }
                 }
@@ -148,14 +153,16 @@ private val loadBases = listOf("machine_display", "total_external", "per_hand", 
     var setup by remember { mutableStateOf(current.setup.orEmpty()) }
     var basis by remember { mutableStateOf(current.loadBasis) }
     AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text("Оборудование и настройка") }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             equipment.forEach { item -> FilterChip(!manual && selectedId == item.equipmentId, {
                 manual = false; selectedId = item.equipmentId; name = item.name; setup = item.setupHint.orEmpty()
             }, { Text(item.name) }, modifier = Modifier.testTag("equipment-${item.equipmentId}")) }
             FilterChip(manual, { manual = true; selectedId = manualId }, { Text("Другое оборудование") })
             if (manual) OutlinedTextField(name, { name = it }, label = { Text("Название") }, modifier = Modifier.testTag("manual-equipment-name"))
             OutlinedTextField(setup, { setup = it }, label = { Text("Настройка / setup") }, modifier = Modifier.testTag("actual-setup"))
-            if (manual) loadBases.forEach { value -> FilterChip(basis == value, { basis = value }, { Text(value) }) }
+            if (manual) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                loadBases.forEach { value -> FilterChip(basis == value, { basis = value }, { Text(value) }) }
+            }
         }
     }, dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } }, confirmButton = {
         TextButton({ onSave(current.copy(equipmentId = if (manual) manualId else selectedId,
@@ -171,12 +178,15 @@ private val loadBases = listOf("machine_display", "total_external", "per_hand", 
     var type by remember { mutableStateOf("work") }; var note by remember { mutableStateOf("") }
     val w = weight.replace(',', '.').toDoubleOrNull(); val r = reps.toIntOrNull()
     AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text("Дополнительный подход") }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(listOfNotNull(context.equipmentName ?: context.equipmentId, context.setup).joinToString(" · "))
             OutlinedTextField(weight, { weight = it }, label = { Text("Вес") }, enabled = context.loadBasis != "bodyweight", modifier = Modifier.testTag("extra-weight"))
             OutlinedTextField(reps, { reps = it }, label = { Text("Повторы") }, modifier = Modifier.testTag("extra-reps"))
-            Row { listOf("work", "warmup").forEach { value -> FilterChip(type == value, { type = value }, { Text(value) }) } }
-            Row { (0..4).forEach { value -> FilterChip(rir == value, { rir = value }, { Text(if (value == 4) "4+" else "$value") }) }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("work", "warmup").forEach { value -> FilterChip(type == value, { type = value }, { Text(value) }) }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                (0..4).forEach { value -> FilterChip(rir == value, { rir = value }, { Text(if (value == 4) "4+" else "$value") }) }
                 FilterChip(rir == null, { rir = null }, { Text("Не оценил") }) }
             OutlinedTextField(note, { note = it }, label = { Text("Комментарий") })
         }
@@ -198,7 +208,7 @@ private val skipReasonLabels = linkedMapOf<String?, String>(null to "Без пр
     var reason by remember { mutableStateOf<String?>(null) }
     var note by remember { mutableStateOf("") }
     AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text("Пропустить подход") }, text = {
-        Column { skipReasonLabels.forEach { (value, label) -> FilterChip(reason == value, { reason = value }, { Text(label) },
+        Column(modifier = Modifier.verticalScroll(rememberScrollState())) { skipReasonLabels.forEach { (value, label) -> FilterChip(reason == value, { reason = value }, { Text(label) },
             modifier = Modifier.testTag("skip-reason-${value ?: "none"}")) }
             OutlinedTextField(note, { note = it }, label = { Text("Комментарий") }) }
     }, dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } }, confirmButton = {
