@@ -33,6 +33,32 @@ import ru.sportzal.app.model.WorkoutRuntime
 import ru.sportzal.app.platform.ClockProvider
 
 class WorkoutViewModelTest {
+    @Test fun finishingFullyCompletedWorkoutProducesCompleted() = runBlocking {
+        val planned = exercise(sets = listOf(PlannedSetDocument(1, "work", 100.0, 5, 5, null, 60)))
+        val current = details(planned).copy(sets = listOf(saved("instance", 1)))
+        var finished = false
+        val repository = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, method, _ -> when (method.name) {
+                "workoutDetails" -> current
+                "finishWorkout" -> { finished = true; ru.sportzal.app.model.CompletionStatus.COMPLETED }
+                else -> error("Unexpected ${method.name}")
+            } } as SportzalRepository
+        val vm = WorkoutViewModel(repository, fixedClock())
+        vm.open("workout"); vm.requestFinish()
+        assertTrue(finished)
+        assertFalse(vm.state.value.finishSummary!!.endedEarly)
+        assertEquals(1, vm.state.value.finishSummary!!.workSetCount)
+    }
+
+    @Test fun finishWithUnresolvedSlotsRequiresConfirmationAndCancelLeavesWorkoutActive() = runBlocking {
+        val vm = WorkoutViewModel(repository(details(exercise())), fixedClock())
+        vm.open("workout"); vm.requestFinish()
+        assertTrue(vm.state.value.finishConfirmation)
+        vm.cancelFinish()
+        assertFalse(vm.state.value.finishConfirmation)
+        assertNull(vm.state.value.finishSummary)
+    }
+
     @Test fun `draft actual context is restored and equipment changes clear only incompatible weight`() = runBlocking {
         val context = ActualContext("squat", "machine-b", "Сиденье 5", "external", "bilateral", "Machine B")
         val draft = DraftEntity("workout", "instance", 1, "97.5", "7", null,

@@ -28,6 +28,7 @@ import ru.sportzal.app.model.EditSetCommand
 import ru.sportzal.app.model.SkipSetCommand
 import ru.sportzal.app.model.StrictJson
 import ru.sportzal.app.model.elapsedBetween
+import ru.sportzal.app.model.CompletionStatus
 import ru.sportzal.app.platform.ClockProvider
 
 data class ExerciseUiState(
@@ -52,7 +53,12 @@ data class WorkoutUiState(
     val now: ClockReading = ClockReading(Instant.EPOCH, null, null),
     val saving: Boolean = false,
     val error: String? = null,
+    val finishConfirmation: Boolean = false,
+    val finishSummary: FinishSummary? = null,
 )
+data class ExerciseFinishSummary(val title: String, val workSetCount: Int)
+data class FinishSummary(val durationSeconds: Long, val workSetCount: Int,
+    val exercises: List<ExerciseFinishSummary>, val endedEarly: Boolean)
 
 enum class InteractionSource {
     FOCUS,
@@ -76,6 +82,7 @@ class WorkoutViewModel(
     private val mutableState = MutableStateFlow(WorkoutUiState())
     val state: StateFlow<WorkoutUiState> = mutableState
     private var plan: PlannedWorkoutDocument? = null
+    private var startedAt: Instant = Instant.EPOCH
     private var equipmentAtStart = emptyMap<String, EquipmentDocument>()
     private val drafts = linkedMapOf<Pair<String, Int>, SetDraft>()
     private val sets = mutableListOf<SetResultEntity>()
@@ -87,6 +94,7 @@ class WorkoutViewModel(
     suspend fun open(workoutId: String) {
         val details = repository.workoutDetails(workoutId)
         plan = StrictJson.decodeFromString(details.runtime.planSnapshotJson)
+        startedAt = details.runtime.startedAt.takeIf { it.isNotBlank() }?.let(Instant::parse) ?: clock.wallNow()
         equipmentAtStart = StrictJson.decodeFromString<List<EquipmentDocument>>(details.runtime.equipmentAtStartJson)
             .associateBy { it.equipmentId }
         sets.clear(); sets += details.sets
@@ -206,6 +214,26 @@ class WorkoutViewModel(
     }
 
     fun tick() { publish() }
+    suspend fun requestFinish() {
+        if (state.value.saving || state.value.finishSummary != null) return
+        if (hasUnresolvedSlots()) mutableState.value = state.value.copy(finishConfirmation = true)
+        else confirmFinish()
+    }
+    fun cancelFinish() { mutableState.value = state.value.copy(finishConfirmation = false) }
+    suspend fun confirmFinish(): Boolean {
+        if (state.value.saving || state.value.workoutId.isBlank()) return false
+        mutableState.value = state.value.copy(saving = true, finishConfirmation = false, error = null)
+        return runCatching { repository.finishWorkout(state.value.workoutId) }.onSuccess { status ->
+            val finished = clock.wallNow()
+            val work = sets.filter { it.setType == "work" }
+            val counts = exercises().map { exercise -> ExerciseFinishSummary(exercise.title,
+                work.count { it.exerciseInstanceId == exercise.exerciseInstanceId }) }
+            mutableState.value = state.value.copy(saving = false, finishSummary = FinishSummary(
+                java.time.Duration.between(startedAt, finished).seconds.coerceAtLeast(0), work.size, counts,
+                status == CompletionStatus.ENDED_EARLY))
+        }.onFailure { fail(it.message ?: "Не удалось завершить тренировку") }.isSuccess
+    }
+    private fun hasUnresolvedSlots() = exercises().any { currentSlot(it) != null }
     fun setInteraction(exerciseId: String, source: InteractionSource, interacting: Boolean) {
         val block = plan?.blocks?.firstOrNull { candidate ->
             candidate.mode == "rotation" && candidate.exercises.any { it.exerciseInstanceId == exerciseId }

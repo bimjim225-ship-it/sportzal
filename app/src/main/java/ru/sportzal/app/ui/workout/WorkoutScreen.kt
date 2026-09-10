@@ -8,6 +8,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
@@ -31,7 +34,14 @@ fun WorkoutScreen(
     onContext: (String, ActualContext, (Boolean) -> Unit) -> Unit = { _, _, _ -> },
     onExtra: (String, String, Double, Int, Int?, String?, (Boolean) -> Unit) -> Unit = { _, _, _, _, _, _, _ -> },
     onEditActual: ((String, Double, Int, Int?, List<String>, String?, ActualContext, (Boolean) -> Unit) -> Unit)? = null,
+    onFinish: () -> Unit = {},
+    onConfirmFinish: () -> Unit = {},
+    onCancelFinish: () -> Unit = {},
 ) {
+    if (state.finishConfirmation) AlertDialog(onDismissRequest = onCancelFinish,
+        text = { Text("Завершить с невыполненными подходами?") },
+        confirmButton = { TextButton(onClick = onConfirmFinish) { Text("Завершить") } },
+        dismissButton = { TextButton(onClick = onCancelFinish) { Text("Отмена") } })
     LaunchedEffect(Unit) { while (true) { delay(1_000); onTick() } }
     LazyColumn(Modifier.fillMaxSize().imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text(state.title, style = MaterialTheme.typography.headlineLarge) }
@@ -51,5 +61,6 @@ fun WorkoutScreen(
                     onEditActual)
             }
         }
+        item { Button(onClick = onFinish, enabled = !state.saving) { Text("Завершить тренировку") } }
     }
 }
