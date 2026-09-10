@@ -4,10 +4,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -15,6 +17,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.text.AnnotatedString
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
@@ -89,9 +92,23 @@ class WorkoutCorrectionsTest {
         compose.onNodeWithTag("edit-reps").performTextInput("9")
         compose.onNodeWithTag("save-edit").performClick()
         compose.onNodeWithTag("save-edit").assertIsDisplayed()
-        compose.onNodeWithTag("edit-reps").assertIsDisplayed().assertTextEquals("9")
+        compose.onNodeWithTag("edit-reps")
+            .assertIsDisplayed()
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.EditableText,
+                    AnnotatedString("9")
+                )
+            )
         compose.onNodeWithTag("save-edit").performClick()
-        compose.onNodeWithTag("edit-reps").assertTextEquals("9")
+        compose.onNodeWithTag("edit-reps")
+            .assertIsDisplayed()
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.EditableText,
+                    AnnotatedString("9")
+                )
+            )
         assertEquals(2, attempts)
         assertEquals(listOf(InteractionSource.SET_ACTIONS to true),
             interactions.filter { it.first == InteractionSource.SET_ACTIONS })
