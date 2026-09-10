@@ -54,4 +54,14 @@ jobs:
           arch: x86_64
           emulator-boot-timeout: 300
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest
+          script: bash tools/run-instrumentation-ci.sh
+      - name: Upload instrumentation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumentation-reports
+          if-no-files-found: warn
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+            app/build/ci-diagnostics/
