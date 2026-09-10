@@ -13,6 +13,7 @@ data class WorkoutDetails(
     val runtime: WorkoutRuntime,
     val sets: List<ru.sportzal.app.data.db.SetResultEntity>,
     val drafts: List<ru.sportzal.app.data.db.DraftEntity>,
+    val skippedSets: List<ru.sportzal.app.data.db.SkippedSetEntity> = emptyList(),
 )
 data class SnapshotSource(val programs: List<String>, val workouts: List<WorkoutRuntime>)
 
@@ -67,6 +68,11 @@ data class EditSetCommand(
     val editedAt: String,
     val deviations: List<String>,
     val note: String?,
+    val equipmentIdActual: String?,
+    val equipmentNameActual: String?,
+    val setupActual: String?,
+    val loadBasisActual: String,
+    val sideActual: String,
 )
 
 data class SkipSetCommand(

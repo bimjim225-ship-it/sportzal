@@ -234,20 +234,34 @@ class RoomSportzalRepository(
         WorkoutDetails(
             WorkoutRuntime(workout.workoutId, workout.planSnapshotJson, workout.equipmentAtStartJson,
                 workout.programId, workout.programVersion, workout.workoutInstanceId),
-            dao.sets(workoutId), dao.drafts(workoutId),
+            dao.sets(workoutId), dao.drafts(workoutId), dao.skips(workoutId),
         )
     }
 
     override suspend fun editSet(command: EditSetCommand) = db.withTransaction {
         val old = checkNotNull(dao.set(command.setResultId))
+        requireActive(old.workoutId)
+        require(command.weightKg.isFinite() && command.weightKg >= 0) { "Weight must be finite and non-negative" }
+        require(command.reps >= 0) { "Reps must be non-negative" }
+        require(command.rir == null || command.rir in 0..4) { "RIR must be between 0 and 4" }
+        require(command.loadBasisActual != "bodyweight" || command.weightKg == 0.0) { "Bodyweight load must remain zero" }
+        val deviations = command.deviations.distinct()
+        require(deviations.size == command.deviations.size && deviations.all { it in DEVIATIONS }) {
+            "Unknown or duplicate deviation"
+        }
         dao.updateSet(
             old.copy(
                 weightKg = command.weightKg,
                 reps = command.reps,
                 rir = command.rir,
                 editedAt = command.editedAt,
-                deviationsJson = StrictJson.encodeToString(command.deviations),
-                note = command.note,
+                deviationsJson = StrictJson.encodeToString(deviations),
+                note = command.note?.trim()?.ifEmpty { null },
+                equipmentIdActual = command.equipmentIdActual,
+                equipmentNameActual = command.equipmentNameActual,
+                setupActual = command.setupActual,
+                loadBasisActual = command.loadBasisActual,
+                sideActual = command.sideActual,
             ),
         )
     }
@@ -270,6 +284,7 @@ class RoomSportzalRepository(
         check(dao.setInSlot(command.workoutId, command.exerciseInstanceId, command.plannedSetNo) == null) {
             "Planned slot already contains a set"
         }
+        require(command.reason == null || command.reason in SKIP_REASONS) { "Unknown skip reason" }
         dao.insertSkip(
             SkippedSetEntity(
                 command.workoutId,
@@ -277,14 +292,18 @@ class RoomSportzalRepository(
                 command.plannedSetNo,
                 command.recordedAt,
                 command.reason,
-                command.note,
+                command.note?.trim()?.ifEmpty { null },
             ),
         )
         dao.deleteDraft(command.workoutId, command.exerciseInstanceId, command.plannedSetNo)
     }
 
     override suspend fun restoreSkippedSet(workoutId: String, exerciseInstanceId: String, plannedSetNo: Int) =
-        dao.deleteSkip(workoutId, exerciseInstanceId, plannedSetNo)
+        db.withTransaction {
+            requireActive(workoutId)
+            checkNotNull(dao.skipped(workoutId, exerciseInstanceId, plannedSetNo)) { "Skipped slot does not exist" }
+            dao.deleteSkip(workoutId, exerciseInstanceId, plannedSetNo)
+        }
 
     override suspend fun finishWorkout(workoutId: String): CompletionStatus = db.withTransaction {
         val workout = requireActive(workoutId)
@@ -332,4 +351,10 @@ class RoomSportzalRepository(
                 it.programId, it.programVersion, it.workoutInstanceId)
         },
     )
+
+    private companion object {
+        val DEVIATIONS = setOf("range_shortened", "technique_changed", "discomfort", "setup_changed",
+            "equipment_changed", "exercise_changed", "other")
+        val SKIP_REASONS = setOf("equipment_busy", "time_limit", "fatigue", "discomfort", "other")
+    }
 }

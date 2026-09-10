@@ -49,7 +49,7 @@ class FastSetLoggingTest {
                 val row = result(reps = ui.blocks.single().cards.single().draft!!.reps!!)
                 ui = ui.copy(blocks = listOf(ui.blocks.single().copy(cards = listOf(ExerciseUiState(exercise, slot(2), SetDraft(100.0, 7, null, slot(2).plannedContext), listOf(row), 120)))))
             }
-        }, { _, _ -> }, {}) } }
+        }, { _, _, _ -> }, {}) } }
 
         compose.onNodeWithText("Цель: 100 кг · 5–8 · RIR 2").assertIsDisplayed()
         compose.onNodeWithText("Ещё не записывали").assertIsDisplayed()
