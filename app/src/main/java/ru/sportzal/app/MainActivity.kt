@@ -2,6 +2,7 @@ package ru.sportzal.app
 
 import android.net.Uri
 import android.os.Bundle
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,20 +17,31 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import ru.sportzal.app.ui.theme.SportzalTheme
 import ru.sportzal.app.ui.today.TodayScreen
 import ru.sportzal.app.ui.today.TodayViewModel
 import ru.sportzal.app.ui.workout.WorkoutScreen
 import ru.sportzal.app.ui.workout.WorkoutViewModel
+import ru.sportzal.app.ui.workout.FinishScreen
+import ru.sportzal.app.data.files.AndroidSnapshotShareCoordinator
+import ru.sportzal.app.platform.FileOpenResult
 
 class MainActivity : ComponentActivity() {
     private var pickedUri by mutableStateOf<Uri?>(null)
+    private var openedUri by mutableStateOf<Uri?>(null)
     private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { pickedUri = it }
+    private lateinit var shareCoordinator: AndroidSnapshotShareCoordinator
+    private val saver = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) result.data?.data?.let { uri -> lifecycleScope.launch { shareCoordinator.writePending(uri) } }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        openedUri = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.data
         val container = (application as SportzalApplication).container
+        shareCoordinator = AndroidSnapshotShareCoordinator(this, container.snapshotExporter) { saver.launch(it) }
         val viewModel = TodayViewModel(container.database, container.repository, container.programImporter, container.workoutService)
         setContent {
             SportzalTheme {
@@ -54,7 +66,19 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(pickedUri) {
                     pickedUri?.let { viewModel.preview(it) }
                 }
-                if (activeWorkoutId != null) WorkoutScreen(
+                LaunchedEffect(openedUri) { openedUri?.let { uri ->
+                    when (val result = container.fileIntentHandler.open(uri)) {
+                        is FileOpenResult.Program -> viewModel.showPreview(result.preview)
+                        is FileOpenResult.Error -> viewModel.showMessage(result.message)
+                    }
+                } }
+                if (workoutState.finished != null) FinishScreen(workoutState.finished!!,
+                    onShare = { scope.launch { runCatching { shareCoordinator.prepareAndShare(workoutState.finished!!.workoutId) }
+                        .onFailure { workoutViewModel.showError(it.message ?: "Не удалось подготовить JSON") } } },
+                    onSave = { scope.launch { runCatching { shareCoordinator.saveAs(workoutState.finished!!.workoutId) }
+                        .onFailure { workoutViewModel.showError(it.message ?: "Не удалось подготовить JSON") } } },
+                    onClose = { workoutViewModel.dismissFinish(); activeWorkoutId = null; scope.launch { viewModel.refresh() } }, error = workoutState.error)
+                else if (activeWorkoutId != null) WorkoutScreen(
                     state = workoutState,
                     elapsedFor = { workoutViewModel.elapsedText(it) },
                     onDraft = { id, weight, reps, rir, answered -> scope.launch { workoutViewModel.updateDraft(id, weight, reps, rir, answered) } },
@@ -72,6 +96,8 @@ class MainActivity : ComponentActivity() {
                         completed(workoutViewModel.editSet(id, weight, reps, rir, deviations, note, context)) } },
                     onInteraction = workoutViewModel::setInteraction,
                     onTick = workoutViewModel::tick,
+                    onFinish = { confirmed -> scope.launch { workoutViewModel.finish(confirmed) } },
+                    onCancelFinish = workoutViewModel::cancelFinish,
                 ) else TodayScreen(
                     selection = state.selection,
                     manualChoices = state.manualChoices,
@@ -90,5 +116,10 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openedUri = intent.takeIf { it.action == Intent.ACTION_VIEW }?.data
     }
 }

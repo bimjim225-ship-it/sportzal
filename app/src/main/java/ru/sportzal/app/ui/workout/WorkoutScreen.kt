@@ -8,6 +8,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
@@ -24,6 +27,8 @@ fun WorkoutScreen(
     onSave: (String, Int) -> Unit,
     onInteraction: (String, InteractionSource, Boolean) -> Unit,
     onTick: () -> Unit,
+    onFinish: (Boolean) -> Unit = {},
+    onCancelFinish: () -> Unit = {},
     onEdit: (String, Double, Int, Int?, List<String>, String?, (Boolean) -> Unit) -> Unit = { _, _, _, _, _, _, _ -> },
     onDelete: (String, (Boolean) -> Unit) -> Unit = { _, _ -> },
     onSkip: (String, Int, String?, String?, (Boolean) -> Unit) -> Unit = { _, _, _, _, _ -> },
@@ -32,6 +37,10 @@ fun WorkoutScreen(
     onExtra: (String, String, Double, Int, Int?, String?, (Boolean) -> Unit) -> Unit = { _, _, _, _, _, _, _ -> },
     onEditActual: ((String, Double, Int, Int?, List<String>, String?, ActualContext, (Boolean) -> Unit) -> Unit)? = null,
 ) {
+    if (state.finishConfirmation) AlertDialog(onDismissRequest = onCancelFinish,
+        title = { Text("Завершить с невыполненными подходами?") },
+        confirmButton = { TextButton(onClick = { onFinish(true) }) { Text("Завершить") } },
+        dismissButton = { TextButton(onClick = onCancelFinish) { Text("Отмена") } })
     LaunchedEffect(Unit) { while (true) { delay(1_000); onTick() } }
     LazyColumn(Modifier.fillMaxSize().imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text(state.title, style = MaterialTheme.typography.headlineLarge) }
@@ -51,5 +60,6 @@ fun WorkoutScreen(
                     onEditActual)
             }
         }
+        item { Button(onClick = { onFinish(false) }, enabled = !state.saving) { Text("Завершить тренировку") } }
     }
 }

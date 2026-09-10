@@ -67,6 +67,8 @@ class TodayViewModel(
     suspend fun preview(uri: Uri) {
         mutableState.value = mutableState.value.copy(preview = importer.import(uri))
     }
+    fun showPreview(value: ImportPreview) { mutableState.value = mutableState.value.copy(preview = value) }
+    fun showMessage(value: String) { mutableState.value = mutableState.value.copy(message = value) }
 
     suspend fun confirmImport(valid: ImportPreview.Valid) {
         val result = importer.confirm(valid)

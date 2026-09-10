@@ -33,6 +33,9 @@ interface SportzalDao {
     @Query("SELECT * FROM app_state WHERE id=1")
     fun observeState(): Flow<AppStateEntity?>
 
+    @Query("SELECT * FROM app_state WHERE id=1")
+    suspend fun state(): AppStateEntity?
+
     @Query("SELECT * FROM program_workout_index WHERE program_id=:programId AND program_version=:version ORDER BY planned_date, planned_order")
     suspend fun plannedWorkouts(programId: String, version: Int): List<ProgramWorkoutIndexEntity>
 

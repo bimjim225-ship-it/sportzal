@@ -28,6 +28,7 @@ import ru.sportzal.app.model.SaveSetCommand
 import ru.sportzal.app.model.SaveSetResult
 import ru.sportzal.app.model.SkipSetCommand
 import ru.sportzal.app.model.SnapshotSource
+import ru.sportzal.app.model.SnapshotWorkout
 import ru.sportzal.app.model.StrictJson
 import ru.sportzal.app.model.TodayData
 import ru.sportzal.app.model.WorkoutRuntime
@@ -233,7 +234,8 @@ class RoomSportzalRepository(
         val workout = checkNotNull(dao.workout(workoutId))
         WorkoutDetails(
             WorkoutRuntime(workout.workoutId, workout.planSnapshotJson, workout.equipmentAtStartJson,
-                workout.programId, workout.programVersion, workout.workoutInstanceId),
+                workout.programId, workout.programVersion, workout.workoutInstanceId, workout.startedAt,
+                workout.finishedAt, workout.completionStatus),
             dao.sets(workoutId), dao.drafts(workoutId), dao.skips(workoutId),
         )
     }
@@ -341,16 +343,32 @@ class RoomSportzalRepository(
 
     override fun observeActiveWorkout() = dao.observeActiveWorkout().map {
         it?.let { workout -> WorkoutRuntime(workout.workoutId, workout.planSnapshotJson, workout.equipmentAtStartJson,
-            workout.programId, workout.programVersion, workout.workoutInstanceId) }
+            workout.programId, workout.programVersion, workout.workoutInstanceId, workout.startedAt,
+            workout.finishedAt, workout.completionStatus) }
     }
 
-    override suspend fun snapshotSource(focusWorkoutId: String?) = SnapshotSource(
-        dao.programs().map { it.canonicalJson },
-        dao.workouts().filter { focusWorkoutId == null || it.workoutId == focusWorkoutId }.map {
-            WorkoutRuntime(it.workoutId, it.planSnapshotJson, it.equipmentAtStartJson,
-                it.programId, it.programVersion, it.workoutInstanceId)
-        },
-    )
+    override suspend fun snapshotSource(focusWorkoutId: String?) = db.withTransaction {
+        val all = dao.workouts()
+        val finished = all.filter { it.completionStatus != "active" }.take(24)
+        val selected = (finished + all.filter { it.completionStatus == "active" }.take(1) +
+            all.filter { it.workoutId == focusWorkoutId }).distinctBy { it.workoutId }
+        val versions = selected.map { it.programId to it.programVersion }.toSet()
+        val state = dao.state()
+        SnapshotSource(
+            programs = dao.programs().filter { it.programId to it.programVersion in versions }
+                .sortedWith(compareBy({ it.programId }, { it.programVersion })).map { it.canonicalJson },
+            workouts = selected.map { workout -> SnapshotWorkout(workout.workoutId, workout.programId,
+                workout.programVersion, workout.workoutInstanceId, workout.templateId, workout.startedAt,
+                workout.finishedAt, workout.completionStatus, workout.planSnapshotJson,
+                workout.equipmentAtStartJson, workout.notes, dao.sets(workout.workoutId),
+                dao.skips(workout.workoutId)) },
+            equipment = dao.equipment().map { EquipmentDocument(it.equipmentId, it.name, it.setupHint,
+                it.weightStepKg, it.availableWeightsJson?.let { json -> StrictJson.decodeFromString(json) }, it.notes) },
+            activeProgramId = state?.activeProgramId, activeProgramVersion = state?.activeProgramVersion,
+            totalStoredWorkouts = all.size,
+            omittedWorkouts = (all.count { it.completionStatus != "active" } - finished.size).coerceAtLeast(0),
+        )
+    }
 
     private companion object {
         val DEVIATIONS = setOf("range_shortened", "technique_changed", "discomfort", "setup_changed",

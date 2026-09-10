@@ -52,7 +52,12 @@ data class WorkoutUiState(
     val now: ClockReading = ClockReading(Instant.EPOCH, null, null),
     val saving: Boolean = false,
     val error: String? = null,
+    val finishConfirmation: Boolean = false,
+    val finished: FinishUiState? = null,
 )
+data class FinishUiState(val workoutId: String, val startedAt: String, val finishedAt: String,
+    val status: String, val workSetCount: Int, val exercises: List<Pair<String, Int>>,
+    val hasUnresolved: Boolean)
 
 enum class InteractionSource {
     FOCUS,
@@ -76,6 +81,7 @@ class WorkoutViewModel(
     private val mutableState = MutableStateFlow(WorkoutUiState())
     val state: StateFlow<WorkoutUiState> = mutableState
     private var plan: PlannedWorkoutDocument? = null
+    private var startedAt: String = ""
     private var equipmentAtStart = emptyMap<String, EquipmentDocument>()
     private val drafts = linkedMapOf<Pair<String, Int>, SetDraft>()
     private val sets = mutableListOf<SetResultEntity>()
@@ -87,6 +93,7 @@ class WorkoutViewModel(
     suspend fun open(workoutId: String) {
         val details = repository.workoutDetails(workoutId)
         plan = StrictJson.decodeFromString(details.runtime.planSnapshotJson)
+        startedAt = details.runtime.startedAt
         equipmentAtStart = StrictJson.decodeFromString<List<EquipmentDocument>>(details.runtime.equipmentAtStartJson)
             .associateBy { it.equipmentId }
         sets.clear(); sets += details.sets
@@ -206,6 +213,28 @@ class WorkoutViewModel(
     }
 
     fun tick() { publish() }
+    fun requestFinish() {
+        val unresolved = exercises().any { currentSlot(it) != null }
+        if (unresolved) mutableState.value = state.value.copy(finishConfirmation = true)
+    }
+
+    fun cancelFinish() { mutableState.value = state.value.copy(finishConfirmation = false) }
+    fun dismissFinish() { mutableState.value = state.value.copy(finished = null) }
+    fun showError(message: String) { fail(message) }
+
+    suspend fun finish(confirmEarly: Boolean = false): Boolean {
+        val unresolved = exercises().any { currentSlot(it) != null }
+        if (unresolved && !confirmEarly) { requestFinish(); return false }
+        return runCatching { repository.finishWorkout(state.value.workoutId) }.map { status ->
+            val details = repository.workoutDetails(state.value.workoutId)
+            val finishedAt = requireNotNull(details.runtime.finishedAt)
+            val work = details.sets.filter { it.setType == "work" }
+            mutableState.value = state.value.copy(finishConfirmation = false,
+                finished = FinishUiState(state.value.workoutId, startedAt, finishedAt, status.name.lowercase(),
+                    work.size, work.groupingBy { it.titleActual }.eachCount().toList(), unresolved))
+            true
+        }.getOrElse { fail(it.message ?: "Не удалось завершить тренировку"); false }
+    }
     fun setInteraction(exerciseId: String, source: InteractionSource, interacting: Boolean) {
         val block = plan?.blocks?.firstOrNull { candidate ->
             candidate.mode == "rotation" && candidate.exercises.any { it.exerciseInstanceId == exerciseId }
