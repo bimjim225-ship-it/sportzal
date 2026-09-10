@@ -1,16 +1,21 @@
 package ru.sportzal.app.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
@@ -30,6 +35,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import ru.sportzal.app.ui.workout.ExerciseUiState
 import ru.sportzal.app.ui.workout.InteractionSource
 import ru.sportzal.app.domain.ActualContext
@@ -207,13 +213,43 @@ private val skipReasonLabels = linkedMapOf<String?, String>(null to "Без пр
 @Composable private fun SkipSetDialog(saving: Boolean, onDismiss: () -> Unit, onSkip: (String?, String?) -> Unit) {
     var reason by remember { mutableStateOf<String?>(null) }
     var note by remember { mutableStateOf("") }
-    AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text("Пропустить подход") }, text = {
-        Column(modifier = Modifier.verticalScroll(rememberScrollState())) { skipReasonLabels.forEach { (value, label) -> FilterChip(reason == value, { reason = value }, { Text(label) },
-            modifier = Modifier.testTag("skip-reason-${value ?: "none"}")) }
-            OutlinedTextField(note, { note = it }, label = { Text("Комментарий") }) }
-    }, dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } }, confirmButton = {
-        TextButton({ onSkip(reason, note) }, enabled = !saving, modifier = Modifier.testTag("confirm-skip")) { Text("Пропустить") }
-    })
+    Dialog(onDismissRequest = { if (!saving) onDismiss() }) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight - 32.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                tonalElevation = 6.dp,
+            ) {
+                Column(Modifier.padding(24.dp)) {
+                    Text("Пропустить подход", style = MaterialTheme.typography.headlineSmall)
+                    Spacer(Modifier.height(16.dp))
+                    Column(
+                        modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        skipReasonLabels.forEach { (value, label) ->
+                            FilterChip(
+                                selected = reason == value,
+                                onClick = { reason = value },
+                                label = { Text(label) },
+                                modifier = Modifier.testTag("skip-reason-${value ?: "none"}"),
+                            )
+                        }
+                        OutlinedTextField(note, { note = it }, label = { Text("Комментарий") })
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onDismiss, enabled = !saving) { Text("Отмена") }
+                        TextButton(
+                            onClick = { onSkip(reason, note) },
+                            enabled = !saving,
+                            modifier = Modifier.testTag("confirm-skip"),
+                        ) { Text("Пропустить") }
+                    }
+                }
+            }
+        }
+    }
 }
 private fun Double.display() = if (this % 1.0 == 0.0) toInt().toString() else toString()
 internal fun Int.rirText() = if (this == 4) "4+" else toString()

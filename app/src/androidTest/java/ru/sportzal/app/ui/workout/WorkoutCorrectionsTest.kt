@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -45,7 +46,7 @@ class WorkoutCorrectionsTest {
         compose.onNodeWithTag("save-edit").performClick()
 
         compose.onNodeWithTag("save-edit").assertDoesNotExist()
-        compose.onNodeWithText("1. 100 кг × 8 · RIR 3").assertIsDisplayed()
+        compose.onNodeWithText("1. 100 кг × 8 · RIR 3").performScrollTo().assertIsDisplayed()
         assertEquals(listOf(InteractionSource.SET_ACTIONS to true, InteractionSource.SET_ACTIONS to false),
             interactions.filter { it.first == InteractionSource.SET_ACTIONS })
     }
@@ -106,6 +107,18 @@ class WorkoutCorrectionsTest {
         compose.onNodeWithText("Все подходы записаны").assertIsDisplayed()
         assertEquals(listOf(InteractionSource.SKIP_DIALOG to true, InteractionSource.SKIP_DIALOG to false),
             interactions.filter { it.first == InteractionSource.SKIP_DIALOG })
+    }
+
+    @Test fun skipDialogKeepsActionsAvailableOnSmallViewport() {
+        val ui = workout(current = 1)
+        compose.setContent { content(ui, {}, mutableListOf()) }
+
+        compose.onNodeWithTag("skip-instance").performClick()
+        compose.onNodeWithTag("skip-reason-none").assertExists()
+        compose.onNodeWithTag("skip-reason-equipment_busy").assertExists()
+        compose.onNodeWithTag("confirm-skip").assertIsDisplayed()
+        compose.onNodeWithTag("skip-reason-other").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("confirm-skip").assertIsDisplayed()
     }
 
     @Test fun restoreRemovesSkippedFactAndMakesSlotCurrent() {
