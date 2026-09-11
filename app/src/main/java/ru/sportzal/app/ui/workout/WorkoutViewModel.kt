@@ -220,14 +220,20 @@ class WorkoutViewModel(
         else confirmFinish()
     }
     fun cancelFinish() { mutableState.value = state.value.copy(finishConfirmation = false) }
+    fun showError(message: String) { fail(message) }
     suspend fun confirmFinish(): Boolean {
         if (state.value.saving || state.value.workoutId.isBlank()) return false
         mutableState.value = state.value.copy(saving = true, finishConfirmation = false, error = null)
-        return runCatching { repository.finishWorkout(state.value.workoutId) }.onSuccess { status ->
-            val finished = clock.wallNow()
-            val work = sets.filter { it.setType == "work" }
-            val counts = exercises().map { exercise -> ExerciseFinishSummary(exercise.title,
-                work.count { it.exerciseInstanceId == exercise.exerciseInstanceId }) }
+        return runCatching {
+            val status = repository.finishWorkout(state.value.workoutId)
+            status to repository.workoutDetails(state.value.workoutId)
+        }.onSuccess { (status, details) ->
+            val finished = requireNotNull(details.runtime.finishedAt).let(Instant::parse)
+            val work = details.sets.filter { it.setType == "work" }
+            val counts = exercises().mapNotNull { exercise ->
+                val count = work.count { it.exerciseInstanceId == exercise.exerciseInstanceId }
+                count.takeIf { it > 0 }?.let { ExerciseFinishSummary(exercise.title, it) }
+            }
             mutableState.value = state.value.copy(saving = false, finishSummary = FinishSummary(
                 java.time.Duration.between(startedAt, finished).seconds.coerceAtLeast(0), work.size, counts,
                 status == CompletionStatus.ENDED_EARLY))

@@ -60,7 +60,10 @@ class MainActivity : ComponentActivity() {
                     incomingUri?.let { viewModel.showFileResult(container.fileIntentHandler.handle(it)) }
                 }
                 LaunchedEffect(saveDestination) { saveDestination?.let {
-                    container.snapshotShareCoordinator.writePending(it); saveDestination = null
+                    if (!container.snapshotShareCoordinator.writePending(it)) {
+                        workoutViewModel.showError("Не удалось сохранить JSON")
+                    }
+                    saveDestination = null
                 } }
                 LaunchedEffect(state.selection) {
                     val id = (state.selection as? ru.sportzal.app.domain.TodaySelection.Resume)?.workout?.workoutId
@@ -71,9 +74,17 @@ class MainActivity : ComponentActivity() {
                 }
                 if (workoutState.finishSummary != null) FinishScreen(
                     summary = workoutState.finishSummary!!,
-                    onShare = { scope.launch { val send = container.snapshotShareCoordinator.shareIntent(activeWorkoutId)
-                        startActivity(Intent.createChooser(send, "Отправить JSON")) } },
-                    onSave = { scope.launch { savePicker.launch(container.snapshotShareCoordinator.createSaveIntent(activeWorkoutId)) } },
+                    error = workoutState.error,
+                    onShare = { scope.launch {
+                        runCatching {
+                            val send = container.snapshotShareCoordinator.shareIntent(activeWorkoutId)
+                            startActivity(Intent.createChooser(send, "Отправить JSON"))
+                        }.onFailure { workoutViewModel.showError("Не удалось подготовить JSON") }
+                    } },
+                    onSave = { scope.launch {
+                        runCatching { savePicker.launch(container.snapshotShareCoordinator.createSaveIntent(activeWorkoutId)) }
+                            .onFailure { workoutViewModel.showError("Не удалось подготовить JSON") }
+                    } },
                     onClose = { activeWorkoutId = null; scope.launch { viewModel.refresh() } },
                 ) else if (activeWorkoutId != null) WorkoutScreen(
                     state = workoutState,

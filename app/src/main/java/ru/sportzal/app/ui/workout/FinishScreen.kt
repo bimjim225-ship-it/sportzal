@@ -10,13 +10,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-@Composable fun FinishScreen(summary: FinishSummary, onShare: () -> Unit, onSave: () -> Unit, onClose: () -> Unit) {
+@Composable fun FinishScreen(summary: FinishSummary, error: String?, onShare: () -> Unit, onSave: () -> Unit, onClose: () -> Unit) {
     Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Тренировка завершена", style = MaterialTheme.typography.headlineMedium)
         Text("Длительность: ${formatDuration(summary.durationSeconds)}")
         Text("Рабочих подходов: ${summary.workSetCount}")
         summary.exercises.forEach { Text("${it.title} — ${it.workSetCount} подходов") }
         if (summary.endedEarly) Text("Остались невыполненные подходы")
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Button(onClick = onShare) { Text("Отправить JSON") }
         Button(onClick = onSave) { Text("Сохранить JSON") }
         Button(onClick = onClose) { Text("Закрыть") }
