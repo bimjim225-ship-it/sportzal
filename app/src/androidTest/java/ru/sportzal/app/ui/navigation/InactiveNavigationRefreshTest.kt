@@ -1,6 +1,7 @@
 package ru.sportzal.app.ui.navigation
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import java.util.UUID
@@ -56,7 +57,9 @@ class InactiveNavigationRefreshTest {
         )
 
         compose.onNodeWithText("История").performClick()
-        compose.waitForIdle()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithText(title, substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
 
         compose.onNodeWithText(title, substring = true).assertExists()
         Unit
@@ -82,7 +85,9 @@ class InactiveNavigationRefreshTest {
         )
 
         compose.onNodeWithText("Тренажёры").performClick()
-        compose.waitForIdle()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithText(name).fetchSemanticsNodes().isNotEmpty()
+        }
 
         compose.onNodeWithText(name).assertExists()
         Unit
