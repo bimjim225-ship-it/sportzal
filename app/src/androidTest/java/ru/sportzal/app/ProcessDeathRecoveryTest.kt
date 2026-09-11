@@ -125,7 +125,9 @@ class ProcessDeathRecoveryTest {
         val id = "program-$suffix"
         val title = "Восстановленная тренировка $suffix"
         return runBlocking {
-            container.database.dao().activeWorkout()?.let { container.database.dao().updateStatus(it.workoutId, "ended_early") }
+            container.database.clearAllTables()
+            assertNull(container.database.dao().activeWorkout())
+            assertEquals(0, container.database.dao().workouts().size)
             val document = program(id, 1, title)
             container.repository.importProgram(document, StrictJson.encodeToString(document), "hash-$suffix")
             val workoutId = container.repository.startWorkout(id, 1, "session-$suffix")
