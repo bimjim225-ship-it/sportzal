@@ -22,6 +22,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.serialization.decodeFromString
 import ru.sportzal.app.data.db.SetResultEntity
@@ -52,7 +54,8 @@ fun SetResultRow(
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text("${result.plannedSetNo}. ${result.weightKg.g} кг × ${result.reps}" + (result.rir?.let { " · RIR ${it.rirText()}" } ?: ""))
         IconButton({ menu = true; onInteraction(InteractionSource.SET_ACTIONS, true) }, enabled = !saving,
-            modifier = Modifier.testTag("set-actions-${result.setResultId}")) { Text("⋮") }
+            modifier = Modifier.semantics { contentDescription = "Меню записанного подхода" }
+                .testTag("set-actions-${result.setResultId}")) { Text("⋮") }
         DropdownMenu(menu, onDismissRequest = ::closeAll) {
             DropdownMenuItem({ Text("Изменить") }, { menu = false; edit = true })
             DropdownMenuItem({ Text("Удалить") }, { menu = false; confirmDelete = true })

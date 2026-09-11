@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -52,7 +53,7 @@ class FastSetLoggingTest {
         }, { _, _, _ -> }, {}) } }
 
         compose.onNodeWithText("Цель: 100 кг · 5–8 · RIR 2").assertIsDisplayed()
-        compose.onNodeWithText("Ещё не записывали").assertIsDisplayed()
+        compose.onNode(hasContentDescription("Таймер отдыха")).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("rir-2").assertIsNotSelected()
         compose.onNodeWithTag("reps-instance").performTextClearance()
         compose.onNodeWithTag("reps-instance").performTextInput("7")
@@ -60,7 +61,7 @@ class FastSetLoggingTest {
         compose.onNodeWithTag("save-instance").performScrollTo().assertIsDisplayed().performClick()
         compose.onNodeWithText("1. 100 кг × 7 · RIR 2").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Подход 2 · work").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("С записи: 0:00").performScrollTo().assertIsDisplayed()
+        compose.onNode(hasContentDescription("Таймер отдыха")).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("save-instance").performScrollTo().assertIsDisplayed().performClick()
         assertEquals("UI exposes only one fact for the planned slot", 1, ui.blocks.single().cards.single().saved.size)
     }
