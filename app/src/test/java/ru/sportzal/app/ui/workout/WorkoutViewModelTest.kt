@@ -11,6 +11,7 @@ import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
 import kotlin.coroutines.resume
 import kotlinx.serialization.encodeToString
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -386,7 +387,7 @@ class WorkoutViewModelTest {
             } } as SportzalRepository
         val lateClock = object : ClockProvider {
             override fun wallNow() = Instant.parse("2026-09-08T12:45:00Z")
-            override fun elapsedRealtimeMs() = null
+            override fun elapsedRealtimeMs() = 42L
             override fun bootIdOrNull() = null
         }
         val vm = WorkoutViewModel(repository, lateClock)
@@ -410,6 +411,34 @@ class WorkoutViewModelTest {
         assertNull(vm.state.value.finishSummary)
         assertFalse(vm.state.value.saving)
         assertEquals("disk full", vm.state.value.error)
+    }
+
+    @Test fun dismissFinishClearsOnlyFinishUiState() = runBlocking {
+        var current = details(exercise()).copy(sets = listOf(saved("instance", 1)))
+        var finishCalls = 0
+        val repository = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, method, _ -> when (method.name) {
+                "workoutDetails" -> current
+                "finishWorkout" -> {
+                    finishCalls++
+                    current = current.copy(runtime = current.runtime.copy(
+                        finishedAt = "2026-09-08T12:30:00Z", completionStatus = "completed"))
+                    ru.sportzal.app.model.CompletionStatus.COMPLETED
+                }
+                else -> error("Unexpected ${method.name}")
+            } } as SportzalRepository
+        val vm = WorkoutViewModel(repository, fixedClock())
+        vm.open("workout")
+        assertTrue(vm.confirmFinish())
+        assertNotNull(vm.state.value.finishSummary)
+        val persisted = current
+
+        vm.dismissFinish()
+
+        assertNull(vm.state.value.finishSummary)
+        assertFalse(vm.state.value.finishConfirmation)
+        assertEquals(persisted, current)
+        assertEquals(1, finishCalls)
     }
 
     private fun fixedClock() = object : ClockProvider {
