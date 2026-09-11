@@ -1,8 +1,12 @@
 package ru.sportzal.app.ui.history
 
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import kotlinx.serialization.encodeToString
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -38,10 +42,10 @@ class HistoryScreenTest {
         }
 
         compose.onNodeWithText("Длительность: 30:00").assertExists()
-        compose.onNodeWithText("Факт: 100 кг × 8 · RIR 4+ · 12:15").assertExists()
-        compose.onNodeWithText("Факт: Жим ногами · сиденье 4 · machine_display · bilateral").assertExists()
-        compose.onNodeWithText("Отклонения: Дискомфорт").assertExists()
-        compose.onNodeWithText("Комментарий: Болело колено").assertExists()
+        assertHistoryText("Факт: 100 кг × 8 · RIR 4+ · 12:15")
+        assertHistoryText("Факт: Жим ногами · сиденье 4 · machine_display · bilateral")
+        assertHistoryText("Отклонения: Дискомфорт")
+        assertHistoryText("Комментарий: Болело колено")
     }
 
     @Test
@@ -68,6 +72,7 @@ class HistoryScreenTest {
             }
         }
 
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Изменить"))
         compose.onNodeWithText("Изменить").performClick()
         compose.onNodeWithText("ID оборудования").assertExists()
         compose.onNodeWithText("Настройка / setup").assertExists()
@@ -84,6 +89,11 @@ class HistoryScreenTest {
         assertEquals("machine_display", capturedContext?.loadBasis)
         assertEquals("bilateral", capturedContext?.side)
         assertTrue(capturedContext != null)
+    }
+
+    private fun assertHistoryText(text: String) {
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText(text))
+        compose.onNodeWithText(text).assertExists()
     }
 
     private fun historyState(): HistoryUiState {
