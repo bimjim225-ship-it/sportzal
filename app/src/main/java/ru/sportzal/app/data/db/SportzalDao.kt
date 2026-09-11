@@ -63,6 +63,9 @@ interface SportzalDao {
     @Query("UPDATE workouts SET completion_status=:status WHERE workout_id=:id")
     suspend fun updateStatus(id: String, status: String)
 
+    @Query("UPDATE workouts SET notes=:notes WHERE workout_id=:workoutId")
+    suspend fun updateWorkoutNotes(workoutId: String, notes: String?)
+
     @Query("SELECT * FROM set_results WHERE set_result_id=:id")
     suspend fun set(id: String): SetResultEntity?
 

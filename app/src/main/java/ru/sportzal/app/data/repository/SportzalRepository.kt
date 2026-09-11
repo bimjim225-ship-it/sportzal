@@ -35,6 +35,11 @@ import ru.sportzal.app.model.TodayData
 import ru.sportzal.app.model.WorkoutRuntime
 import ru.sportzal.app.model.WorkoutDetails
 import ru.sportzal.app.data.db.DraftEntity
+import java.time.Duration
+import ru.sportzal.app.model.HistoryWorkout
+import ru.sportzal.app.model.HistoryWorkoutDetails
+import ru.sportzal.app.model.EquipmentCatalogItem
+import ru.sportzal.app.model.SaveEquipmentCommand
 
 interface SportzalRepository {
     suspend fun importProgram(validated: ProgramDocument, canonicalJson: String, canonicalHash: String): ImportResult
@@ -51,6 +56,12 @@ interface SportzalRepository {
     suspend fun finishWorkout(workoutId: String): CompletionStatus
     fun observeActiveWorkout(): Flow<WorkoutRuntime?>
     suspend fun snapshotSource(focusWorkoutId: String?): SnapshotSource
+    suspend fun history(): List<HistoryWorkout>
+    suspend fun historyDetails(workoutId: String): HistoryWorkoutDetails
+    suspend fun updateWorkoutNotes(workoutId: String, notes: String?)
+    suspend fun equipmentCatalog(): List<EquipmentCatalogItem>
+    suspend fun saveEquipment(command: SaveEquipmentCommand): String
+    suspend fun setEquipmentPhoto(equipmentId: String, photoPath: String?)
 }
 
 class RoomSportzalRepository(
@@ -241,7 +252,7 @@ class RoomSportzalRepository(
 
     override suspend fun editSet(command: EditSetCommand) = db.withTransaction {
         val old = checkNotNull(dao.set(command.setResultId))
-        requireActive(old.workoutId)
+        checkNotNull(dao.workout(old.workoutId))
         require(command.weightKg.isFinite() && command.weightKg >= 0) { "Weight must be finite and non-negative" }
         require(command.reps >= 0) { "Reps must be non-negative" }
         require(command.rir == null || command.rir in 0..4) { "RIR must be between 0 and 4" }
@@ -366,11 +377,62 @@ class RoomSportzalRepository(
         }, equipment, active, focusWorkoutId, all.size, all.size - selected.size)
     }
 
+    override suspend fun history(): List<HistoryWorkout> = db.withTransaction {
+        dao.workouts().filter { it.completionStatus in setOf("completed", "ended_early") }.map { workout ->
+            val plan = StrictJson.decodeFromString<ru.sportzal.app.model.PlannedWorkoutDocument>(workout.planSnapshotJson)
+            val finishedAt = checkNotNull(workout.finishedAt)
+            HistoryWorkout(
+                workout.workoutId, plan.title, workout.templateId, workout.startedAt, finishedAt,
+                CompletionStatus.valueOf(workout.completionStatus.uppercase()),
+                Duration.between(Instant.parse(workout.startedAt), Instant.parse(finishedAt)).seconds.coerceAtLeast(0),
+                workout.notes,
+            )
+        }
+    }
+
+    override suspend fun historyDetails(workoutId: String): HistoryWorkoutDetails = db.withTransaction {
+        val workout = checkNotNull(dao.workout(workoutId))
+        check(workout.completionStatus != "active") { "Active workout is not history" }
+        HistoryWorkoutDetails(
+            workout.runtime(), StrictJson.decodeFromString(workout.planSnapshotJson),
+            StrictJson.decodeFromString(workout.equipmentAtStartJson), dao.sets(workoutId), dao.skips(workoutId),
+        )
+    }
+
+    override suspend fun updateWorkoutNotes(workoutId: String, notes: String?) = db.withTransaction {
+        checkNotNull(dao.workout(workoutId))
+        dao.updateWorkoutNotes(workoutId, notes?.trim()?.ifEmpty { null })
+    }
+
+    override suspend fun equipmentCatalog(): List<EquipmentCatalogItem> = db.withTransaction {
+        dao.equipment().map { it.catalogItem() }
+    }
+
+    override suspend fun saveEquipment(command: SaveEquipmentCommand): String = db.withTransaction {
+        val name = command.name.trim().also { require(it.isNotEmpty()) { "Equipment name is required" } }
+        val id = command.equipmentId ?: "local-equipment-${newId()}"
+        val old = dao.equipment(id)
+        val value = EquipmentEntity(id, name, command.setupHint.normalized(), old?.weightStepKg,
+            old?.availableWeightsJson, command.notes.normalized(), old?.photoPath, now())
+        if (old == null) dao.insertEquipment(value) else dao.updateEquipment(value)
+        id
+    }
+
+    override suspend fun setEquipmentPhoto(equipmentId: String, photoPath: String?) = db.withTransaction {
+        val old = checkNotNull(dao.equipment(equipmentId))
+        dao.updateEquipment(old.copy(photoPath = photoPath, updatedAt = now()))
+    }
+
     private fun WorkoutEntity.runtime() = WorkoutRuntime(workoutId, planSnapshotJson, equipmentAtStartJson,
         programId, programVersion, workoutInstanceId, templateId, startedAt, finishedAt, completionStatus, notes)
 
     private fun EquipmentEntity.document() = EquipmentDocument(equipmentId, name, setupHint, weightStepKg,
         availableWeightsJson?.let { StrictJson.decodeFromString<List<Double>>(it) }, notes)
+
+    private fun EquipmentEntity.catalogItem() = EquipmentCatalogItem(equipmentId, name, setupHint, weightStepKg,
+        availableWeightsJson?.let { StrictJson.decodeFromString<List<Double>>(it) }, notes, photoPath)
+
+    private fun String?.normalized() = this?.trim()?.ifEmpty { null }
 
     private companion object {
         val DEVIATIONS = setOf("range_shortened", "technique_changed", "discomfort", "setup_changed",

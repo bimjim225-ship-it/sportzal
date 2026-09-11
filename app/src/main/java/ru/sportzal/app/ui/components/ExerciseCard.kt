@@ -40,6 +40,7 @@ import ru.sportzal.app.ui.workout.ExerciseUiState
 import ru.sportzal.app.ui.workout.InteractionSource
 import ru.sportzal.app.domain.ActualContext
 import java.util.UUID
+import ru.sportzal.app.data.files.EquipmentPhotoStore
 
 @Composable
 fun ExerciseCard(
@@ -56,6 +57,7 @@ fun ExerciseCard(
     onContext: (ActualContext, (Boolean) -> Unit) -> Unit = { _, _ -> },
     onExtra: (String, Double, Int, Int?, String?, (Boolean) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
     onEditActual: ((String, Double, Int, Int?, List<String>, String?, ActualContext, (Boolean) -> Unit) -> Unit)? = null,
+    photoStore: EquipmentPhotoStore? = null,
 ) {
     val slot = state.currentSlot
     val draft = state.draft
@@ -72,6 +74,7 @@ fun ExerciseCard(
     Card(Modifier.fillMaxWidth().onFocusChanged { onInteraction(InteractionSource.FOCUS, it.hasFocus) }.focusGroup()
         .testTag("exercise-${state.exercise.exerciseInstanceId}")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (photoStore != null) LocalEquipmentPhoto(state.equipmentPhotoPath, photoStore, Modifier.fillMaxWidth())
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(state.exercise.title, style = MaterialTheme.typography.headlineSmall)
                 IconButton({ secondaryMenu = true }, enabled = !saving, modifier = Modifier.testTag("secondary-${state.exercise.exerciseInstanceId}")) { Text("⋮") }

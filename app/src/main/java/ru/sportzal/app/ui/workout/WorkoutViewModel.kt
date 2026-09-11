@@ -39,6 +39,7 @@ data class ExerciseUiState(
     val restReferenceSec: Int? = null,
     val skipped: List<SkippedSetEntity> = emptyList(),
     val equipmentChoices: List<EquipmentDocument> = emptyList(),
+    val equipmentPhotoPath: String? = null,
 )
 data class BlockUiState(
     val blockId: String,
@@ -55,6 +56,7 @@ data class WorkoutUiState(
     val error: String? = null,
     val finishConfirmation: Boolean = false,
     val finishSummary: FinishSummary? = null,
+    val notes: String? = null,
 )
 data class ExerciseFinishSummary(val title: String, val workSetCount: Int)
 data class FinishSummary(val durationSeconds: Long, val workSetCount: Int,
@@ -84,6 +86,7 @@ class WorkoutViewModel(
     private var plan: PlannedWorkoutDocument? = null
     private var startedAt: Instant = Instant.EPOCH
     private var equipmentAtStart = emptyMap<String, EquipmentDocument>()
+    private var equipmentPhotos = emptyMap<String, String?>()
     private val drafts = linkedMapOf<Pair<String, Int>, SetDraft>()
     private val sets = mutableListOf<SetResultEntity>()
     private val skips = mutableListOf<SkippedSetEntity>()
@@ -98,6 +101,9 @@ class WorkoutViewModel(
         startedAt = details.runtime.startedAt.takeIf { it.isNotBlank() }?.let(Instant::parse) ?: clock.wallNow()
         equipmentAtStart = StrictJson.decodeFromString<List<EquipmentDocument>>(details.runtime.equipmentAtStartJson)
             .associateBy { it.equipmentId }
+        // Photos are a current-catalog convenience only; a catalog read failure must not block the workout.
+        equipmentPhotos = runCatching { repository.equipmentCatalog() }.getOrDefault(emptyList())
+            .associate { it.equipmentId to it.photoPath }
         sets.clear(); sets += details.sets
         skips.clear(); skips += details.skippedSets
         drafts.clear()
@@ -110,7 +116,7 @@ class WorkoutViewModel(
                     ?: exercise.resolvedContext(), rirAnswered = entity.rir != null,
             )
         }
-        mutableState.value = mutableState.value.copy(workoutId = workoutId)
+        mutableState.value = mutableState.value.copy(workoutId = workoutId, notes = details.runtime.notes)
         rotations.clear()
         interactionOwners.clear()
         plan!!.blocks.filter { it.mode == "rotation" }.forEach { block ->
@@ -119,6 +125,14 @@ class WorkoutViewModel(
             }
         }
         publish()
+    }
+
+    suspend fun updateNotes(notes: String): Boolean {
+        mutableState.value = mutableState.value.copy(saving = true, error = null)
+        return runCatching { repository.updateWorkoutNotes(mutableState.value.workoutId, notes) }.fold({
+            val normalized = notes.trim().ifEmpty { null }
+            mutableState.value = mutableState.value.copy(saving = false, notes = normalized); true
+        }, { fail(it.message ?: "Не удалось сохранить заметку"); false })
     }
 
     suspend fun updateDraft(exerciseId: String, weight: Double?, reps: Int?, rir: Int?, rirAnswered: Boolean) {
@@ -263,6 +277,7 @@ class WorkoutViewModel(
             saving = false,
             error = null,
             finishConfirmation = false,
+            notes = details.runtime.notes,
             finishSummary = FinishSummary(
                 java.time.Duration.between(startedAt, finished).seconds.coerceAtLeast(0),
                 work.size,
@@ -354,7 +369,8 @@ class WorkoutViewModel(
                 val lastPlanned = saved.filter { it.plannedSetNo != null }.maxByOrNull { it.sequenceNo }
                 val rest = lastPlanned?.plannedSetNo?.let { no -> ex.plannedSets.firstOrNull { it.setNo == no }?.restTargetSec }
                 ExerciseUiState(ex, slot, slot?.let { resolvedDraft(ex, it) }, saved, rest,
-                    skips.filter { it.exerciseInstanceId == id }, equipmentAtStart.values.toList())
+                    skips.filter { it.exerciseInstanceId == id }, equipmentAtStart.values.toList(),
+                    ex.equipmentId?.let(equipmentPhotos::get))
             } }) },
         )
     }

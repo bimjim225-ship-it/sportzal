@@ -30,6 +30,8 @@ fun TodayScreen(
     onChooseWorkout: (String) -> Unit,
     onStart: () -> Unit,
     onResume: () -> Unit,
+    onShare: () -> Unit = {},
+    preparing: Boolean = false,
 ) {
     LazyColumn(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { Text("Сегодня", style = MaterialTheme.typography.headlineLarge) }
@@ -76,5 +78,6 @@ fun TodayScreen(
             null -> Unit
         }
         message?.let { item { Text(it) } }
+        item { OutlinedButton(onClick = onShare, enabled = !preparing) { Text(if (preparing) "Подготовка JSON…" else "Отправить JSON") } }
     }
 }
