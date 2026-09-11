@@ -58,5 +58,6 @@ class InactiveNavigationRefreshTest {
         compose.waitForIdle()
 
         compose.onNodeWithText(title, substring = true).assertExists()
+        Unit
     }
 }
