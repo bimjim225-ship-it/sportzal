@@ -17,9 +17,9 @@ sealed interface JsonReadResult {
     data object InvalidUtf8 : JsonReadResult
     data object Unreadable : JsonReadResult
 }
-class JsonFileReader(private val resolver: ContentResolver, private val maxBytes: Int = 10 * 1024 * 1024) {
+class JsonFileReader(private val resolver: ContentResolver?, private val maxBytes: Int = 10 * 1024 * 1024) {
     suspend fun read(uri: Uri): JsonReadResult = withContext(Dispatchers.IO) {
-        val stream = runCatching { resolver.openInputStream(uri) }.getOrNull() ?: return@withContext JsonReadResult.Unreadable
+        val stream = runCatching { resolver?.openInputStream(uri) }.getOrNull() ?: return@withContext JsonReadResult.Unreadable
         read(stream)
     }
     fun read(stream: InputStream): JsonReadResult = try {
