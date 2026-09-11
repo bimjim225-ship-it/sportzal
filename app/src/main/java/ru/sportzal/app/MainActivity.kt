@@ -14,6 +14,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Text
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -25,6 +30,9 @@ import ru.sportzal.app.ui.today.TodayViewModel
 import ru.sportzal.app.ui.workout.WorkoutScreen
 import ru.sportzal.app.ui.workout.WorkoutViewModel
 import ru.sportzal.app.ui.workout.FinishScreen
+import ru.sportzal.app.ui.history.*
+import ru.sportzal.app.ui.equipment.*
+import ru.sportzal.app.ui.navigation.InactiveDestination
 
 class MainActivity : ComponentActivity() {
     private var displayedFinishWorkoutId by mutableStateOf<String?>(null)
@@ -50,6 +58,12 @@ class MainActivity : ComponentActivity() {
                 val scope = rememberCoroutineScope()
                 val state by viewModel.state.collectAsState()
                 val workoutViewModel = remember { WorkoutViewModel(container.repository, container.clockProvider) }
+                val historyViewModel = remember { HistoryViewModel(container.repository) }
+                val equipmentViewModel = remember { EquipmentViewModel(container.repository, container.equipmentPhotoStore) }
+                val historyState by historyViewModel.state.collectAsState()
+                val equipmentState by equipmentViewModel.state.collectAsState()
+                var destinationName by rememberSaveable { mutableStateOf(InactiveDestination.TODAY.name) }
+                val destination = InactiveDestination.valueOf(destinationName)
                 val workoutState by workoutViewModel.state.collectAsState()
                 val lifecycleOwner = LocalLifecycleOwner.current
                 DisposableEffect(lifecycleOwner, workoutViewModel) {
@@ -60,9 +74,9 @@ class MainActivity : ComponentActivity() {
                     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
                 }
                 var activeWorkoutId by remember { mutableStateOf(displayedFinishWorkoutId) }
-                LaunchedEffect(Unit) { viewModel.refresh() }
+                LaunchedEffect(Unit) { viewModel.refresh(); historyViewModel.load(); equipmentViewModel.load() }
                 LaunchedEffect(incomingUri) {
-                    incomingUri?.let { viewModel.showFileResult(container.fileIntentHandler.handle(it)) }
+                    incomingUri?.let { destinationName = InactiveDestination.TODAY.name; viewModel.showFileResult(container.fileIntentHandler.handle(it)) }
                 }
                 LaunchedEffect(saveDestination) { saveDestination?.let {
                     if (!container.snapshotShareCoordinator.writePending(it)) {
@@ -121,8 +135,11 @@ class MainActivity : ComponentActivity() {
                         workoutViewModel.dismissFinish()
                         displayedFinishWorkoutId = null
                         activeWorkoutId = null
+                        destinationName = InactiveDestination.TODAY.name
                         scope.launch { viewModel.refresh() }
                     },
+                    notes = workoutState.notes,
+                    onNote = { text, done -> scope.launch { done(workoutViewModel.updateNotes(text)) } },
                 ) else if (activeWorkoutId != null) WorkoutScreen(
                     state = workoutState,
                     elapsedFor = { workoutViewModel.elapsedText(it) },
@@ -144,7 +161,15 @@ class MainActivity : ComponentActivity() {
                     onFinish = { scope.launch { workoutViewModel.requestFinish() } },
                     onConfirmFinish = { scope.launch { workoutViewModel.confirmFinish() } },
                     onCancelFinish = workoutViewModel::cancelFinish,
-                ) else TodayScreen(
+                    onNote = { text, done -> scope.launch { done(workoutViewModel.updateNotes(text)) } },
+                    photoStore = container.equipmentPhotoStore,
+                ) else Scaffold(bottomBar = { NavigationBar {
+                    InactiveDestination.entries.forEach { item -> NavigationBarItem(selected = item == destination,
+                        onClick = { destinationName = item.name }, icon = { Text(when (item) { InactiveDestination.TODAY -> "●"; InactiveDestination.HISTORY -> "≡"; InactiveDestination.EQUIPMENT -> "□" }) },
+                        label = { Text(item.label) }) }
+                } }) { padding -> androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.padding(padding)) {
+                    when (destination) {
+                InactiveDestination.TODAY -> TodayScreen(
                     selection = state.selection,
                     manualChoices = state.manualChoices,
                     preview = state.preview,
@@ -159,7 +184,34 @@ class MainActivity : ComponentActivity() {
                         val id = (state.selection as? ru.sportzal.app.domain.TodaySelection.Resume)?.workout?.workoutId
                         if (id != null) { activeWorkoutId = id; scope.launch { workoutViewModel.open(id) } }
                     },
+                    onShare = { scope.launch {
+                        if (exportPreparing) return@launch
+                        exportPreparing = true
+                        try { startActivity(Intent.createChooser(container.snapshotShareCoordinator.shareIntent(null), "Отправить JSON")) }
+                        catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) { viewModel.showFileResult(ru.sportzal.app.platform.FileIntentResult.Message("Не удалось подготовить JSON")) }
+                        finally { exportPreparing = false }
+                    } }, preparing = exportPreparing,
                 )
+                InactiveDestination.HISTORY -> if (historyState.details == null) HistoryScreen(historyState,
+                    { scope.launch { historyViewModel.load() } }, { scope.launch { historyViewModel.open(it) } })
+                else HistoryDetailScreen(historyState, historyViewModel::close,
+                    { text, done -> scope.launch { done(historyViewModel.saveNote(text)) } },
+                    { fact, weight, reps, rir, note, done -> scope.launch { done(historyViewModel.editSet(fact, weight, reps, rir, note)) } },
+                    { id, done -> scope.launch { done(historyViewModel.deleteSet(id)) } },
+                    { scope.launch {
+                        if (exportPreparing) return@launch; exportPreparing = true
+                        try { startActivity(Intent.createChooser(container.snapshotShareCoordinator.shareIntent(historyState.details!!.runtime.workoutId), "Отправить JSON")) }
+                        catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) { historyViewModel.showError("Не удалось подготовить JSON") }
+                        finally { exportPreparing = false }
+                    } })
+                InactiveDestination.EQUIPMENT -> EquipmentScreen(equipmentState, container.equipmentPhotoStore,
+                    { scope.launch { equipmentViewModel.load() } }, { command, done -> scope.launch { done(equipmentViewModel.save(command) != null) } },
+                    { item, uri -> scope.launch { equipmentViewModel.replacePhoto(item, uri) } },
+                    { item -> scope.launch { equipmentViewModel.removePhoto(item) } })
+                    }
+                } }
             }
         }
     }

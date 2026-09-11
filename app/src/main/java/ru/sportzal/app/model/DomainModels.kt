@@ -35,6 +35,42 @@ data class SnapshotSource(
     val omittedWorkouts: Int,
 )
 
+data class HistoryWorkout(
+    val workoutId: String,
+    val title: String,
+    val templateId: String,
+    val startedAt: String,
+    val finishedAt: String,
+    val completionStatus: CompletionStatus,
+    val durationSeconds: Long,
+    val notes: String?,
+)
+
+data class HistoryWorkoutDetails(
+    val runtime: WorkoutRuntime,
+    val plan: PlannedWorkoutDocument,
+    val equipmentAtStart: List<EquipmentDocument>,
+    val sets: List<ru.sportzal.app.data.db.SetResultEntity>,
+    val skips: List<ru.sportzal.app.data.db.SkippedSetEntity>,
+)
+
+data class EquipmentCatalogItem(
+    val equipmentId: String,
+    val name: String,
+    val setupHint: String?,
+    val weightStepKg: Double?,
+    val availableWeightsKg: List<Double>?,
+    val notes: String?,
+    val photoPath: String?,
+)
+
+data class SaveEquipmentCommand(
+    val equipmentId: String? = null,
+    val name: String,
+    val setupHint: String?,
+    val notes: String?,
+)
+
 enum class CompletionStatus { ACTIVE, COMPLETED, ENDED_EARLY }
 
 sealed interface ImportResult {

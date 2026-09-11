@@ -36,6 +36,7 @@ import ru.sportzal.app.model.SaveSetCommand
 import ru.sportzal.app.model.SaveSetResult
 import ru.sportzal.app.model.SkipSetCommand
 import ru.sportzal.app.model.StrictJson
+import ru.sportzal.app.model.SaveEquipmentCommand
 
 @RunWith(AndroidJUnit4::class)
 class SportzalDatabaseTest {
@@ -378,6 +379,56 @@ class SportzalDatabaseTest {
             assertEquals(5.0, equipment.weightStepKg!!, 0.0)
             assertEquals("new", equipment.notes)
         }
+    }
+
+    @Test
+    fun historyContainsFinishedOnlyAndUsesImmutableSnapshotTitle() = runBlocking {
+        import(program())
+        val finished = repository.startWorkout("program", 1, "session")
+        repository.finishWorkout(finished)
+        val activeProgram = program(id = "other")
+        import(activeProgram)
+        repository.startWorkout("other", 1, "session")
+
+        val history = repository.history()
+        assertEquals(listOf(finished), history.map { it.workoutId })
+        assertEquals("Workout", history.single().title)
+        assertEquals(CompletionStatus.ENDED_EARLY, history.single().completionStatus)
+    }
+
+    @Test
+    fun finishedWorkoutSetAndNotesRemainEditableWithoutReactivatingWorkout() = runBlocking {
+        import(program())
+        val id = repository.startWorkout("program", 1, "session")
+        repository.saveSet(setCommand("fact", id, 1))
+        repository.finishWorkout(id)
+        val before = database.dao().set("fact")!!
+
+        repository.editSet(EditSetCommand("fact", 7.5, 8, 2, "edited", emptyList(), "fact note",
+            before.equipmentIdActual, before.equipmentNameActual, before.setupActual, before.loadBasisActual, before.sideActual))
+        repository.updateWorkoutNotes(id, "  historical note  ")
+
+        val after = database.dao().set("fact")!!
+        assertEquals(before.setResultId, after.setResultId)
+        assertEquals(before.sequenceNo, after.sequenceNo)
+        assertEquals(before.completedAt, after.completedAt)
+        assertEquals("historical note", repository.historyDetails(id).runtime.notes)
+        assertNull(repository.observeActiveWorkout().first())
+    }
+
+    @Test
+    fun savingEquipmentNormalizesTextAndPreservesWeightPhotoMetadata() = runBlocking {
+        database.dao().insertEquipment(EquipmentEntity("equipment", "old", "setup", 2.5, "[1.0,2.0]", "notes", "equipment_photos/old.img", "old"))
+        val id = repository.saveEquipment(SaveEquipmentCommand("equipment", "  New name ", "  seat 4 ", "  "))
+        val value = repository.equipmentCatalog().single()
+        assertEquals("equipment", id)
+        assertEquals("New name", value.name)
+        assertEquals("seat 4", value.setupHint)
+        assertNull(value.notes)
+        assertEquals(2.5, value.weightStepKg!!, 0.0)
+        assertEquals(listOf(1.0, 2.0), value.availableWeightsKg)
+        assertEquals("equipment_photos/old.img", value.photoPath)
+        assertTrue(repository.saveEquipment(SaveEquipmentCommand(name = "Local", setupHint = null, notes = null)).startsWith("local-equipment-"))
     }
 
     private suspend fun import(value: ProgramDocument) {
