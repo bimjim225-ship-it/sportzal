@@ -7,16 +7,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import java.time.Instant
@@ -59,10 +64,12 @@ class AccessibilitySmokeTest {
         compose.onNodeWithTag("save-exercise").performScrollTo().assertIsDisplayed()
 
         // Save must remain reachable while the IME is active. Finish only needs to be reachable
-        // after the user leaves the field, so clear focus before checking the bottom action.
+        // after the user leaves the field, then the lazy container can bring its final item in.
         compose.runOnIdle { focusManager.clearFocus(force = true) }
         compose.waitForIdle()
-        compose.onNodeWithText("Завершить тренировку").performScrollTo().assertIsDisplayed()
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
+            .performScrollToNode(hasText("Завершить тренировку"))
+        compose.onNodeWithText("Завершить тренировку").assertIsDisplayed()
     }
 
     @Test fun iconMenusHaveRussianLabelsAndTimerHasStableSemantics() {

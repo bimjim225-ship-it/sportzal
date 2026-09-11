@@ -1,12 +1,17 @@
 package ru.sportzal.app
 
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
@@ -111,10 +116,9 @@ class ProcessDeathRecoveryTest {
             fixture.container.repository.updateWorkoutNotes(fixture.workoutId, "Заметка сохраняется")
         }
         recreateAndAwaitWorkout(fixture.title)
-        compose.waitUntil(5_000) {
-            compose.onAllNodesWithText("Завершить тренировку").fetchSemanticsNodes().isNotEmpty()
-        }
-        compose.onNodeWithText("Завершить тренировку").performScrollTo().performClick()
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
+            .performScrollToNode(hasText("Завершить тренировку"))
+        compose.onNodeWithText("Завершить тренировку").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Итоги тренировки").fetchSemanticsNodes().isNotEmpty() }
         val before = runBlocking { fixture.container.database.dao().workout(fixture.workoutId)!! }
         compose.activityRule.scenario.recreate()
