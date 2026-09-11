@@ -17,6 +17,8 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -115,14 +117,29 @@ class ProcessDeathRecoveryTest {
             fixture.container.repository.updateWorkoutNotes(fixture.workoutId, "Заметка сохраняется")
         }
         recreateAndAwaitWorkout(fixture.title)
-        // ActivityScenario recreation can retain the ViewModel; the title may therefore be stale-ready.
-        // The second persisted fact proves open() has reloaded the state needed by requestFinish().
+        // A rendered second fact proves open() reloaded the state needed by requestFinish().
         compose.waitUntil(5_000) {
             compose.onAllNodesWithText("2. 100 кг × 6 · RIR 2").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
             .performScrollToNode(hasText("Завершить тренировку"))
         compose.onNodeWithText("Завершить тренировку").performClick()
+
+        // Distinguish a committed finish from an unexpected confirmation before testing recovery UI.
+        compose.waitUntil(5_000) {
+            val committed = runBlocking {
+                fixture.container.database.dao().workout(fixture.workoutId)?.completionStatus != "active"
+            }
+            committed || compose.onAllNodesWithText("Завершить с невыполненными подходами?")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        val confirmationVisible = compose.onAllNodesWithText("Завершить с невыполненными подходами?")
+            .fetchSemanticsNodes().isNotEmpty()
+        assertFalse("Fully completed workout unexpectedly requested finish confirmation", confirmationVisible)
+        val committed = runBlocking { fixture.container.database.dao().workout(fixture.workoutId)!! }
+        assertNotNull("Finish click did not commit finished_at", committed.finishedAt)
+        assertEquals("completed", committed.completionStatus)
+
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Итоги тренировки").fetchSemanticsNodes().isNotEmpty() }
         val before = runBlocking { fixture.container.database.dao().workout(fixture.workoutId)!! }
         compose.activityRule.scenario.recreate()
@@ -154,8 +171,6 @@ class ProcessDeathRecoveryTest {
 
     private fun recreateAndAwaitWorkout(title: String) {
         compose.activityRule.scenario.recreate()
-        // WorkoutScreen appears as soon as activeWorkoutId is restored, before open() has loaded its facts.
-        // The persisted workout title is published only after open() finishes, so it is the readiness marker.
         compose.waitUntil(5_000) {
             compose.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
         }
