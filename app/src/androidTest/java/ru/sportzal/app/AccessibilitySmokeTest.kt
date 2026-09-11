@@ -8,9 +8,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -46,9 +46,13 @@ class AccessibilitySmokeTest {
         compose.onNodeWithTag("weight-exercise").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("reps-exercise").performScrollTo().performClick().assertIsFocused()
         (0..4).forEach { value ->
-            compose.onNodeWithTag("rir-$value").performScrollTo().assertHeightIsAtLeast(48.dp)
+            compose.onNodeWithTag("rir-$value").performScrollTo()
+                .assertHeightIsAtLeast(48.dp)
+                .assertWidthIsAtLeast(48.dp)
         }
-        compose.onNodeWithTag("rir-not-assessed").performScrollTo().assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithTag("rir-not-assessed").performScrollTo()
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
         compose.onNodeWithTag("save-exercise").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Завершить тренировку").performScrollTo().assertIsDisplayed()
     }
