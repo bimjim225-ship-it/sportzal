@@ -439,7 +439,10 @@ class WorkoutViewModelTest {
     }
 
     @Test fun finishCommitIsNotRepeatedWhenFirstSummaryReadFails() = runBlocking {
-        var current = details(exercise()).copy(sets = listOf(saved("instance", 1)))
+        var current = details(exercise()).copy(
+            runtime = details(exercise()).runtime.copy(startedAt = "2026-09-08T12:00:00Z"),
+            sets = listOf(saved("instance", 1)),
+        )
         var finishCalls = 0
         var failNextRead = false
         val repository = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
