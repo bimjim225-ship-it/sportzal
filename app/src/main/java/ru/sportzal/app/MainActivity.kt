@@ -75,7 +75,13 @@ class MainActivity : ComponentActivity() {
                     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
                 }
                 var activeWorkoutId by remember { mutableStateOf(displayedFinishWorkoutId) }
-                LaunchedEffect(Unit) { viewModel.refresh(); historyViewModel.load(); equipmentViewModel.load() }
+                LaunchedEffect(destination) {
+                    when (destination) {
+                        InactiveDestination.TODAY -> viewModel.refresh()
+                        InactiveDestination.HISTORY -> historyViewModel.load()
+                        InactiveDestination.EQUIPMENT -> equipmentViewModel.load()
+                    }
+                }
                 LaunchedEffect(incomingUri) {
                     incomingUri?.let { destinationName = InactiveDestination.TODAY.name; viewModel.showFileResult(container.fileIntentHandler.handle(it)) }
                 }
@@ -196,17 +202,34 @@ class MainActivity : ComponentActivity() {
                 )
                 InactiveDestination.HISTORY -> if (historyState.details == null) HistoryScreen(historyState,
                     { scope.launch { historyViewModel.load() } }, { scope.launch { historyViewModel.open(it) } })
-                else HistoryDetailScreen(historyState, historyViewModel::close,
-                    { text, done -> scope.launch { done(historyViewModel.saveNote(text)) } },
-                    { fact, weight, reps, rir, note, done -> scope.launch { done(historyViewModel.editSet(fact, weight, reps, rir, note)) } },
-                    { id, done -> scope.launch { done(historyViewModel.deleteSet(id)) } },
-                    { scope.launch {
-                        if (exportPreparing) return@launch; exportPreparing = true
-                        try { startActivity(Intent.createChooser(container.snapshotShareCoordinator.shareIntent(historyState.details!!.runtime.workoutId), "Отправить JSON")) }
-                        catch (cancelled: CancellationException) { throw cancelled }
-                        catch (_: Exception) { historyViewModel.showError("Не удалось подготовить JSON") }
-                        finally { exportPreparing = false }
-                    } })
+                else HistoryDetailScreen(
+                    state = historyState,
+                    onBack = historyViewModel::close,
+                    onNote = { text, done -> scope.launch { done(historyViewModel.saveNote(text)) } },
+                    onEdit = { fact, weight, reps, rir, note, done -> scope.launch {
+                        done(historyViewModel.editSet(fact, weight, reps, rir, note))
+                    } },
+                    onDelete = { id, done -> scope.launch { done(historyViewModel.deleteSet(id)) } },
+                    onShare = { scope.launch {
+                        if (exportPreparing) return@launch
+                        exportPreparing = true
+                        try {
+                            startActivity(Intent.createChooser(
+                                container.snapshotShareCoordinator.shareIntent(historyState.details!!.runtime.workoutId),
+                                "Отправить JSON",
+                            ))
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            historyViewModel.showError("Не удалось подготовить JSON")
+                        } finally {
+                            exportPreparing = false
+                        }
+                    } },
+                    onEditActual = { fact, weight, reps, rir, deviations, note, context, done -> scope.launch {
+                        done(historyViewModel.editSet(fact, weight, reps, rir, deviations, note, context))
+                    } },
+                )
                 InactiveDestination.EQUIPMENT -> EquipmentScreen(equipmentState, container.equipmentPhotoStore,
                     { scope.launch { equipmentViewModel.load() } }, { command, done -> scope.launch { done(equipmentViewModel.save(command) != null) } },
                     { item, uri -> scope.launch { equipmentViewModel.replacePhoto(item, uri) } },
