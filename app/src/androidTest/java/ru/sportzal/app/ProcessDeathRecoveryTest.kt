@@ -115,6 +115,11 @@ class ProcessDeathRecoveryTest {
             fixture.container.repository.updateWorkoutNotes(fixture.workoutId, "Заметка сохраняется")
         }
         recreateAndAwaitWorkout(fixture.title)
+        // ActivityScenario recreation can retain the ViewModel; the title may therefore be stale-ready.
+        // The second persisted fact proves open() has reloaded the state needed by requestFinish().
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("2. 100 кг × 6 · RIR 2").fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
             .performScrollToNode(hasText("Завершить тренировку"))
         compose.onNodeWithText("Завершить тренировку").performClick()
