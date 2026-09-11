@@ -140,10 +140,10 @@ class ProcessDeathRecoveryTest {
         assertNotNull("Finish click did not commit finished_at", committed.finishedAt)
         assertEquals("completed", committed.completionStatus)
 
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Итоги тренировки").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Тренировка завершена").fetchSemanticsNodes().isNotEmpty() }
         val before = runBlocking { fixture.container.database.dao().workout(fixture.workoutId)!! }
         compose.activityRule.scenario.recreate()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Итоги тренировки").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Тренировка завершена").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Заметка сохраняется").assertExists()
         val after = runBlocking { fixture.container.database.dao().workout(fixture.workoutId)!! }
         assertEquals(before.finishedAt, after.finishedAt)
