@@ -4,9 +4,12 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import kotlinx.serialization.encodeToString
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import ru.sportzal.app.data.db.SetResultEntity
+import ru.sportzal.app.domain.ActualContext
 import ru.sportzal.app.model.BlockDocument
 import ru.sportzal.app.model.ExerciseDocument
 import ru.sportzal.app.model.HistoryWorkoutDetails
@@ -42,7 +45,10 @@ class HistoryScreenTest {
     }
 
     @Test
-    fun historicalEditorExposesFullFactualContext() {
+    fun historicalEditorExposesAndSavesFullFactualContext() {
+        var capturedDeviations: List<String>? = null
+        var capturedContext: ActualContext? = null
+        var capturedNote: String? = null
         compose.setContent {
             SportzalTheme {
                 HistoryDetailScreen(
@@ -52,6 +58,12 @@ class HistoryScreenTest {
                     onEdit = { _, _, _, _, _, done -> done(true) },
                     onDelete = { _, done -> done(true) },
                     onShare = {},
+                    onEditActual = { _, _, _, _, deviations, note, context, done ->
+                        capturedDeviations = deviations
+                        capturedContext = context
+                        capturedNote = note
+                        done(true)
+                    },
                 )
             }
         }
@@ -61,6 +73,17 @@ class HistoryScreenTest {
         compose.onNodeWithText("Настройка / setup").assertExists()
         compose.onNodeWithText("Отклонения").assertExists()
         compose.onNodeWithText("4+").assertExists()
+        compose.onNodeWithText("Сохранить").performClick()
+
+        assertEquals(listOf("discomfort"), capturedDeviations)
+        assertEquals("Болело колено", capturedNote)
+        assertEquals("leg-press", capturedContext?.exerciseId)
+        assertEquals("machine-2", capturedContext?.equipmentId)
+        assertEquals("Жим ногами", capturedContext?.equipmentName)
+        assertEquals("сиденье 4", capturedContext?.setup)
+        assertEquals("machine_display", capturedContext?.loadBasis)
+        assertEquals("bilateral", capturedContext?.side)
+        assertTrue(capturedContext != null)
     }
 
     private fun historyState(): HistoryUiState {
