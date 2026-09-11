@@ -68,7 +68,8 @@ fun SetResultRow(
             modifier = Modifier.testTag("confirm-delete")) { Text("Удалить") } })
 }
 
-@Composable private fun EditSetDialog(
+@Composable
+internal fun EditSetDialog(
     result: SetResultEntity, showRir: Boolean, saving: Boolean, onDismiss: () -> Unit,
     onSave: (Double, Int, Int?, List<String>, String?, ActualContext) -> Unit,
 ) {
