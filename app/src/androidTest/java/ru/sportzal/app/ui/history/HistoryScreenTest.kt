@@ -48,6 +48,29 @@ class HistoryScreenTest {
     }
 
     @Test
+    fun detailShowsActualExerciseWhenFactDiffersFromPlan() {
+        compose.setContent {
+            SportzalTheme {
+                HistoryDetailScreen(
+                    state = historyState(
+                        actualExerciseId = "bulgarian-split-squat",
+                        actualTitle = "Болгарский сплит-присед",
+                        deviations = listOf("exercise_changed"),
+                    ),
+                    onBack = {},
+                    onNote = { _, done -> done(true) },
+                    onEdit = { _, _, _, _, _, done -> done(true) },
+                    onDelete = { _, done -> done(true) },
+                    onShare = {},
+                )
+            }
+        }
+
+        assertHistoryText("Фактическое упражнение: Болгарский сплит-присед")
+        assertHistoryText("Отклонения: Упражнение изменено")
+    }
+
+    @Test
     fun historicalEditorExposesAndSavesFullFactualContext() {
         var capturedDeviations: List<String>? = null
         var capturedContext: ActualContext? = null
@@ -95,7 +118,11 @@ class HistoryScreenTest {
         compose.onNodeWithText(text).assertExists()
     }
 
-    private fun historyState(): HistoryUiState {
+    private fun historyState(
+        actualExerciseId: String = "leg-press",
+        actualTitle: String = "Жим ногами",
+        deviations: List<String> = listOf("discomfort"),
+    ): HistoryUiState {
         val exercise = ExerciseDocument(
             "instance",
             "leg-press",
@@ -131,8 +158,8 @@ class HistoryScreenTest {
             exerciseInstanceId = "instance",
             plannedSetNo = 1,
             setType = "work",
-            exerciseIdActual = "leg-press",
-            titleActual = "Жим ногами",
+            exerciseIdActual = actualExerciseId,
+            titleActual = actualTitle,
             equipmentIdActual = "machine-2",
             equipmentNameActual = "Жим ногами",
             setupActual = "сиденье 4",
@@ -145,7 +172,7 @@ class HistoryScreenTest {
             bootId = "boot",
             elapsedRealtimeMs = 42L,
             editedAt = null,
-            deviationsJson = StrictJson.encodeToString(listOf("discomfort")),
+            deviationsJson = StrictJson.encodeToString(deviations),
             note = "Болело колено",
         )
         return HistoryUiState(
