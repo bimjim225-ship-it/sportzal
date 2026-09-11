@@ -220,6 +220,12 @@ class WorkoutViewModel(
         else confirmFinish()
     }
     fun cancelFinish() { mutableState.value = state.value.copy(finishConfirmation = false) }
+    fun dismissFinish() {
+        mutableState.value = mutableState.value.copy(
+            finishSummary = null,
+            error = null,
+        )
+    }
     fun showError(message: String) { fail(message) }
     suspend fun confirmFinish(): Boolean {
         if (state.value.saving || state.value.workoutId.isBlank()) return false

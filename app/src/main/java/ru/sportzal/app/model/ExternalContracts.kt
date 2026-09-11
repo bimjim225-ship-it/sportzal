@@ -17,9 +17,9 @@ val StrictJson = Json { ignoreUnknownKeys = false; explicitNulls = true; encodeD
  val workouts: List<PlannedWorkoutDocument>, @EncodeDefault(EncodeDefault.Mode.NEVER) @SerialName("athlete_context") val athleteContext: String? = null,
  @EncodeDefault(EncodeDefault.Mode.NEVER) @SerialName("coach_notes") val coachNotes: String? = null)
 @Serializable data class EquipmentDocument(@SerialName("equipment_id") val equipmentId:String, val name:String,
- @SerialName("setup_hint") val setupHint:String?, @EncodeDefault(EncodeDefault.Mode.NEVER) @SerialName("weight_step_kg") val weightStepKg:Double?=null,
- @EncodeDefault(EncodeDefault.Mode.NEVER) @SerialName("available_weights_kg") val availableWeightsKg:List<Double>?=null,
- @EncodeDefault(EncodeDefault.Mode.NEVER) val notes:String?=null)
+ @SerialName("setup_hint") val setupHint:String?, @SerialName("weight_step_kg") val weightStepKg:Double?=null,
+ @SerialName("available_weights_kg") val availableWeightsKg:List<Double>?=null,
+ val notes:String?=null)
 @Serializable data class PlannedWorkoutDocument(@SerialName("workout_instance_id") val workoutInstanceId:String,
  @SerialName("template_id") val templateId:String, val title:String, @SerialName("planned_date") val plannedDate:String,
  val blocks:List<BlockDocument>, @EncodeDefault(EncodeDefault.Mode.NEVER) val notes:String?=null)

@@ -85,7 +85,11 @@ class MainActivity : ComponentActivity() {
                         runCatching { savePicker.launch(container.snapshotShareCoordinator.createSaveIntent(activeWorkoutId)) }
                             .onFailure { workoutViewModel.showError("Не удалось подготовить JSON") }
                     } },
-                    onClose = { activeWorkoutId = null; scope.launch { viewModel.refresh() } },
+                    onClose = {
+                        workoutViewModel.dismissFinish()
+                        activeWorkoutId = null
+                        scope.launch { viewModel.refresh() }
+                    },
                 ) else if (activeWorkoutId != null) WorkoutScreen(
                     state = workoutState,
                     elapsedFor = { workoutViewModel.elapsedText(it) },
