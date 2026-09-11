@@ -67,7 +67,7 @@ class HistoryScreenTest {
         }
 
         assertHistoryText("Фактическое упражнение: Болгарский сплит-присед")
-        assertHistoryText("Отклонения: Упражнение изменено")
+        assertHistoryText("Отклонения: Другое упражнение")
     }
 
     @Test
