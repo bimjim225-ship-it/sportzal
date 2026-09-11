@@ -14,6 +14,7 @@ import java.util.Locale
 import kotlinx.serialization.decodeFromString
 import ru.sportzal.app.data.db.SetResultEntity
 import ru.sportzal.app.domain.ActualContext
+import ru.sportzal.app.model.ExerciseDocument
 import ru.sportzal.app.model.StrictJson
 import ru.sportzal.app.ui.components.EditSetDialog
 import ru.sportzal.app.ui.components.deviationLabels
@@ -77,7 +78,7 @@ fun HistoryDetailScreen(
                             )
                             when {
                                 fact != null -> {
-                                    HistoricalFact(fact)
+                                    HistoricalFact(fact, exercise)
                                     Row {
                                         TextButton({ editing = fact }) { Text("Изменить") }
                                         TextButton({ deleting = fact }) { Text("Удалить") }
@@ -99,7 +100,7 @@ fun HistoryDetailScreen(
                             extras.forEach { fact ->
                                 Column {
                                     Text("Доп. подход ${fact.sequenceNo}")
-                                    HistoricalFact(fact)
+                                    HistoricalFact(fact, exercise)
                                     Row {
                                         TextButton({ editing = fact }) { Text("Изменить") }
                                         TextButton({ deleting = fact }) { Text("Удалить") }
@@ -154,8 +155,11 @@ fun HistoryDetailScreen(
 }
 
 @Composable
-private fun HistoricalFact(fact: SetResultEntity) {
+private fun HistoricalFact(fact: SetResultEntity, plannedExercise: ExerciseDocument) {
     Text("Факт: ${fact.factText()}")
+    if (fact.exerciseIdActual != plannedExercise.exerciseId || fact.titleActual != plannedExercise.title) {
+        Text("Фактическое упражнение: ${fact.titleActual}")
+    }
     val context = fact.actualContextText()
     if (context.isNotBlank()) Text("Факт: $context")
     val deviations = runCatching { StrictJson.decodeFromString<List<String>>(fact.deviationsJson) }
