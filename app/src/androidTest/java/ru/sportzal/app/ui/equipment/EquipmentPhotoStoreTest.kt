@@ -39,6 +39,7 @@ class EquipmentPhotoStoreTest {
         store.delete(relative)
         assertNull(store.resolve(relative))
         root.deleteRecursively()
+        Unit
     }
 
     @Test
@@ -68,6 +69,7 @@ class EquipmentPhotoStoreTest {
 
         source.delete()
         root.deleteRecursively()
+        Unit
     }
 
     private fun freshRoot() = File(context.cacheDir, "equipment-photo-test-${UUID.randomUUID()}").apply {
