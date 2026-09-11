@@ -11,6 +11,7 @@ import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
 import kotlin.coroutines.resume
 import kotlinx.serialization.encodeToString
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -33,6 +34,59 @@ import ru.sportzal.app.model.WorkoutRuntime
 import ru.sportzal.app.platform.ClockProvider
 
 class WorkoutViewModelTest {
+    @Test fun finishingFullyCompletedWorkoutProducesCompleted() = runBlocking {
+        val planned = exercise(sets = listOf(PlannedSetDocument(1, "work", 100.0, 5, 5, null, 60)))
+        var current = details(planned).copy(sets = listOf(saved("instance", 1)))
+        var finished = false
+        val repository = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, method, _ -> when (method.name) {
+                "workoutDetails" -> current
+                "finishWorkout" -> { finished = true
+                    current = current.copy(runtime = current.runtime.copy(finishedAt = "2026-09-08T12:00:00Z",
+                        completionStatus = "completed"))
+                    ru.sportzal.app.model.CompletionStatus.COMPLETED }
+                else -> error("Unexpected ${method.name}")
+            } } as SportzalRepository
+        val vm = WorkoutViewModel(repository, fixedClock())
+        vm.open("workout"); vm.requestFinish()
+        assertTrue(finished)
+        assertFalse(vm.state.value.finishSummary!!.endedEarly)
+        assertEquals(1, vm.state.value.finishSummary!!.workSetCount)
+    }
+
+    @Test fun finishWithUnresolvedSlotsRequiresConfirmationAndCancelLeavesWorkoutActive() = runBlocking {
+        val vm = WorkoutViewModel(repository(details(exercise())), fixedClock())
+        vm.open("workout"); vm.requestFinish()
+        assertTrue(vm.state.value.finishConfirmation)
+        vm.cancelFinish()
+        assertFalse(vm.state.value.finishConfirmation)
+        assertNull(vm.state.value.finishSummary)
+    }
+
+    @Test fun requestConfirmationThenConfirmFinishesEndedEarlyWithoutSyntheticSkips() = runBlocking {
+        var current = details(exercise())
+        var finishCalls = 0
+        val repository = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, method, _ -> when (method.name) {
+                "workoutDetails" -> current
+                "finishWorkout" -> {
+                    finishCalls++
+                    current = current.copy(runtime = current.runtime.copy(
+                        finishedAt = "2026-09-08T12:30:00Z", completionStatus = "ended_early"))
+                    ru.sportzal.app.model.CompletionStatus.ENDED_EARLY
+                }
+                else -> error("Unexpected ${method.name}")
+            } } as SportzalRepository
+        val vm = WorkoutViewModel(repository, fixedClock())
+        vm.open("workout")
+        vm.requestFinish()
+        assertTrue(vm.state.value.finishConfirmation)
+        assertTrue(vm.confirmFinish())
+        assertTrue(vm.state.value.finishSummary!!.endedEarly)
+        assertTrue(current.skippedSets.isEmpty())
+        assertEquals(1, finishCalls)
+    }
+
     @Test fun `draft actual context is restored and equipment changes clear only incompatible weight`() = runBlocking {
         val context = ActualContext("squat", "machine-b", "Сиденье 5", "external", "bilateral", "Machine B")
         val draft = DraftEntity("workout", "instance", 1, "97.5", "7", null,
@@ -336,6 +390,133 @@ class WorkoutViewModelTest {
         assertEquals("stable-id", commands[1].setResultId)
         assertEquals("2026-09-08T12:00:00Z", commands[1].completedAt)
         assertEquals(42L, commands[1].elapsedRealtimeMs)
+    }
+
+    @Test fun finishDurationUsesPersistedFinishedAtAndOmitsExercisesWithoutFacts() = runBlocking {
+        val performed = exercise(sets = emptyList())
+        val untouched = ExerciseDocument("untouched", "row", "Row", null, null, "total_external",
+            "bilateral", 2, "none", listOf(PlannedSetDocument(1, "work", 20.0, 8, 8, null, 60)))
+        val plan = PlannedWorkoutDocument("planned", "template", "Workout", "2026-09-08", listOf(
+            BlockDocument("block", "Block", "straight", listOf(performed, untouched))))
+        var current = WorkoutDetails(WorkoutRuntime("workout", StrictJson.encodeToString(plan), "[]",
+            startedAt = "2026-09-08T12:00:00Z"), listOf(saved("instance", 1)), emptyList())
+        val repository = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, method, _ -> when (method.name) {
+                "workoutDetails" -> current
+                "finishWorkout" -> {
+                    current = current.copy(runtime = current.runtime.copy(
+                        finishedAt = "2026-09-08T12:30:00Z", completionStatus = "ended_early"))
+                    ru.sportzal.app.model.CompletionStatus.ENDED_EARLY
+                }
+                else -> error("Unexpected ${method.name}")
+            } } as SportzalRepository
+        val lateClock = object : ClockProvider {
+            override fun wallNow() = Instant.parse("2026-09-08T12:45:00Z")
+            override fun elapsedRealtimeMs() = 42L
+            override fun bootIdOrNull() = null
+        }
+        val vm = WorkoutViewModel(repository, lateClock)
+        vm.open("workout"); assertTrue(vm.confirmFinish())
+        val summary = vm.state.value.finishSummary!!
+        assertEquals(1800, summary.durationSeconds)
+        assertEquals(listOf("Squat"), summary.exercises.map { it.title })
+        assertTrue(summary.endedEarly)
+    }
+
+    @Test fun failedFinishKeepsWorkoutActiveAndShowsError() = runBlocking {
+        val repository = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, method, _ -> when (method.name) {
+                "workoutDetails" -> details(exercise())
+                "finishWorkout" -> error("disk full")
+                else -> error("Unexpected ${method.name}")
+            } } as SportzalRepository
+        val vm = WorkoutViewModel(repository, fixedClock())
+        vm.open("workout")
+        assertFalse(vm.confirmFinish())
+        assertNull(vm.state.value.finishSummary)
+        assertFalse(vm.state.value.saving)
+        assertEquals("disk full", vm.state.value.error)
+    }
+
+    @Test fun finishCommitIsNotRepeatedWhenFirstSummaryReadFails() = runBlocking {
+        var current = details(exercise()).copy(
+            runtime = details(exercise()).runtime.copy(startedAt = "2026-09-08T12:00:00Z"),
+            sets = listOf(saved("instance", 1)),
+        )
+        var finishCalls = 0
+        var failNextRead = false
+        val repository = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, method, _ -> when (method.name) {
+                "workoutDetails" -> {
+                    if (failNextRead) { failNextRead = false; error("temporary read failure") }
+                    current
+                }
+                "finishWorkout" -> {
+                    finishCalls++
+                    current = current.copy(runtime = current.runtime.copy(
+                        finishedAt = "2026-09-08T12:30:00Z", completionStatus = "completed"))
+                    failNextRead = true
+                    ru.sportzal.app.model.CompletionStatus.COMPLETED
+                }
+                else -> error("Unexpected ${method.name}")
+            } } as SportzalRepository
+        val vm = WorkoutViewModel(repository, fixedClock())
+        vm.open("workout")
+
+        assertFalse(vm.confirmFinish())
+        assertEquals("temporary read failure", vm.state.value.error)
+        assertTrue(vm.confirmFinish())
+        assertEquals(1, finishCalls)
+        assertEquals(1800, vm.state.value.finishSummary!!.durationSeconds)
+    }
+
+    @Test fun restoreFinishReadsPersistedSummaryWithoutFinishingAgain() = runBlocking {
+        val persisted = details(exercise()).copy(
+            runtime = details(exercise()).runtime.copy(startedAt = "2026-09-08T12:00:00Z",
+                finishedAt = "2026-09-08T12:30:00Z", completionStatus = "completed"),
+            sets = listOf(saved("instance", 1)),
+        )
+        var finishCalls = 0
+        val repository = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, method, _ -> when (method.name) {
+                "workoutDetails" -> persisted
+                "finishWorkout" -> { finishCalls++; error("must not be called") }
+                else -> error("Unexpected ${method.name}")
+            } } as SportzalRepository
+        val vm = WorkoutViewModel(repository, fixedClock())
+        assertTrue(vm.restoreFinish("workout"))
+        assertEquals(1800, vm.state.value.finishSummary!!.durationSeconds)
+        assertEquals(0, finishCalls)
+    }
+
+    @Test fun dismissFinishClearsOnlyFinishUiState() = runBlocking {
+        var current = details(exercise()).copy(sets = listOf(saved("instance", 1)))
+        var finishCalls = 0
+        val repository = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, method, _ -> when (method.name) {
+                "workoutDetails" -> current
+                "finishWorkout" -> {
+                    finishCalls++
+                    current = current.copy(runtime = current.runtime.copy(
+                        finishedAt = "2026-09-08T12:30:00Z", completionStatus = "completed"))
+                    ru.sportzal.app.model.CompletionStatus.COMPLETED
+                }
+                else -> error("Unexpected ${method.name}")
+            } } as SportzalRepository
+        val vm = WorkoutViewModel(repository, fixedClock())
+        vm.open("workout")
+        assertTrue(vm.confirmFinish())
+        assertNotNull(vm.state.value.finishSummary)
+        val persisted = current
+        vm.showError("visible error")
+
+        vm.dismissFinish()
+
+        assertNull(vm.state.value.finishSummary)
+        assertNull(vm.state.value.error)
+        assertFalse(vm.state.value.finishConfirmation)
+        assertEquals(persisted, current)
+        assertEquals(1, finishCalls)
     }
 
     private fun fixedClock() = object : ClockProvider {

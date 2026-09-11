@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -17,19 +18,32 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import ru.sportzal.app.ui.theme.SportzalTheme
 import ru.sportzal.app.ui.today.TodayScreen
 import ru.sportzal.app.ui.today.TodayViewModel
 import ru.sportzal.app.ui.workout.WorkoutScreen
 import ru.sportzal.app.ui.workout.WorkoutViewModel
+import ru.sportzal.app.ui.workout.FinishScreen
 
 class MainActivity : ComponentActivity() {
+    private var displayedFinishWorkoutId by mutableStateOf<String?>(null)
+    private var exportPreparing by mutableStateOf(false)
+    private var incomingUri by mutableStateOf<Uri?>(null)
     private var pickedUri by mutableStateOf<Uri?>(null)
     private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { pickedUri = it }
+    private var saveDestination by mutableStateOf<Uri?>(null)
+    private val savePicker = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        exportPreparing = false
+        if (it.resultCode == RESULT_OK) saveDestination = it.data?.data
+        else (application as SportzalApplication).container.snapshotShareCoordinator.cancelSave()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        displayedFinishWorkoutId = savedInstanceState?.getString(FINISH_WORKOUT_ID)
         val container = (application as SportzalApplication).container
+        if (intent?.action == Intent.ACTION_VIEW) incomingUri = intent.data
         val viewModel = TodayViewModel(container.database, container.repository, container.programImporter, container.workoutService)
         setContent {
             SportzalTheme {
@@ -45,8 +59,26 @@ class MainActivity : ComponentActivity() {
                     lifecycleOwner.lifecycle.addObserver(observer)
                     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
                 }
-                var activeWorkoutId by remember { mutableStateOf<String?>(null) }
+                var activeWorkoutId by remember { mutableStateOf(displayedFinishWorkoutId) }
                 LaunchedEffect(Unit) { viewModel.refresh() }
+                LaunchedEffect(incomingUri) {
+                    incomingUri?.let { viewModel.showFileResult(container.fileIntentHandler.handle(it)) }
+                }
+                LaunchedEffect(saveDestination) { saveDestination?.let {
+                    if (!container.snapshotShareCoordinator.writePending(it)) {
+                        workoutViewModel.showError("Не удалось сохранить JSON")
+                    }
+                    saveDestination = null
+                } }
+                LaunchedEffect(displayedFinishWorkoutId) {
+                    displayedFinishWorkoutId?.let { id ->
+                        activeWorkoutId = id
+                        workoutViewModel.restoreFinish(id)
+                    }
+                }
+                LaunchedEffect(workoutState.finishSummary) {
+                    if (workoutState.finishSummary != null) displayedFinishWorkoutId = workoutState.workoutId
+                }
                 LaunchedEffect(state.selection) {
                     val id = (state.selection as? ru.sportzal.app.domain.TodaySelection.Resume)?.workout?.workoutId
                     if (id != null) { activeWorkoutId = id; workoutViewModel.open(id) }
@@ -54,7 +86,44 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(pickedUri) {
                     pickedUri?.let { viewModel.preview(it) }
                 }
-                if (activeWorkoutId != null) WorkoutScreen(
+                if (workoutState.finishSummary != null) FinishScreen(
+                    summary = workoutState.finishSummary!!,
+                    error = workoutState.error,
+                    preparing = exportPreparing,
+                    onShare = { scope.launch {
+                        if (exportPreparing) return@launch
+                        exportPreparing = true
+                        try {
+                            val send = container.snapshotShareCoordinator.shareIntent(activeWorkoutId)
+                            startActivity(Intent.createChooser(send, "Отправить JSON"))
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            workoutViewModel.showError("Не удалось подготовить JSON")
+                        } finally {
+                            exportPreparing = false
+                        }
+                    } },
+                    onSave = { scope.launch {
+                        if (exportPreparing) return@launch
+                        exportPreparing = true
+                        try {
+                            savePicker.launch(container.snapshotShareCoordinator.createSaveIntent(activeWorkoutId))
+                        } catch (cancelled: CancellationException) {
+                            exportPreparing = false
+                            throw cancelled
+                        } catch (_: Exception) {
+                            exportPreparing = false
+                            workoutViewModel.showError("Не удалось подготовить JSON")
+                        }
+                    } },
+                    onClose = {
+                        workoutViewModel.dismissFinish()
+                        displayedFinishWorkoutId = null
+                        activeWorkoutId = null
+                        scope.launch { viewModel.refresh() }
+                    },
+                ) else if (activeWorkoutId != null) WorkoutScreen(
                     state = workoutState,
                     elapsedFor = { workoutViewModel.elapsedText(it) },
                     onDraft = { id, weight, reps, rir, answered -> scope.launch { workoutViewModel.updateDraft(id, weight, reps, rir, answered) } },
@@ -72,6 +141,9 @@ class MainActivity : ComponentActivity() {
                         completed(workoutViewModel.editSet(id, weight, reps, rir, deviations, note, context)) } },
                     onInteraction = workoutViewModel::setInteraction,
                     onTick = workoutViewModel::tick,
+                    onFinish = { scope.launch { workoutViewModel.requestFinish() } },
+                    onConfirmFinish = { scope.launch { workoutViewModel.confirmFinish() } },
+                    onCancelFinish = workoutViewModel::cancelFinish,
                 ) else TodayScreen(
                     selection = state.selection,
                     manualChoices = state.manualChoices,
@@ -91,4 +163,16 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.action == Intent.ACTION_VIEW) incomingUri = intent.data
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        displayedFinishWorkoutId?.let { outState.putString(FINISH_WORKOUT_ID, it) }
+        super.onSaveInstanceState(outState)
+    }
+
+    private companion object { const val FINISH_WORKOUT_ID = "finish_workout_id" }
 }

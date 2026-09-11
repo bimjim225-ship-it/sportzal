@@ -6,4 +6,6 @@ import ru.sportzal.app.data.files.ProgramImporter
 import ru.sportzal.app.domain.WorkoutService
 import ru.sportzal.app.data.repository.*
 import ru.sportzal.app.platform.AndroidClockProvider
-class AppContainer(context:Context){val database=SportzalDatabase.create(context);val repository:SportzalRepository=RoomSportzalRepository(database);val programValidator=ProgramValidator();val programImporter=ProgramImporter(context.contentResolver,programValidator,repository);val workoutService=WorkoutService(repository);val clockProvider=AndroidClockProvider(context)}
+import ru.sportzal.app.data.files.*
+import ru.sportzal.app.platform.FileIntentHandler
+class AppContainer(context:Context){val database=SportzalDatabase.create(context);val repository:SportzalRepository=RoomSportzalRepository(database);val programValidator=ProgramValidator();val programImporter=ProgramImporter(context.contentResolver,programValidator,repository);val workoutService=WorkoutService(repository);val clockProvider=AndroidClockProvider(context);val snapshotExporter=SnapshotExporter(repository);val snapshotShareCoordinator=SnapshotShareCoordinator(context,snapshotExporter);val fileIntentHandler=FileIntentHandler(JsonFileReader(context.contentResolver),programImporter)}

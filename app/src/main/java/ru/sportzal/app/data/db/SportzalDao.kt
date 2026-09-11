@@ -33,6 +33,9 @@ interface SportzalDao {
     @Query("SELECT * FROM app_state WHERE id=1")
     fun observeState(): Flow<AppStateEntity?>
 
+    @Query("SELECT * FROM app_state WHERE id=1")
+    suspend fun state(): AppStateEntity?
+
     @Query("SELECT * FROM program_workout_index WHERE program_id=:programId AND program_version=:version ORDER BY planned_date, planned_order")
     suspend fun plannedWorkouts(programId: String, version: Int): List<ProgramWorkoutIndexEntity>
 
@@ -108,16 +111,16 @@ interface SportzalDao {
     @Query("DELETE FROM workouts WHERE workout_id=:id")
     suspend fun deleteWorkout(id: String)
 
-    @Query("SELECT * FROM workouts ORDER BY started_at DESC")
+    @Query("SELECT * FROM workouts ORDER BY started_at DESC, workout_id ASC")
     suspend fun workouts(): List<WorkoutEntity>
 
     @Query("SELECT * FROM set_results WHERE workout_id=:id ORDER BY sequence_no")
     suspend fun sets(id: String): List<SetResultEntity>
 
-    @Query("SELECT * FROM skipped_sets WHERE workout_id=:id")
+    @Query("SELECT * FROM skipped_sets WHERE workout_id=:id ORDER BY exercise_instance_id, planned_set_no")
     suspend fun skips(id: String): List<SkippedSetEntity>
 
-    @Query("SELECT * FROM programs")
+    @Query("SELECT * FROM programs ORDER BY program_id ASC, program_version ASC")
     suspend fun programs(): List<ProgramEntity>
 }
 

@@ -15,6 +15,7 @@ import ru.sportzal.app.domain.TodaySelection
 import ru.sportzal.app.domain.TodaySelector
 import ru.sportzal.app.domain.WorkoutService
 import ru.sportzal.app.model.ImportResult
+import ru.sportzal.app.platform.FileIntentResult
 
 data class TodayUiState(
     val selection: TodaySelection = TodaySelection.NoProgram,
@@ -66,6 +67,13 @@ class TodayViewModel(
 
     suspend fun preview(uri: Uri) {
         mutableState.value = mutableState.value.copy(preview = importer.import(uri))
+    }
+
+    fun showFileResult(result: FileIntentResult) {
+        mutableState.value = when (result) {
+            is FileIntentResult.Program -> mutableState.value.copy(preview = result.preview, message = null)
+            is FileIntentResult.Message -> mutableState.value.copy(preview = null, message = result.text)
+        }
     }
 
     suspend fun confirmImport(valid: ImportPreview.Valid) {

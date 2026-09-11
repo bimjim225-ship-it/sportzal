@@ -8,6 +8,11 @@ data class WorkoutRuntime(
     val programId: String = "",
     val programVersion: Int = 0,
     val workoutInstanceId: String = "",
+    val templateId: String = "",
+    val startedAt: String = "",
+    val finishedAt: String? = null,
+    val completionStatus: String = "active",
+    val notes: String? = null,
 )
 data class WorkoutDetails(
     val runtime: WorkoutRuntime,
@@ -15,7 +20,20 @@ data class WorkoutDetails(
     val drafts: List<ru.sportzal.app.data.db.DraftEntity>,
     val skippedSets: List<ru.sportzal.app.data.db.SkippedSetEntity> = emptyList(),
 )
-data class SnapshotSource(val programs: List<String>, val workouts: List<WorkoutRuntime>)
+data class SnapshotWorkout(
+    val runtime: WorkoutRuntime,
+    val sets: List<ru.sportzal.app.data.db.SetResultEntity>,
+    val skippedSets: List<ru.sportzal.app.data.db.SkippedSetEntity>,
+)
+data class SnapshotSource(
+    val programs: List<ProgramDocument>,
+    val workouts: List<SnapshotWorkout>,
+    val equipment: List<EquipmentDocument>,
+    val activeProgram: ActiveProgramDocument?,
+    val focusWorkoutId: String?,
+    val totalStoredWorkouts: Int,
+    val omittedWorkouts: Int,
+)
 
 enum class CompletionStatus { ACTIVE, COMPLETED, ENDED_EARLY }
 
