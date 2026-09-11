@@ -90,6 +90,7 @@ class WorkoutViewModel(
     private val pending = mutableMapOf<Pair<String, Int>, SaveSetCommand>()
     private val rotations = mutableMapOf<String, RotationCoordinator>()
     private val interactionOwners = mutableMapOf<String, MutableSet<InteractionOwner>>()
+    private var committedFinishWorkoutId: String? = null
 
     suspend fun open(workoutId: String) {
         val details = repository.workoutDetails(workoutId)
@@ -221,6 +222,7 @@ class WorkoutViewModel(
     }
     fun cancelFinish() { mutableState.value = state.value.copy(finishConfirmation = false) }
     fun dismissFinish() {
+        committedFinishWorkoutId = null
         mutableState.value = mutableState.value.copy(
             finishSummary = null,
             error = null,
@@ -230,21 +232,45 @@ class WorkoutViewModel(
     suspend fun confirmFinish(): Boolean {
         if (state.value.saving || state.value.workoutId.isBlank()) return false
         mutableState.value = state.value.copy(saving = true, finishConfirmation = false, error = null)
-        return runCatching {
-            val status = repository.finishWorkout(state.value.workoutId)
-            status to repository.workoutDetails(state.value.workoutId)
-        }.onSuccess { (status, details) ->
-            val finished = requireNotNull(details.runtime.finishedAt).let(Instant::parse)
-            val work = details.sets.filter { it.setType == "work" }
-            val counts = exercises().mapNotNull { exercise ->
-                val count = work.count { it.exerciseInstanceId == exercise.exerciseInstanceId }
-                count.takeIf { it > 0 }?.let { ExerciseFinishSummary(exercise.title, it) }
+        val workoutId = state.value.workoutId
+        if (committedFinishWorkoutId != workoutId) {
+            val committed = runCatching { repository.finishWorkout(workoutId) }
+            if (committed.isFailure) {
+                fail(committed.exceptionOrNull()?.message ?: "Не удалось завершить тренировку")
+                return false
             }
-            mutableState.value = state.value.copy(saving = false, finishSummary = FinishSummary(
-                java.time.Duration.between(startedAt, finished).seconds.coerceAtLeast(0), work.size, counts,
-                status == CompletionStatus.ENDED_EARLY))
-        }.onFailure { fail(it.message ?: "Не удалось завершить тренировку") }.isSuccess
+            committedFinishWorkoutId = workoutId
+        }
+        return restoreFinish(workoutId)
     }
+
+    /** Restores the finish UI exclusively from committed repository state. */
+    suspend fun restoreFinish(workoutId: String): Boolean = runCatching {
+        val details = repository.workoutDetails(workoutId)
+        require(details.runtime.completionStatus in setOf("completed", "ended_early")) { "Workout is not finished" }
+        val finished = requireNotNull(details.runtime.finishedAt).let(Instant::parse)
+        val restoredPlan = StrictJson.decodeFromString<PlannedWorkoutDocument>(details.runtime.planSnapshotJson)
+        val work = details.sets.filter { it.setType == "work" }
+        val counts = restoredPlan.blocks.flatMap { it.exercises }.mapNotNull { exercise ->
+            val count = work.count { it.exerciseInstanceId == exercise.exerciseInstanceId }
+            count.takeIf { it > 0 }?.let { ExerciseFinishSummary(exercise.title, it) }
+        }
+        plan = restoredPlan
+        startedAt = details.runtime.startedAt.takeIf(String::isNotBlank)?.let(Instant::parse) ?: Instant.EPOCH
+        committedFinishWorkoutId = workoutId
+        mutableState.value = state.value.copy(
+            workoutId = workoutId,
+            saving = false,
+            error = null,
+            finishConfirmation = false,
+            finishSummary = FinishSummary(
+                java.time.Duration.between(startedAt, finished).seconds.coerceAtLeast(0),
+                work.size,
+                counts,
+                details.runtime.completionStatus == "ended_early",
+            ),
+        )
+    }.onFailure { fail(it.message ?: "Не удалось загрузить итоги тренировки") }.isSuccess
     private fun hasUnresolvedSlots() = exercises().any { currentSlot(it) != null }
     fun setInteraction(exerciseId: String, source: InteractionSource, interacting: Boolean) {
         val block = plan?.blocks?.firstOrNull { candidate ->

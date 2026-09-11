@@ -2,6 +2,8 @@ package ru.sportzal.app.data.files
 
 import android.content.Context
 import android.content.Intent
+import android.content.ComponentName
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.room.Room
@@ -29,6 +31,7 @@ import ru.sportzal.app.model.ProgramDocument
 import ru.sportzal.app.model.StrictJson
 import ru.sportzal.app.platform.FileIntentHandler
 import ru.sportzal.app.platform.FileIntentResult
+import ru.sportzal.app.data.files.ValidationResult
 
 @RunWith(AndroidJUnit4::class)
 class FileRoundTripTest {
@@ -49,11 +52,23 @@ class FileRoundTripTest {
 
     @Test fun contentUriProgramReachesPreviewAndDoesNotWriteBeforeConfirmation() = runBlocking {
         val source = StrictJson.encodeToString(program())
+        assertTrue("Fixture must pass ProgramValidator", ProgramValidator().validate(source) is ValidationResult.Success)
         val result = handler().handle(contentUri("program.json", source.toByteArray(Charsets.UTF_8)))
 
-        assertTrue(result is FileIntentResult.Program)
-        assertTrue((result as FileIntentResult.Program).preview is ImportPreview.Valid)
+        assertTrue("Expected Program, got $result", result is FileIntentResult.Program)
+        val preview = (result as FileIntentResult.Program).preview
+        assertTrue("Expected valid preview, got $preview", preview is ImportPreview.Valid)
         assertNoWrites()
+        importer.confirm(preview as ImportPreview.Valid)
+        assertEquals(1, database.dao().programs().size)
+        assertEquals(1, database.dao().equipment().size)
+        assertTrue(database.dao().workouts().isEmpty())
+
+        val invalid = source.replace("total_external", "external")
+        val invalidResult = handler().handle(contentUri("invalid-program.json", invalid.toByteArray()))
+        assertTrue((invalidResult as FileIntentResult.Program).preview is ImportPreview.Error)
+        assertEquals(1, database.dao().programs().size)
+        assertEquals(1, database.dao().equipment().size)
     }
 
     @Test fun contentUriClassificationAndReadFailuresNeverWrite() = runBlocking {
@@ -76,6 +91,14 @@ class FileRoundTripTest {
 
         val unreadable = handler().handle(Uri.parse("content://ru.sportzal.app.missing/not-found.json"))
         assertEquals("Не удалось прочитать JSON", (unreadable as FileIntentResult.Message).text)
+
+        val validPrefix = "{\"schema\":\"sportzal.ai_snapshot\"}"
+        val atLimit = validPrefix + " ".repeat(ProgramValidator.MAX_JSON_BYTES - validPrefix.toByteArray().size)
+        val boundary = handler().handle(contentUri("boundary.json", atLimit.toByteArray()))
+        assertEquals("Это файл результатов, а не программа", (boundary as FileIntentResult.Message).text)
+        val overBoundary = handler().handle(contentUri("over-boundary.json",
+            ByteArray(ProgramValidator.MAX_JSON_BYTES + 1)))
+        assertEquals("Файл больше 10 МиБ", (overBoundary as FileIntentResult.Message).text)
         assertNoWrites()
     }
 
@@ -91,6 +114,7 @@ class FileRoundTripTest {
         assertEquals(Intent.ACTION_SEND, share.action)
         assertEquals("application/json", share.type)
         assertTrue(share.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+        assertTrue(share.getParcelableExtra<Uri>(Intent.EXTRA_STREAM) is Uri)
         val sharedUri = share.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)!!
         assertEquals("content", sharedUri.scheme)
         val shared = context.contentResolver.openInputStream(sharedUri)!!.use { it.readBytes() }
@@ -99,6 +123,7 @@ class FileRoundTripTest {
 
         val create = coordinator.createSaveIntent(null)
         assertEquals(Intent.ACTION_CREATE_DOCUMENT, create.action)
+        assertTrue(create.categories.contains(Intent.CATEGORY_OPENABLE))
         assertEquals("application/json", create.type)
         assertEquals("sportzal_ai_snapshot_20260911120000_fixed.json",
             create.getStringExtra(Intent.EXTRA_TITLE))
@@ -106,10 +131,17 @@ class FileRoundTripTest {
         val destination = contentUri("destination.json", ByteArray(0))
         assertTrue(coordinator.writePending(destination))
         assertArrayEquals(expected, context.contentResolver.openInputStream(destination)!!.use { it.readBytes() })
+        assertFalse(coordinator.writePending(destination))
 
         coordinator.createSaveIntent(null)
         coordinator.cancelSave()
         assertFalse(coordinator.writePending(destination))
+
+        val provider = context.packageManager.getProviderInfo(
+            ComponentName(context, androidx.core.content.FileProvider::class.java),
+            PackageManager.GET_META_DATA,
+        )
+        assertFalse(provider.exported)
     }
 
     private fun handler() = FileIntentHandler(JsonFileReader(context.contentResolver), importer)
@@ -130,7 +162,7 @@ class FileRoundTripTest {
         "2026-09-11T10:00:00Z", listOf(EquipmentDocument("rack", "Rack", null)), listOf(
             PlannedWorkoutDocument("session", "template", "Workout", "2026-09-11", listOf(
                 BlockDocument("block", "Block", "straight", listOf(
-                    ExerciseDocument("exercise", "squat", "Squat", "rack", null, "external", "bilateral",
+                    ExerciseDocument("exercise", "squat", "Squat", "rack", null, "total_external", "bilateral",
                         1, "none", listOf(PlannedSetDocument(1, "work", 10.0, 5, 5, null, 60))),
                 )),
             )),

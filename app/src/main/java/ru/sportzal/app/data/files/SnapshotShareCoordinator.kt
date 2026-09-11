@@ -17,9 +17,9 @@ class SnapshotShareCoordinator(private val context: Context, private val exporte
         Intent(Intent.ACTION_SEND).apply { type = "application/json"; putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
     }
-    suspend fun createSaveIntent(focusWorkoutId: String?): Intent {
+    suspend fun createSaveIntent(focusWorkoutId: String?): Intent = withContext(Dispatchers.IO) {
         pending = exporter.export(focusWorkoutId)
-        return Intent(Intent.ACTION_CREATE_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "application/json"
+        Intent(Intent.ACTION_CREATE_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "application/json"
             putExtra(Intent.EXTRA_TITLE, pending!!.filename) }
     }
     suspend fun writePending(destination: Uri?): Boolean = withContext(Dispatchers.IO) {
