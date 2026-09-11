@@ -149,8 +149,10 @@ class ProcessDeathRecoveryTest {
 
     private fun recreateAndAwaitWorkout(title: String) {
         compose.activityRule.scenario.recreate()
+        // WorkoutScreen appears as soon as activeWorkoutId is restored, before open() has loaded its facts.
+        // The persisted workout title is published only after open() finishes, so it is the readiness marker.
         compose.waitUntil(5_000) {
-            compose.onAllNodesWithText("Заметка к тренировке").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText(title).assertExists()
     }
