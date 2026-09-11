@@ -4,7 +4,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
@@ -36,6 +38,7 @@ import ru.sportzal.app.ui.workout.WorkoutUiState
 /** Automated semantics/layout smoke only; this is not a substitute for a TalkBack device pass. */
 class AccessibilitySmokeTest {
     @get:Rule val compose = createComposeRule()
+    private lateinit var focusManager: FocusManager
 
     @Test fun workoutRemainsReachableAt320DpAndTwoHundredPercentFontScale() {
         setWorkoutContent()
@@ -54,6 +57,11 @@ class AccessibilitySmokeTest {
             .assertHeightIsAtLeast(48.dp)
             .assertWidthIsAtLeast(48.dp)
         compose.onNodeWithTag("save-exercise").performScrollTo().assertIsDisplayed()
+
+        // Save must remain reachable while the IME is active. Finish only needs to be reachable
+        // after the user leaves the field, so clear focus before checking the bottom action.
+        compose.runOnIdle { focusManager.clearFocus(force = true) }
+        compose.waitForIdle()
         compose.onNodeWithText("Завершить тренировку").performScrollTo().assertIsDisplayed()
     }
 
@@ -90,6 +98,7 @@ class AccessibilitySmokeTest {
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 2f)) {
                 SportzalTheme {
+                    focusManager = LocalFocusManager.current
                     Box(Modifier.width(320.dp)) {
                         WorkoutScreen(state, { "1:00" }, { _, _, _, _, _ -> }, { _, _ -> }, { _, _, _ -> }, {})
                     }

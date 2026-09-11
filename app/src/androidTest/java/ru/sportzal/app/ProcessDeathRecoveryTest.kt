@@ -11,6 +11,7 @@ import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -32,6 +33,11 @@ import ru.sportzal.app.model.ClockAnchor
  */
 class ProcessDeathRecoveryTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+
+    @After fun clearDatabase() {
+        val container = (compose.activity.application as SportzalApplication).container
+        container.database.clearAllTables()
+    }
 
     @Test fun activeWorkoutSurvivesActivityRecreation() {
         val fixture = seedActive()
@@ -86,12 +92,12 @@ class ProcessDeathRecoveryTest {
         recreateAndAwaitWorkout(fixture.title)
         val fact = runBlocking { fixture.container.database.dao().sets(fixture.workoutId).single() }
         assertEquals("boot-a", fact.bootId)
-        assertEquals(10_000, fact.elapsedRealtimeMs)
-        assertEquals(5, elapsedBetween(
+        assertEquals(10_000L, fact.elapsedRealtimeMs)
+        assertEquals(5L, elapsedBetween(
             ClockAnchor(Instant.parse(fact.completedAt), fact.bootId, fact.elapsedRealtimeMs),
             ClockAnchor(Instant.parse(fact.completedAt), "boot-a", 15_000),
         ).duration.seconds)
-        assertEquals(60, elapsedBetween(
+        assertEquals(60L, elapsedBetween(
             ClockAnchor(Instant.parse(fact.completedAt), fact.bootId, fact.elapsedRealtimeMs),
             ClockAnchor(Instant.parse(fact.completedAt).plusSeconds(60), "boot-b", 1_000),
         ).duration.seconds)
@@ -105,7 +111,9 @@ class ProcessDeathRecoveryTest {
             fixture.container.repository.updateWorkoutNotes(fixture.workoutId, "Заметка сохраняется")
         }
         recreateAndAwaitWorkout(fixture.title)
-        compose.waitUntil(5_000) { compose.onAllNodesWithText(fixture.title).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("Завершить тренировку").fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNodeWithText("Завершить тренировку").performScrollTo().performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Итоги тренировки").fetchSemanticsNodes().isNotEmpty() }
         val before = runBlocking { fixture.container.database.dao().workout(fixture.workoutId)!! }
@@ -138,7 +146,9 @@ class ProcessDeathRecoveryTest {
 
     private fun recreateAndAwaitWorkout(title: String) {
         compose.activityRule.scenario.recreate()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("Заметка к тренировке").fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNodeWithText(title).assertExists()
     }
 
