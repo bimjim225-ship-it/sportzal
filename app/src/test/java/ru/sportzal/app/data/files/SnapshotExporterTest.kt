@@ -5,6 +5,8 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -76,6 +78,30 @@ class SnapshotExporterTest {
         assertEquals(exporter.export().json, exporter.export().json)
     }
 
+    @Test fun historyScopeAndPartialClockMatrixAreSerializedExactly() = runBlocking {
+        val base = source()
+        val original = base.workouts.single()
+        val both = original.sets.single().copy(bootId = "boot-a", elapsedRealtimeMs = 123L)
+        val noBoot = both.copy(setResultId = "no-boot", sequenceNo = 4, bootId = null)
+        val noElapsed = both.copy(setResultId = "no-elapsed", sequenceNo = 5, elapsedRealtimeMs = null)
+        val root = document(exporter(base.copy(
+            workouts = listOf(original.copy(sets = listOf(both, noBoot, noElapsed))),
+            totalStoredWorkouts = 9,
+            omittedWorkouts = 6,
+        )).export().json)
+        val scope = root.getValue("history_scope").jsonObject
+        assertEquals(24, scope.getValue("completed_limit").jsonPrimitive.long)
+        assertEquals(9, scope.getValue("total_stored_workouts").jsonPrimitive.long)
+        assertEquals(1, scope.getValue("included_workouts").jsonPrimitive.long)
+        assertEquals(6, scope.getValue("omitted_workouts").jsonPrimitive.long)
+        val sets = root.getValue("workouts").jsonArray.single().jsonObject.getValue("sets").jsonArray
+        val clock = sets[0].jsonObject.getValue("clock").jsonObject
+        assertEquals("boot-a", clock.getValue("boot_id").jsonPrimitive.content)
+        assertEquals(123, clock.getValue("elapsed_realtime_ms").jsonPrimitive.long)
+        assertSame(JsonNull, sets[1].jsonObject["clock"])
+        assertSame(JsonNull, sets[2].jsonObject["clock"])
+    }
+
     @Test fun equipmentPatchNullsAreExplicitAndPhotoPathIsNeverExternal() = runBlocking {
         val json = StrictJson.encodeToString(EquipmentDocument("rack", "Rack", null, null, null, null))
         val equipment = document(json)
@@ -85,7 +111,7 @@ class SnapshotExporterTest {
         assertFalse(equipment.containsKey("photo_path"))
     }
 
-    @Test fun snapshotSizeLimitAllowsExactBoundaryAndRejectsOneByteMore() = runBlocking {
+    @Test fun snapshotSizeLimitAllowsExactBoundaryAndRejectsOneByteMore(): Unit = runBlocking {
         fun withNotes(notes: String): SnapshotSource {
             val source = source()
             val workout = source.workouts.single()

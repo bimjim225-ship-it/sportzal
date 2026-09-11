@@ -18,6 +18,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import ru.sportzal.app.ui.theme.SportzalTheme
 import ru.sportzal.app.ui.today.TodayScreen
 import ru.sportzal.app.ui.today.TodayViewModel
@@ -26,17 +27,21 @@ import ru.sportzal.app.ui.workout.WorkoutViewModel
 import ru.sportzal.app.ui.workout.FinishScreen
 
 class MainActivity : ComponentActivity() {
+    private var displayedFinishWorkoutId by mutableStateOf<String?>(null)
+    private var exportPreparing by mutableStateOf(false)
     private var incomingUri by mutableStateOf<Uri?>(null)
     private var pickedUri by mutableStateOf<Uri?>(null)
     private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { pickedUri = it }
     private var saveDestination by mutableStateOf<Uri?>(null)
     private val savePicker = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        exportPreparing = false
         if (it.resultCode == RESULT_OK) saveDestination = it.data?.data
         else (application as SportzalApplication).container.snapshotShareCoordinator.cancelSave()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        displayedFinishWorkoutId = savedInstanceState?.getString(FINISH_WORKOUT_ID)
         val container = (application as SportzalApplication).container
         if (intent?.action == Intent.ACTION_VIEW) incomingUri = intent.data
         val viewModel = TodayViewModel(container.database, container.repository, container.programImporter, container.workoutService)
@@ -54,7 +59,7 @@ class MainActivity : ComponentActivity() {
                     lifecycleOwner.lifecycle.addObserver(observer)
                     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
                 }
-                var activeWorkoutId by remember { mutableStateOf<String?>(null) }
+                var activeWorkoutId by remember { mutableStateOf(displayedFinishWorkoutId) }
                 LaunchedEffect(Unit) { viewModel.refresh() }
                 LaunchedEffect(incomingUri) {
                     incomingUri?.let { viewModel.showFileResult(container.fileIntentHandler.handle(it)) }
@@ -65,6 +70,15 @@ class MainActivity : ComponentActivity() {
                     }
                     saveDestination = null
                 } }
+                LaunchedEffect(displayedFinishWorkoutId) {
+                    displayedFinishWorkoutId?.let { id ->
+                        activeWorkoutId = id
+                        workoutViewModel.restoreFinish(id)
+                    }
+                }
+                LaunchedEffect(workoutState.finishSummary) {
+                    if (workoutState.finishSummary != null) displayedFinishWorkoutId = workoutState.workoutId
+                }
                 LaunchedEffect(state.selection) {
                     val id = (state.selection as? ru.sportzal.app.domain.TodaySelection.Resume)?.workout?.workoutId
                     if (id != null) { activeWorkoutId = id; workoutViewModel.open(id) }
@@ -75,18 +89,37 @@ class MainActivity : ComponentActivity() {
                 if (workoutState.finishSummary != null) FinishScreen(
                     summary = workoutState.finishSummary!!,
                     error = workoutState.error,
+                    preparing = exportPreparing,
                     onShare = { scope.launch {
-                        runCatching {
+                        if (exportPreparing) return@launch
+                        exportPreparing = true
+                        try {
                             val send = container.snapshotShareCoordinator.shareIntent(activeWorkoutId)
                             startActivity(Intent.createChooser(send, "Отправить JSON"))
-                        }.onFailure { workoutViewModel.showError("Не удалось подготовить JSON") }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            workoutViewModel.showError("Не удалось подготовить JSON")
+                        } finally {
+                            exportPreparing = false
+                        }
                     } },
                     onSave = { scope.launch {
-                        runCatching { savePicker.launch(container.snapshotShareCoordinator.createSaveIntent(activeWorkoutId)) }
-                            .onFailure { workoutViewModel.showError("Не удалось подготовить JSON") }
+                        if (exportPreparing) return@launch
+                        exportPreparing = true
+                        try {
+                            savePicker.launch(container.snapshotShareCoordinator.createSaveIntent(activeWorkoutId))
+                        } catch (cancelled: CancellationException) {
+                            exportPreparing = false
+                            throw cancelled
+                        } catch (_: Exception) {
+                            exportPreparing = false
+                            workoutViewModel.showError("Не удалось подготовить JSON")
+                        }
                     } },
                     onClose = {
                         workoutViewModel.dismissFinish()
+                        displayedFinishWorkoutId = null
                         activeWorkoutId = null
                         scope.launch { viewModel.refresh() }
                     },
@@ -135,4 +168,11 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         if (intent.action == Intent.ACTION_VIEW) incomingUri = intent.data
     }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        displayedFinishWorkoutId?.let { outState.putString(FINISH_WORKOUT_ID, it) }
+        super.onSaveInstanceState(outState)
+    }
+
+    private companion object { const val FINISH_WORKOUT_ID = "finish_workout_id" }
 }

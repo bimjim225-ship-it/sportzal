@@ -16,6 +16,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import ru.sportzal.app.data.db.AppStateEntity
 import ru.sportzal.app.data.db.EquipmentEntity
+import ru.sportzal.app.data.db.DraftEntity
 import ru.sportzal.app.data.db.ProgramEntity
 import ru.sportzal.app.data.db.SportzalDatabase
 import ru.sportzal.app.data.db.WorkoutEntity
@@ -46,12 +47,12 @@ class SnapshotSourceTest {
     @After fun closeDatabase() = database.close()
 
     @Test fun latest24FinishedActiveAndFocusHaveTruthfulDeterministicScope() = runBlocking {
-        insertProgram("history", 1)
+        insertProgram("history", 1, workoutInstances = (0..25).map { "instance-$it" } + "active-instance")
         repeat(26) { index ->
             insertWorkout("finished-$index", "history", 1, "instance-$index",
                 "2026-09-${(index + 1).toString().padStart(2, '0')}T10:00:00Z", "completed")
         }
-        val historicalPlan = plan("active-plan", "Historical active plan")
+        val historicalPlan = plan("active-instance", "Historical active plan")
         val historicalEquipment = listOf(EquipmentDocument("rack", "Historical rack", null))
         insertWorkout("active", "history", 1, "active-instance", "2026-09-30T10:00:00Z", "active",
             historicalPlan, historicalEquipment)
@@ -78,8 +79,24 @@ class SnapshotSourceTest {
         assertTrue(exported.json.contains("\"focus_workout_id\":\"finished-0\""))
     }
 
+    @Test fun equalStartedAtUsesWorkoutIdAtTheFinishedWindowBoundary() = runBlocking {
+        val ids = (0..24).map { "tied-${it.toString().padStart(2, '0')}" }
+        insertProgram("ties", 1, workoutInstances = ids.map { "$it-instance" })
+        ids.reversed().forEachIndexed { index, id ->
+            insertWorkout(id, "ties", 1, "$id-instance", "2026-09-10T10:00:00Z",
+                if (index % 2 == 0) "completed" else "ended_early")
+        }
+
+        val source = repository.snapshotSource(null)
+        assertEquals(ids.take(24), source.workouts.map { it.runtime.workoutId })
+        assertEquals(25, source.totalStoredWorkouts)
+        assertEquals(1, source.omittedWorkouts)
+        assertTrue(source.workouts.any { it.runtime.completionStatus == "completed" })
+        assertTrue(source.workouts.any { it.runtime.completionStatus == "ended_early" })
+    }
+
     @Test fun activeAndReferencedImmutableProgramVersionsExportWithoutFakeWorkouts() = runBlocking {
-        insertProgram("program", 1, "Version one")
+        insertProgram("program", 1, "Version one", listOf("old-instance"))
         insertProgram("program", 2, "Version two")
         database.dao().setAppState(AppStateEntity(activeProgramId = "program", activeProgramVersion = 2))
 
@@ -97,33 +114,38 @@ class SnapshotSourceTest {
     }
 
     @Test fun historicalEquipmentAndCorrectedFactsComeFromCommittedSnapshotState() = runBlocking {
-        insertProgram("facts", 1)
+        insertProgram("facts", 1, workoutInstances = listOf("facts-instance"))
         database.dao().insertEquipment(EquipmentEntity("rack", "Current rack", null, null, null, null, null, "now"))
         val historical = listOf(EquipmentDocument("rack", "Historical rack", "Seat 1"))
         insertWorkout("facts-workout", "facts", 1, "facts-instance", "2026-09-10T10:00:00Z", "active",
             equipment = historical)
         repository.saveSet(command("edited", 1))
         repository.saveSet(command("deleted", null))
-        repository.editSet(EditSetCommand("edited", 12.5, 7, 2, "edited-at", emptyList(), null,
-            null, null, null, "external", "bilateral"))
+        repository.editSet(EditSetCommand("edited", 12.5, 7, 2, "2026-09-10T10:06:00Z", emptyList(), null,
+            null, null, null, "total_external", "bilateral"))
         repository.deleteSet("deleted")
         repository.saveSet(command("extra", null))
         repository.skipSet(SkipSetCommand("facts-workout", "exercise", 2, "skipped"))
         repository.restoreSkippedSet("facts-workout", "exercise", 2)
+        database.dao().upsertDraft(DraftEntity("facts-workout", "exercise", 2, "99", "8", 2,
+            "{\"local\":\"draft-marker\"}", "2026-09-10T10:07:00Z"))
 
         val workout = repository.snapshotSource(null).workouts.single()
         assertEquals("Historical rack", StrictJson.decodeFromString<List<EquipmentDocument>>(
             workout.runtime.equipmentAtStartJson).single().name)
         assertEquals(listOf("edited", "extra"), workout.sets.map { it.setResultId })
-        assertEquals("original", workout.sets.first().completedAt)
-        assertEquals("edited-at", workout.sets.first().editedAt)
+        assertEquals("2026-09-10T10:05:00Z", workout.sets.first().completedAt)
+        assertEquals("2026-09-10T10:06:00Z", workout.sets.first().editedAt)
         assertNull(workout.sets.last().plannedSetNo)
         assertTrue(workout.skippedSets.isEmpty())
+        val json = SnapshotExporter(repository, { "2026-09-11T12:00:00Z" }, { "id" }).export().json
+        assertTrue(!json.contains("draft-marker") && !json.contains("drafts"))
     }
 
-    private suspend fun insertProgram(id: String, version: Int, title: String = "Plan") {
+    private suspend fun insertProgram(id: String, version: Int, title: String = "Plan",
+        workoutInstances: List<String> = listOf("template-instance")) {
         val document = ProgramDocument("sportzal.program", 1, id, version, "2026-09-01T00:00:00Z",
-            emptyList(), listOf(plan("template-instance", title)))
+            emptyList(), workoutInstances.map { plan(it, title) })
         database.dao().insertProgram(ProgramEntity(id, version, 1, StrictJson.encodeToString(document),
             "$id-$version", document.generatedAt, "now"))
     }
@@ -138,7 +160,7 @@ class SnapshotSourceTest {
 
     private fun plan(instanceId: String, title: String) = PlannedWorkoutDocument(instanceId, "template", title,
         "2026-09-10", listOf(BlockDocument("block", "Block", "straight", listOf(
-            ExerciseDocument("exercise", "squat", "Squat", "rack", null, "external", "bilateral", 1,
+            ExerciseDocument("exercise", "squat", "Squat", "rack", null, "total_external", "bilateral", 1,
                 "none", listOf(
                     PlannedSetDocument(1, "work", 10.0, 5, 5, null, 60),
                     PlannedSetDocument(2, "work", 10.0, 5, 5, null, 60),
@@ -146,6 +168,6 @@ class SnapshotSourceTest {
         ))))
 
     private fun command(id: String, planned: Int?) = SaveSetCommand(id, "facts-workout", "exercise", planned,
-        "work", "squat", "Squat", loadBasisActual = "external", sideActual = "bilateral", weightKg = 10.0,
-        reps = 5, completedAt = "original")
+        "work", "squat", "Squat", loadBasisActual = "total_external", sideActual = "bilateral", weightKg = 10.0,
+        reps = 5, completedAt = "2026-09-10T10:05:00Z")
 }
