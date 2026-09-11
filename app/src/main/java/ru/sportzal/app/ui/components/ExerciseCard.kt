@@ -34,6 +34,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import ru.sportzal.app.ui.workout.ExerciseUiState
@@ -77,7 +80,9 @@ fun ExerciseCard(
             if (photoStore != null) LocalEquipmentPhoto(state.equipmentPhotoPath, photoStore, Modifier.fillMaxWidth())
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(state.exercise.title, style = MaterialTheme.typography.headlineSmall)
-                IconButton({ secondaryMenu = true }, enabled = !saving, modifier = Modifier.testTag("secondary-${state.exercise.exerciseInstanceId}")) { Text("⋮") }
+                IconButton({ secondaryMenu = true }, enabled = !saving, modifier = Modifier
+                    .semantics { contentDescription = "Меню упражнения" }
+                    .testTag("secondary-${state.exercise.exerciseInstanceId}")) { Text("⋮") }
                 DropdownMenu(secondaryMenu, onDismissRequest = { secondaryMenu = false }) {
                     DropdownMenuItem({ Text("Изменить оборудование / настройку") }, { secondaryMenu = false; contextDialog = true; onInteraction(InteractionSource.CONTEXT_DIALOG, true) })
                     DropdownMenuItem({ Text("Дополнительный подход") }, { secondaryMenu = false; extraDialog = true; onInteraction(InteractionSource.EXTRA_SET_DIALOG, true) })
@@ -109,14 +114,26 @@ fun ExerciseCard(
                 val rest = state.restReferenceSec ?: slot.restTargetSec
                 Text("Ориентир до следующего подхода: ${rest / 60}:${(rest % 60).toString().padStart(2, '0')}")
                 Text(if (state.saved.isEmpty()) "Ещё не записывали" else "С записи: $elapsed",
-                    modifier = Modifier.testTag("elapsed-${state.exercise.exerciseInstanceId}"))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Exclude the changing value from accessibility events to avoid an announcement every tick.
+                    modifier = Modifier.clearAndSetSemantics { contentDescription = "Таймер отдыха" }
+                        .testTag("elapsed-${state.exercise.exerciseInstanceId}"))
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val fields = if (maxWidth < 360.dp) Modifier.fillMaxWidth() else Modifier
+                    if (maxWidth < 360.dp) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        NumericField(weightText, "Вес", NumericKind.WEIGHT, {
+                            weightText = it; onDraft(parseNumeric(it, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), draft.rir, draft.rirAnswered)
+                        }, fields.testTag("weight-${state.exercise.exerciseInstanceId}"), enabled = !saving && draft.context.loadBasis != "bodyweight")
+                        NumericField(repsText, "Повторы", NumericKind.REPS, {
+                            repsText = it; onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(it, NumericKind.REPS)?.toInt(), draft.rir, draft.rirAnswered)
+                        }, fields.testTag("reps-${state.exercise.exerciseInstanceId}"), enabled = !saving)
+                    } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NumericField(weightText, "Вес", NumericKind.WEIGHT, {
                         weightText = it; onDraft(parseNumeric(it, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), draft.rir, draft.rirAnswered)
                     }, Modifier.testTag("weight-${state.exercise.exerciseInstanceId}"), enabled = !saving && draft.context.loadBasis != "bodyweight")
                     NumericField(repsText, "Повторы", NumericKind.REPS, {
                         repsText = it; onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(it, NumericKind.REPS)?.toInt(), draft.rir, draft.rirAnswered)
                     }, Modifier.testTag("reps-${state.exercise.exerciseInstanceId}"), enabled = !saving)
+                    }
                 }
                 if (requiresRir(state)) RirSelector(draft.rir, draft.rirAnswered, enabled = !saving) {
                     onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), it, true)
