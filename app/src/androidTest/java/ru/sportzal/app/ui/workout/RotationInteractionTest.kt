@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.focus.FocusManager
@@ -62,7 +63,7 @@ class RotationInteractionTest {
         assertEquals(listOf("a", "b"), ui.blocks.single().cards.map { it.exercise.exerciseInstanceId })
         compose.onNodeWithTag("reps-a").performTextClearance()
         compose.onNodeWithTag("reps-a").performTextInput("7")
-        compose.onNodeWithTag("reps-a").assertIsDisplayed()
+        compose.onNodeWithTag("reps-a").performScrollTo().assertIsDisplayed()
 
         compose.runOnIdle { focusManager.clearFocus(force = true) }
         compose.waitForIdle()

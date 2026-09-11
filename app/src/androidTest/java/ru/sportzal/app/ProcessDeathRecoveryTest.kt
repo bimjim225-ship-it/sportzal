@@ -1,5 +1,8 @@
 package ru.sportzal.app
 
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -7,11 +10,15 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -32,6 +39,11 @@ import ru.sportzal.app.model.ClockAnchor
  */
 class ProcessDeathRecoveryTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+
+    @After fun clearDatabase() {
+        val container = (compose.activity.application as SportzalApplication).container
+        container.database.clearAllTables()
+    }
 
     @Test fun activeWorkoutSurvivesActivityRecreation() {
         val fixture = seedActive()
@@ -86,12 +98,12 @@ class ProcessDeathRecoveryTest {
         recreateAndAwaitWorkout(fixture.title)
         val fact = runBlocking { fixture.container.database.dao().sets(fixture.workoutId).single() }
         assertEquals("boot-a", fact.bootId)
-        assertEquals(10_000, fact.elapsedRealtimeMs)
-        assertEquals(5, elapsedBetween(
+        assertEquals(10_000L, fact.elapsedRealtimeMs)
+        assertEquals(5L, elapsedBetween(
             ClockAnchor(Instant.parse(fact.completedAt), fact.bootId, fact.elapsedRealtimeMs),
             ClockAnchor(Instant.parse(fact.completedAt), "boot-a", 15_000),
         ).duration.seconds)
-        assertEquals(60, elapsedBetween(
+        assertEquals(60L, elapsedBetween(
             ClockAnchor(Instant.parse(fact.completedAt), fact.bootId, fact.elapsedRealtimeMs),
             ClockAnchor(Instant.parse(fact.completedAt).plusSeconds(60), "boot-b", 1_000),
         ).duration.seconds)
@@ -105,12 +117,33 @@ class ProcessDeathRecoveryTest {
             fixture.container.repository.updateWorkoutNotes(fixture.workoutId, "Заметка сохраняется")
         }
         recreateAndAwaitWorkout(fixture.title)
-        compose.waitUntil(5_000) { compose.onAllNodesWithText(fixture.title).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText("Завершить тренировку").performScrollTo().performClick()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Итоги тренировки").fetchSemanticsNodes().isNotEmpty() }
+        // A rendered second fact proves open() reloaded the state needed by requestFinish().
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("2. 100 кг × 6 · RIR 2").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
+            .performScrollToNode(hasText("Завершить тренировку"))
+        compose.onNodeWithText("Завершить тренировку").performClick()
+
+        // Distinguish a committed finish from an unexpected confirmation before testing recovery UI.
+        compose.waitUntil(5_000) {
+            val committed = runBlocking {
+                fixture.container.database.dao().workout(fixture.workoutId)?.completionStatus != "active"
+            }
+            committed || compose.onAllNodesWithText("Завершить с невыполненными подходами?")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        val confirmationVisible = compose.onAllNodesWithText("Завершить с невыполненными подходами?")
+            .fetchSemanticsNodes().isNotEmpty()
+        assertFalse("Fully completed workout unexpectedly requested finish confirmation", confirmationVisible)
+        val committed = runBlocking { fixture.container.database.dao().workout(fixture.workoutId)!! }
+        assertNotNull("Finish click did not commit finished_at", committed.finishedAt)
+        assertEquals("completed", committed.completionStatus)
+
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Тренировка завершена").fetchSemanticsNodes().isNotEmpty() }
         val before = runBlocking { fixture.container.database.dao().workout(fixture.workoutId)!! }
         compose.activityRule.scenario.recreate()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Итоги тренировки").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Тренировка завершена").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Заметка сохраняется").assertExists()
         val after = runBlocking { fixture.container.database.dao().workout(fixture.workoutId)!! }
         assertEquals(before.finishedAt, after.finishedAt)
@@ -125,7 +158,9 @@ class ProcessDeathRecoveryTest {
         val id = "program-$suffix"
         val title = "Восстановленная тренировка $suffix"
         return runBlocking {
-            container.database.dao().activeWorkout()?.let { container.database.dao().updateStatus(it.workoutId, "ended_early") }
+            container.database.clearAllTables()
+            assertNull(container.database.dao().activeWorkout())
+            assertEquals(0, container.database.dao().workouts().size)
             val document = program(id, 1, title)
             container.repository.importProgram(document, StrictJson.encodeToString(document), "hash-$suffix")
             val workoutId = container.repository.startWorkout(id, 1, "session-$suffix")
@@ -136,7 +171,9 @@ class ProcessDeathRecoveryTest {
 
     private fun recreateAndAwaitWorkout(title: String) {
         compose.activityRule.scenario.recreate()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNodeWithText(title).assertExists()
     }
 
