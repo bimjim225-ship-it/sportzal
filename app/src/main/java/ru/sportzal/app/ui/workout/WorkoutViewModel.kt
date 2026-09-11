@@ -277,6 +277,7 @@ class WorkoutViewModel(
             saving = false,
             error = null,
             finishConfirmation = false,
+            notes = details.runtime.notes,
             finishSummary = FinishSummary(
                 java.time.Duration.between(startedAt, finished).seconds.coerceAtLeast(0),
                 work.size,
