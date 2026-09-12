@@ -22,7 +22,7 @@ import ru.sportzal.app.model.SaveEquipmentCommand
     AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text(if (item == null) "Добавить тренажёр" else "Изменить тренажёр") },
         text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(name, { name = it }, label = { Text("Название *") }, singleLine = true)
-            OutlinedTextField(setup, { setup = it }, label = { Text("Настройка / setup") })
+            OutlinedTextField(setup, { setup = it }, label = { Text("Настройка тренажёра") })
             OutlinedTextField(notes, { notes = it }, label = { Text("Заметки") }, minLines = 2)
             item?.weightStepKg?.let { Text("Шаг: ${it.toString().replace('.', ',')} кг") }
         } }, dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } }, confirmButton = {

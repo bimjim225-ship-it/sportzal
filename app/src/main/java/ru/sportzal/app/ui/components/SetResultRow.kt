@@ -30,12 +30,13 @@ import ru.sportzal.app.data.db.SetResultEntity
 import ru.sportzal.app.model.StrictJson
 import ru.sportzal.app.ui.workout.InteractionSource
 import ru.sportzal.app.domain.ActualContext
+import ru.sportzal.app.ui.text.compactRirLabel
+import ru.sportzal.app.ui.text.deviationLabel
+import ru.sportzal.app.ui.text.loadBasisLabel
+import ru.sportzal.app.ui.text.sideLabel
 
-internal val deviationLabels = linkedMapOf(
-    "range_shortened" to "Амплитуда сокращена", "technique_changed" to "Техника изменилась",
-    "discomfort" to "Дискомфорт", "setup_changed" to "Изменена настройка",
-    "equipment_changed" to "Другое оборудование", "exercise_changed" to "Другое упражнение", "other" to "Другое",
-)
+internal val deviationCodes = listOf("range_shortened", "technique_changed", "discomfort", "setup_changed",
+    "equipment_changed", "exercise_changed", "other")
 
 @Composable
 fun SetResultRow(
@@ -52,7 +53,7 @@ fun SetResultRow(
     var confirmDelete by remember { mutableStateOf(false) }
     fun closeAll() { menu = false; edit = false; confirmDelete = false; onInteraction(InteractionSource.SET_ACTIONS, false) }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("${result.plannedSetNo}. ${result.weightKg.g} кг × ${result.reps}" + (result.rir?.let { " · RIR ${it.rirText()}" } ?: ""))
+        Text("${result.plannedSetNo}. ${result.weightKg.g} кг × ${result.reps}" + (result.rir?.let { " · ${compactRirLabel(it)}" } ?: ""))
         IconButton({ menu = true; onInteraction(InteractionSource.SET_ACTIONS, true) }, enabled = !saving,
             modifier = Modifier.semantics { contentDescription = "Меню записанного подхода" }
                 .testTag("set-actions-${result.setResultId}")) { Text("⋮") }
@@ -100,23 +101,26 @@ internal fun EditSetDialog(
             OutlinedTextField(equipmentId, { value -> if (value != equipmentId) { equipmentId = value; weight = "" } },
                 label = { Text("ID оборудования") }, modifier = Modifier.testTag("edit-equipment-id"))
             OutlinedTextField(equipmentName, { equipmentName = it }, label = { Text("Название оборудования") })
-            OutlinedTextField(setup, { setup = it }, label = { Text("Настройка / setup") }, modifier = Modifier.testTag("edit-setup"))
+            OutlinedTextField(setup, { setup = it }, label = { Text("Настройка тренажёра") }, modifier = Modifier.testTag("edit-setup"))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 loadBases.forEach { value -> FilterChip(loadBasis == value, { if (loadBasis != value) {
                 loadBasis = value; weight = if (value == "bodyweight") "0" else ""
-            } }, { Text(value) }) }
+            } }, { Text(loadBasisLabel(value)) }) }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("bilateral", "left", "right").forEach { value -> FilterChip(side == value, { side = value }, { Text(value) }) }
+                listOf("bilateral", "left", "right").forEach { value -> FilterChip(side == value, { side = value }, { Text(sideLabel(value)) }) }
             }
-            if (showRir) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                (0..4).forEach { value -> FilterChip(rir == value, { rir = value }, { Text(if (value == 4) "4+" else "$value") }) }
-                FilterChip(rir == null, { rir = null }, { Text("Не оценил") })
+            if (showRir) {
+                Text("Запас повторов")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    (0..4).forEach { value -> FilterChip(rir == value, { rir = value }, { Text(ru.sportzal.app.ui.text.rirLabel(value)) }) }
+                    FilterChip(rir == null, { rir = null }, { Text("Не оценил") })
+                }
             }
             Text("Отклонения")
-            deviationLabels.forEach { (value, label) -> FilterChip(value in deviations, {
+            deviationCodes.forEach { value -> FilterChip(value in deviations, {
                 deviations = if (value in deviations) deviations - value else deviations + value
-            }, { Text(label) }, modifier = Modifier.testTag("deviation-$value")) }
+            }, { Text(deviationLabel(value)) }, modifier = Modifier.testTag("deviation-$value")) }
             OutlinedTextField(note, { note = it }, label = { Text("Комментарий") })
         } },
         dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } },

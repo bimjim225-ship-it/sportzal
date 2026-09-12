@@ -41,8 +41,8 @@ class HistoryScreenTest {
         }
 
         compose.onNodeWithText("Длительность: 30:00").assertExists()
-        assertHistoryText("Факт: 100 кг × 8 · RIR 4+ · 12:15")
-        assertHistoryText("Факт: Жим ногами · сиденье 4 · machine_display · bilateral")
+        assertHistoryText("Факт: 100 кг × 8 · Запас: 4+ · 12:15")
+        assertHistoryText("Факт: Жим ногами · сиденье 4 · Вес на тренажёре · Обе стороны")
         assertHistoryText("Отклонения: Дискомфорт")
         assertHistoryText("Комментарий: Болело колено")
     }
@@ -97,9 +97,9 @@ class HistoryScreenTest {
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Изменить"))
         compose.onNodeWithText("Изменить").performClick()
         compose.onNodeWithText("ID оборудования").assertExists()
-        compose.onNodeWithText("Настройка / setup").assertExists()
+        compose.onNodeWithText("Настройка тренажёра").assertExists()
         compose.onNodeWithText("Отклонения").assertExists()
-        compose.onNodeWithText("4+").assertExists()
+        compose.onNodeWithText("4+ повтора в запасе").assertExists()
         compose.onNodeWithText("Сохранить").performClick()
 
         assertEquals(listOf("discomfort"), capturedDeviations)

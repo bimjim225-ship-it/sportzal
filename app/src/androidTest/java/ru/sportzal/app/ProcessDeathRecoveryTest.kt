@@ -59,7 +59,7 @@ class ProcessDeathRecoveryTest {
         val fixture = seedActive()
         runBlocking { fixture.container.repository.saveSet(setCommand(fixture.workoutId)) }
         recreateAndAwaitWorkout(fixture.title)
-        compose.onNodeWithText("1. 100 кг × 6 · RIR 2").performScrollTo().assertExists()
+        compose.onNodeWithText("1. 100 кг × 6 · Запас: 2").performScrollTo().assertExists()
         assertEquals(1, runBlocking { fixture.container.database.dao().sets(fixture.workoutId).size })
         assertNull(runBlocking { fixture.container.database.dao().setInSlot(fixture.workoutId, "exercise", 2) })
     }
@@ -119,7 +119,7 @@ class ProcessDeathRecoveryTest {
         recreateAndAwaitWorkout(fixture.title)
         // A rendered second fact proves open() reloaded the state needed by requestFinish().
         compose.waitUntil(5_000) {
-            compose.onAllNodesWithText("2. 100 кг × 6 · RIR 2").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithText("2. 100 кг × 6 · Запас: 2").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
             .performScrollToNode(hasText("Завершить тренировку"))

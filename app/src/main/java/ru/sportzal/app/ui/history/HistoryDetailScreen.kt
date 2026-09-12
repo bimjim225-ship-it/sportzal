@@ -17,7 +17,11 @@ import ru.sportzal.app.domain.ActualContext
 import ru.sportzal.app.model.ExerciseDocument
 import ru.sportzal.app.model.StrictJson
 import ru.sportzal.app.ui.components.EditSetDialog
-import ru.sportzal.app.ui.components.deviationLabels
+import ru.sportzal.app.ui.text.compactRirLabel
+import ru.sportzal.app.ui.text.deviationLabel
+import ru.sportzal.app.ui.text.loadBasisLabel
+import ru.sportzal.app.ui.text.sideLabel
+import ru.sportzal.app.ui.text.skipReasonLabel
 import ru.sportzal.app.ui.workout.formatDuration
 
 @Composable
@@ -74,7 +78,7 @@ fun HistoryDetailScreen(
                             Text("Подход ${planned.setNo}")
                             Text(
                                 "План: ${planned.targetWeightKg.kg()} кг · ${planned.repsMin}–${planned.repsMax}" +
-                                    (planned.targetRir?.let { " · RIR ${it.rirLabel()}" } ?: ""),
+                                    (planned.targetRir?.let { " · ${compactRirLabel(it)}" } ?: ""),
                             )
                             when {
                                 fact != null -> {
@@ -84,7 +88,7 @@ fun HistoryDetailScreen(
                                         TextButton({ deleting = fact }) { Text("Удалить") }
                                     }
                                 }
-                                skip != null -> Text("Факт: Пропущен" + (skip.reason?.let { " · $it" } ?: ""))
+                                skip != null -> Text("Факт: Пропущен" + (skip.reason?.let { " · ${skipReasonLabel(it)}" } ?: ""))
                                 else -> Text("Факт: Не выполнен")
                             }
                         }
@@ -165,24 +169,22 @@ private fun HistoricalFact(fact: SetResultEntity, plannedExercise: ExerciseDocum
     val deviations = runCatching { StrictJson.decodeFromString<List<String>>(fact.deviationsJson) }
         .getOrDefault(emptyList())
     if (deviations.isNotEmpty()) {
-        Text("Отклонения: ${deviations.joinToString { deviationLabels[it] ?: it }}")
+        Text("Отклонения: ${deviations.joinToString { deviationLabel(it) }}")
     }
     fact.note?.takeIf { it.isNotBlank() }?.let { Text("Комментарий: $it") }
 }
 
 private fun Double.kg() = toString().removeSuffix(".0").replace('.', ',')
 
-private fun Int.rirLabel() = if (this == 4) "4+" else toString()
-
 private fun SetResultEntity.factText() = "${weightKg.kg()} кг × $reps" +
-    (rir?.let { " · RIR ${it.rirLabel()}" } ?: "") +
+    (rir?.let { " · ${compactRirLabel(it)}" } ?: "") +
     " · " + Instant.parse(completedAt).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))
 
 private fun SetResultEntity.actualContextText(): String = listOfNotNull(
     equipmentNameActual?.takeIf { it.isNotBlank() } ?: equipmentIdActual?.takeIf { it.isNotBlank() },
     setupActual?.takeIf { it.isNotBlank() },
-    loadBasisActual.takeIf { it.isNotBlank() },
-    sideActual.takeIf { it.isNotBlank() },
+    loadBasisActual.takeIf { it.isNotBlank() }?.let(::loadBasisLabel),
+    sideActual.takeIf { it.isNotBlank() }?.let(::sideLabel),
 ).joinToString(" · ")
 
 private fun formatDetailDate(value: String) = Instant.parse(value)
