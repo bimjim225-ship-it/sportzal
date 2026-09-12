@@ -29,7 +29,7 @@ fun WorkoutScreen(
     state: WorkoutUiState,
     elapsedFor: (ru.sportzal.app.data.db.SetResultEntity?) -> String,
     onDraft: (String, Double?, Int?, Int?, Boolean) -> Unit,
-    onSave: (String, Int) -> Unit,
+    onSave: (String, Int, Double?, Int?, Int?, Boolean) -> Unit,
     onInteraction: (String, InteractionSource, Boolean) -> Unit,
     onTick: () -> Unit,
     onEdit: (String, Double, Int, Int?, List<String>, String?, (Boolean) -> Unit) -> Unit = { _, _, _, _, _, _, _ -> },
@@ -60,7 +60,9 @@ fun WorkoutScreen(
             items(block.cards, key = { it.exercise.exerciseInstanceId }) { card ->
                 ExerciseCard(card, elapsedFor(card.saved.maxByOrNull { it.sequenceNo }), state.saving,
                     { weight, reps, rir, answered -> onDraft(card.exercise.exerciseInstanceId, weight, reps, rir, answered) },
-                    { card.currentSlot?.let { onSave(card.exercise.exerciseInstanceId, it.plannedSetNo) } },
+                    { weight, reps, rir, answered -> card.currentSlot?.let {
+                        onSave(card.exercise.exerciseInstanceId, it.plannedSetNo, weight, reps, rir, answered)
+                    } },
                     { source, interacting -> onInteraction(card.exercise.exerciseInstanceId, source, interacting) },
                     onEdit, onDelete,
                     { setNo, reason, note, completed -> onSkip(card.exercise.exerciseInstanceId, setNo, reason, note, completed) },

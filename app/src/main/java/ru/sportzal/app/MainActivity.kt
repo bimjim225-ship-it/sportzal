@@ -3,6 +3,7 @@ package ru.sportzal.app
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Intent
@@ -34,6 +35,7 @@ import ru.sportzal.app.ui.workout.FinishScreen
 import ru.sportzal.app.ui.history.*
 import ru.sportzal.app.ui.equipment.*
 import ru.sportzal.app.ui.navigation.InactiveDestination
+import ru.sportzal.app.ui.components.AppSafeArea
 
 class MainActivity : ComponentActivity() {
     private var displayedFinishWorkoutId by mutableStateOf<String?>(null)
@@ -50,12 +52,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         displayedFinishWorkoutId = savedInstanceState?.getString(FINISH_WORKOUT_ID)
         val container = (application as SportzalApplication).container
         if (intent?.action == Intent.ACTION_VIEW) incomingUri = intent.data
         val viewModel = TodayViewModel(container.database, container.repository, container.programImporter, container.workoutService)
         setContent {
             SportzalTheme {
+              AppSafeArea {
                 val scope = rememberCoroutineScope()
                 val state by viewModel.state.collectAsState()
                 val workoutViewModel = remember { WorkoutViewModel(container.repository, container.clockProvider) }
@@ -151,7 +155,9 @@ class MainActivity : ComponentActivity() {
                     state = workoutState,
                     elapsedFor = { workoutViewModel.elapsedText(it) },
                     onDraft = { id, weight, reps, rir, answered -> scope.launch { workoutViewModel.updateDraft(id, weight, reps, rir, answered) } },
-                    onSave = { id, setNo -> scope.launch { workoutViewModel.saveSet(id, setNo) } },
+                    onSave = { id, setNo, weight, reps, rir, answered -> scope.launch {
+                        workoutViewModel.saveSet(id, setNo, weight, reps, rir, answered)
+                    } },
                     onEdit = { id, weight, reps, rir, deviations, note, completed -> scope.launch {
                         completed(workoutViewModel.editSet(id, weight, reps, rir, deviations, note)) } },
                     onDelete = { id, completed -> scope.launch { completed(workoutViewModel.deleteSet(id)) } },
@@ -236,6 +242,7 @@ class MainActivity : ComponentActivity() {
                     { item -> scope.launch { equipmentViewModel.removePhoto(item) } })
                     }
                 } }
+              }
             }
         }
     }
