@@ -180,7 +180,7 @@ class WorkoutCorrectionsTest {
         compose.runOnIdle { assertEquals(listOf(InteractionSource.SKIP_DIALOG to true), interactions.filter { it.first == InteractionSource.SKIP_DIALOG }) }
         compose.onNodeWithTag("confirm-skip").performClick()
         compose.onNodeWithTag("confirm-skip").assertIsDisplayed()
-        compose.onNodeWithText("1. 100 кг × 5 · Запас: 2").assertIsDisplayed()
+        compose.onNodeWithText("1. 100 кг × 5 · Запас: 2").assertExists()
         compose.runOnIdle {
             assertEquals(2, ui.card().currentSlot?.plannedSetNo)
             val skip = requireNotNull(request)

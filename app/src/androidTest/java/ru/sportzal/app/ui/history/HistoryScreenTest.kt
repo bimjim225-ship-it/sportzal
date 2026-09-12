@@ -42,7 +42,7 @@ class HistoryScreenTest {
 
         compose.onNodeWithText("Длительность: 30:00").assertExists()
         assertHistoryText("Факт: 100 кг × 8 · Запас: 4+ · 12:15")
-        assertHistoryText("Факт: Жим ногами · сиденье 4 · machine_display · bilateral")
+        assertHistoryText("Факт: Жим ногами · сиденье 4 · Вес на тренажёре · Обе стороны")
         assertHistoryText("Отклонения: Дискомфорт")
         assertHistoryText("Комментарий: Болело колено")
     }
