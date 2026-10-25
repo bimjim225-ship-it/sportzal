@@ -47,7 +47,7 @@ class RotationInteractionTest {
                 WorkoutScreen(ui, { "0:00" }, { id, weight, reps, rir, answered ->
                     drafts[id] = SetDraft(weight, reps, rir, drafts.getValue(id).context, answered)
                     publish()
-                }, { _, _ -> }, { _, _, focused ->
+                }, { _, _, _, _, _, _ -> }, { _, _, focused ->
                     if (focused) coordinator.beginInteraction() else coordinator.endInteraction()
                     publish()
                 }, { publish() })
@@ -101,7 +101,7 @@ class RotationInteractionTest {
         compose.setContent {
             SportzalTheme {
                 focusManager = LocalFocusManager.current
-                WorkoutScreen(ui, { "0:00" }, { _, _, _, _, _ -> }, { _, _ -> },
+                WorkoutScreen(ui, { "0:00" }, { _, _, _, _, _ -> }, { _, _, _, _, _, _ -> },
                     { id, source, active ->
                         val wasActive = owners.isNotEmpty()
                         val owner = id to source

@@ -49,7 +49,7 @@ class AccessibilitySmokeTest {
 
         compose.onNodeWithText("Очень длинное название упражнения для проверки переноса на узком экране")
             .assertExists()
-        compose.onNodeWithText("Цель: 100 кг · 5–8 · RIR 2").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Цель: 100 кг · 5–8 · Запас: 2").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("weight-exercise").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("reps-exercise").performScrollTo().performClick().assertIsFocused()
         (0..4).forEach { value ->
@@ -106,7 +106,7 @@ class AccessibilitySmokeTest {
                 SportzalTheme {
                     focusManager = LocalFocusManager.current
                     Box(Modifier.width(320.dp)) {
-                        WorkoutScreen(state, { "1:00" }, { _, _, _, _, _ -> }, { _, _ -> }, { _, _, _ -> }, {})
+                        WorkoutScreen(state, { "1:00" }, { _, _, _, _, _ -> }, { _, _, _, _, _, _ -> }, { _, _, _ -> }, {})
                     }
                 }
             }

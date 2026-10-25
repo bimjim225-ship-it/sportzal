@@ -150,16 +150,21 @@ class WorkoutViewModel(
         publish()
     }
 
-    suspend fun saveSet(exerciseId: String, plannedSetNo: Int) {
+    suspend fun saveSet(exerciseId: String, plannedSetNo: Int, weight: Double? = null, reps: Int? = null,
+        rir: Int? = null, rirAnswered: Boolean? = null) {
         if (mutableState.value.saving) return
         val exercise = exercises().first { it.exerciseInstanceId == exerciseId }
         val slot = currentSlot(exercise)?.takeIf { it.plannedSetNo == plannedSetNo } ?: return
         if (sets.any { it.exerciseInstanceId == exerciseId && it.plannedSetNo == plannedSetNo }) return
         val key = exerciseId to slot.plannedSetNo
-        val draft = resolvedDraft(exercise, slot)
+        val persistedDraft = resolvedDraft(exercise, slot)
+        val draft = if (rirAnswered != null) persistedDraft.copy(
+            weightKg = if (persistedDraft.context.loadBasis == "bodyweight") 0.0 else weight,
+            reps = reps, rir = rir, rirAnswered = rirAnswered,
+        ) else persistedDraft
         val weight = draft.weightKg ?: return fail("Введите вес")
         val reps = draft.reps ?: return fail("Введите повторы")
-        if (requiresRir(exercise, slot) && !draft.rirAnswered) return fail("Выберите RIR или «Не оценил»")
+        if (requiresRir(exercise, slot) && !draft.rirAnswered) return fail("Выберите запас повторов или «Не оценил»")
         // Created before entering repository/Room transaction, and retained on every retry.
         val command = pending.getOrPut(key) {
             val reading = readClock()

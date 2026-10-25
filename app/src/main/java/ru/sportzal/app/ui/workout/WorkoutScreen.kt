@@ -2,7 +2,6 @@ package ru.sportzal.app.ui.workout
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,7 +28,7 @@ fun WorkoutScreen(
     state: WorkoutUiState,
     elapsedFor: (ru.sportzal.app.data.db.SetResultEntity?) -> String,
     onDraft: (String, Double?, Int?, Int?, Boolean) -> Unit,
-    onSave: (String, Int) -> Unit,
+    onSave: (String, Int, Double?, Int?, Int?, Boolean) -> Unit,
     onInteraction: (String, InteractionSource, Boolean) -> Unit,
     onTick: () -> Unit,
     onEdit: (String, Double, Int, Int?, List<String>, String?, (Boolean) -> Unit) -> Unit = { _, _, _, _, _, _, _ -> },
@@ -51,7 +50,7 @@ fun WorkoutScreen(
         confirmButton = { TextButton(onClick = onConfirmFinish) { Text("Завершить") } },
         dismissButton = { TextButton(onClick = onCancelFinish) { Text("Отмена") } })
     LaunchedEffect(Unit) { while (true) { delay(1_000); onTick() } }
-    LazyColumn(Modifier.fillMaxSize().imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text(state.title, style = MaterialTheme.typography.headlineLarge) }
         item { TextButton({ noteDialog = true }) { Text("Заметка к тренировке") }; state.notes?.let { Text(it) } }
         state.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
@@ -60,7 +59,9 @@ fun WorkoutScreen(
             items(block.cards, key = { it.exercise.exerciseInstanceId }) { card ->
                 ExerciseCard(card, elapsedFor(card.saved.maxByOrNull { it.sequenceNo }), state.saving,
                     { weight, reps, rir, answered -> onDraft(card.exercise.exerciseInstanceId, weight, reps, rir, answered) },
-                    { card.currentSlot?.let { onSave(card.exercise.exerciseInstanceId, it.plannedSetNo) } },
+                    { weight, reps, rir, answered -> card.currentSlot?.let {
+                        onSave(card.exercise.exerciseInstanceId, it.plannedSetNo, weight, reps, rir, answered)
+                    } },
                     { source, interacting -> onInteraction(card.exercise.exerciseInstanceId, source, interacting) },
                     onEdit, onDelete,
                     { setNo, reason, note, completed -> onSkip(card.exercise.exerciseInstanceId, setNo, reason, note, completed) },

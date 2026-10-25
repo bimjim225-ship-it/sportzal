@@ -49,12 +49,12 @@ class WorkoutCorrectionsTest {
         compose.onNodeWithText("Изменить").performClick()
         compose.onNodeWithTag("edit-reps").performTextClearance()
         compose.onNodeWithTag("edit-reps").performTextInput("8")
-        compose.onNodeWithText("3").performScrollTo().assertIsDisplayed().performClick().assertIsSelected()
+        compose.onNodeWithText("3 повтора в запасе").performScrollTo().assertIsDisplayed().performClick().assertIsSelected()
         compose.onNodeWithTag("deviation-technique_changed").performScrollTo().assertIsDisplayed().performClick().assertIsSelected()
         compose.onNodeWithTag("save-edit").assertIsDisplayed().assertIsEnabled().performClick()
 
         compose.onNodeWithTag("save-edit").assertIsDisplayed()
-        compose.onNodeWithText("1. 100 кг × 5 · RIR 2").assertIsDisplayed()
+        compose.onNodeWithText("1. 100 кг × 5 · Запас: 2").assertIsDisplayed()
         compose.runOnIdle {
             assertEquals(listOf(InteractionSource.SET_ACTIONS to true), interactions.filter { it.first == InteractionSource.SET_ACTIONS })
             assertEquals(5, ui.card().saved.single().reps)
@@ -72,7 +72,7 @@ class WorkoutCorrectionsTest {
         }
         compose.runOnIdle { assertEquals(8, ui.card().saved.single().reps); assertEquals(3, ui.card().saved.single().rir) }
         compose.onNodeWithTag("save-edit").assertDoesNotExist()
-        compose.onNodeWithText("1. 100 кг × 8 · RIR 3").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("1. 100 кг × 8 · Запас: 3").performScrollTo().assertIsDisplayed()
         assertEquals(listOf(InteractionSource.SET_ACTIONS to true, InteractionSource.SET_ACTIONS to false),
             interactions.filter { it.first == InteractionSource.SET_ACTIONS })
     }
@@ -81,7 +81,7 @@ class WorkoutCorrectionsTest {
         var ui by mutableStateOf(workout(saved = listOf(result())))
         val interactions = mutableListOf<Pair<InteractionSource, Boolean>>()
         var attempts = 0
-        compose.setContent { SportzalTheme { WorkoutScreen(ui, { "0:00" }, { _, _, _, _, _ -> }, { _, _ -> },
+        compose.setContent { SportzalTheme { WorkoutScreen(ui, { "0:00" }, { _, _, _, _, _ -> }, { _, _, _, _, _, _ -> },
             { _, source, active -> interactions += source to active }, {}, onEdit = { _, _, _, _, _, _, completed ->
                 attempts++
                 completed(false)
@@ -123,7 +123,7 @@ class WorkoutCorrectionsTest {
         compose.onNodeWithText("Удалить").performClick()
         compose.onNodeWithTag("confirm-delete").performClick()
         compose.onNodeWithTag("confirm-delete").assertIsDisplayed()
-        compose.onNodeWithText("1. 100 кг × 5 · RIR 2").assertIsDisplayed()
+        compose.onNodeWithText("1. 100 кг × 5 · Запас: 2").assertIsDisplayed()
         compose.runOnIdle {
             assertEquals(listOf(InteractionSource.SET_ACTIONS to true), interactions.filter { it.first == InteractionSource.SET_ACTIONS })
             assertEquals(1, ui.card().saved.size)
@@ -133,8 +133,8 @@ class WorkoutCorrectionsTest {
             delete.completed(true)
         }
         compose.onNodeWithTag("confirm-delete").assertDoesNotExist()
-        compose.onNodeWithText("1. 100 кг × 5 · RIR 2").assertDoesNotExist()
-        compose.onNodeWithText("Подход 1 · work").assertIsDisplayed()
+        compose.onNodeWithText("1. 100 кг × 5 · Запас: 2").assertDoesNotExist()
+        compose.onNodeWithText("Подход 1 · Рабочий").assertIsDisplayed()
         assertEquals(listOf(InteractionSource.SET_ACTIONS to true, InteractionSource.SET_ACTIONS to false),
             interactions.filter { it.first == InteractionSource.SET_ACTIONS })
     }
@@ -163,7 +163,7 @@ class WorkoutCorrectionsTest {
         }
         compose.onNodeWithTag("confirm-skip").assertDoesNotExist()
         compose.onNodeWithText("1. Пропущено · Оборудование занято").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Подход 2 · work").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Подход 2 · Рабочий").performScrollTo().assertIsDisplayed()
         assertEquals(listOf(InteractionSource.SKIP_DIALOG to true, InteractionSource.SKIP_DIALOG to false),
             interactions.filter { it.first == InteractionSource.SKIP_DIALOG })
     }
@@ -180,7 +180,7 @@ class WorkoutCorrectionsTest {
         compose.runOnIdle { assertEquals(listOf(InteractionSource.SKIP_DIALOG to true), interactions.filter { it.first == InteractionSource.SKIP_DIALOG }) }
         compose.onNodeWithTag("confirm-skip").performClick()
         compose.onNodeWithTag("confirm-skip").assertIsDisplayed()
-        compose.onNodeWithText("1. 100 кг × 5 · RIR 2").assertIsDisplayed()
+        compose.onNodeWithText("1. 100 кг × 5 · Запас: 2").assertExists()
         compose.runOnIdle {
             assertEquals(2, ui.card().currentSlot?.plannedSetNo)
             val skip = requireNotNull(request)
@@ -190,7 +190,7 @@ class WorkoutCorrectionsTest {
             skip.completed(true)
         }
         compose.onNodeWithTag("confirm-skip").assertDoesNotExist()
-        compose.onNodeWithText("1. 100 кг × 5 · RIR 2").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("1. 100 кг × 5 · Запас: 2").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("2. Пропущено").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Все подходы записаны").performScrollTo().assertIsDisplayed()
         assertEquals(listOf(InteractionSource.SKIP_DIALOG to true, InteractionSource.SKIP_DIALOG to false),
@@ -215,7 +215,7 @@ class WorkoutCorrectionsTest {
         compose.setContent { content(ui, { ui = it }, mutableListOf<Pair<InteractionSource, Boolean>>()) }
         compose.onNodeWithTag("restore-instance-1").performClick()
         compose.onNodeWithText("1. Пропущено · Оборудование занято").assertDoesNotExist()
-        compose.onNodeWithText("Подход 1 · work").assertIsDisplayed()
+        compose.onNodeWithText("Подход 1 · Рабочий").assertIsDisplayed()
     }
 
     @Composable
@@ -224,7 +224,7 @@ class WorkoutCorrectionsTest {
         onEdit: ((String, Double, Int, Int?, List<String>, String?, (Boolean) -> Unit) -> Unit)? = null,
         onDelete: ((String, (Boolean) -> Unit) -> Unit)? = null,
         onSkip: ((String, Int, String?, String?, (Boolean) -> Unit) -> Unit)? = null) {
-        SportzalTheme { WorkoutScreen(state, { "0:00" }, { _, _, _, _, _ -> }, { _, _ -> },
+        SportzalTheme { WorkoutScreen(state, { "0:00" }, { _, _, _, _, _ -> }, { _, _, _, _, _, _ -> },
             { _, source, active -> interactions += source to active }, {},
             onEdit = onEdit ?: { id, weight, reps, rir, deviations, note, completed ->
                 val card = state.card()

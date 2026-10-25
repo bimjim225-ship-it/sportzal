@@ -34,6 +34,30 @@ import ru.sportzal.app.model.WorkoutRuntime
 import ru.sportzal.app.platform.ClockProvider
 
 class WorkoutViewModelTest {
+    @Test fun `save uses visible values even when draft persistence has not completed`() = runBlocking {
+        val planned = (1..10).map { PlannedSetDocument(it, "work", 100.0, 5, 10, 2, 60) }
+        var current = details(exercise(sets = planned, rirCapture = "all_work_sets"))
+        val commands = mutableListOf<SaveSetCommand>()
+        val vm = WorkoutViewModel(repository({ current }) { command ->
+            commands += command
+            current = current.copy(sets = current.sets + entity(command).copy(sequenceNo = commands.size))
+            SaveSetResult.Saved(command.setResultId, commands.size, false)
+        }, fixedClock())
+
+        vm.open("workout")
+        // No updateDraft call: this is the ordering produced when Save wins the coroutine race.
+        (1..10).forEach { setNo ->
+            vm.saveSet("instance", setNo, weight = 20.0 + setNo, reps = setNo, rir = 2, rirAnswered = true)
+        }
+
+        assertEquals(10, commands.size)
+        commands.forEachIndexed { index, command ->
+            assertEquals(21.0 + index, command.weightKg, 0.0)
+            assertEquals(index + 1, command.reps)
+            assertEquals(2, command.rir)
+        }
+    }
+
     @Test fun finishingFullyCompletedWorkoutProducesCompleted() = runBlocking {
         val planned = exercise(sets = listOf(PlannedSetDocument(1, "work", 100.0, 5, 5, null, 60)))
         var current = details(planned).copy(sets = listOf(saved("instance", 1)))

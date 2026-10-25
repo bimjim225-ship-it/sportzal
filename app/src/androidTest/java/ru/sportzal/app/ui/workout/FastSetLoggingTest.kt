@@ -41,32 +41,37 @@ class FastSetLoggingTest {
         var ui by mutableStateOf(WorkoutUiState("workout", "Тренировка", listOf(BlockUiState("block", "Straight", "straight", listOf(
             ExerciseUiState(exercise, slot(1), SetDraft(100.0, 5, null, slot(1).plannedContext), emptyList())))),
             ClockReading(Instant.parse("2026-09-08T12:02:00Z"), "boot", 120_000)))
-        compose.setContent { SportzalTheme { WorkoutScreen(ui, { "0:00" }, { _, weight, reps, rir, answered ->
-            val block = ui.blocks.single()
-            ui = ui.copy(blocks = listOf(block.copy(cards = listOf(block.cards.single().copy(draft = SetDraft(weight, reps, rir, slot(1).plannedContext, answered))))))
-        }, { _, setNo ->
+        compose.setContent { SportzalTheme { WorkoutScreen(ui, { "0:00" }, { _, _, _, _, _ ->
+            // Deliberately do not publish the asynchronous draft update before Save.
+        }, { _, setNo, weight, reps, rir, answered ->
             saves++
             if (saves == 1 && setNo == 1) {
-                val row = result(reps = ui.blocks.single().cards.single().draft!!.reps!!)
+                assertEquals(30.0, weight!!, 0.0)
+                assertEquals(7, reps)
+                assertEquals(2, rir)
+                assertEquals(true, answered)
+                val row = result(weight = weight, reps = reps!!)
                 ui = ui.copy(blocks = listOf(ui.blocks.single().copy(cards = listOf(ExerciseUiState(exercise, slot(2), SetDraft(100.0, 7, null, slot(2).plannedContext), listOf(row), 120)))))
             }
         }, { _, _, _ -> }, {}) } }
 
-        compose.onNodeWithText("Цель: 100 кг · 5–8 · RIR 2").assertIsDisplayed()
+        compose.onNodeWithText("Цель: 100 кг · 5–8 · Запас: 2").assertIsDisplayed()
         compose.onNode(hasContentDescription("Таймер отдыха")).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("rir-2").assertIsNotSelected()
+        compose.onNodeWithTag("weight-instance").performTextClearance()
+        compose.onNodeWithTag("weight-instance").performTextInput("30")
         compose.onNodeWithTag("reps-instance").performTextClearance()
         compose.onNodeWithTag("reps-instance").performTextInput("7")
         compose.onNodeWithTag("rir-2").performScrollTo().assertIsDisplayed().performClick().assertIsSelected()
         compose.onNodeWithTag("save-instance").performScrollTo().assertIsDisplayed().performClick()
-        compose.onNodeWithText("1. 100 кг × 7 · RIR 2").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Подход 2 · work").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("1. 30 кг × 7 · Запас: 2").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Подход 2 · Рабочий").performScrollTo().assertIsDisplayed()
         compose.onNode(hasContentDescription("Таймер отдыха")).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("save-instance").performScrollTo().assertIsDisplayed().performClick()
         assertEquals("UI exposes only one fact for the planned slot", 1, ui.blocks.single().cards.single().saved.size)
     }
 
-    private fun result(reps: Int) = SetResultEntity("set", "workout", 1, "instance", 1, "work", "squat", "Присед",
-        "rack", null, "Высокий гриф", "external", "bilateral", 100.0, reps, 2,
+    private fun result(weight: Double, reps: Int) = SetResultEntity("set", "workout", 1, "instance", 1, "work", "squat", "Присед",
+        "rack", null, "Высокий гриф", "external", "bilateral", weight, reps, 2,
         "2026-09-08T12:02:00Z", "boot", 120_000, null, "[]", null)
 }

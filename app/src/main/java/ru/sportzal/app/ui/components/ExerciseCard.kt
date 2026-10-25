@@ -44,6 +44,7 @@ import ru.sportzal.app.ui.workout.InteractionSource
 import ru.sportzal.app.domain.ActualContext
 import java.util.UUID
 import ru.sportzal.app.data.files.EquipmentPhotoStore
+import ru.sportzal.app.ui.text.*
 
 @Composable
 fun ExerciseCard(
@@ -51,7 +52,7 @@ fun ExerciseCard(
     elapsed: String,
     saving: Boolean,
     onDraft: (Double?, Int?, Int?, Boolean) -> Unit,
-    onSave: () -> Unit,
+    onSave: (Double?, Int?, Int?, Boolean) -> Unit,
     onInteraction: (InteractionSource, Boolean) -> Unit,
     onEdit: (String, Double, Int, Int?, List<String>, String?, (Boolean) -> Unit) -> Unit,
     onDelete: (String, (Boolean) -> Unit) -> Unit,
@@ -69,6 +70,10 @@ fun ExerciseCard(
     }
     var repsText by remember(state.exercise.exerciseInstanceId, slot?.plannedSetNo, draft?.reps) {
         mutableStateOf(draft?.reps?.toString().orEmpty())
+    }
+    var visibleRir by remember(state.exercise.exerciseInstanceId, slot?.plannedSetNo, draft?.rir) { mutableStateOf(draft?.rir) }
+    var visibleRirAnswered by remember(state.exercise.exerciseInstanceId, slot?.plannedSetNo, draft?.rirAnswered) {
+        mutableStateOf(draft?.rirAnswered ?: false)
     }
     var skipDialog by remember { mutableStateOf(false) }
     var secondaryMenu by remember { mutableStateOf(false) }
@@ -89,7 +94,8 @@ fun ExerciseCard(
                 }
             }
             Text(listOfNotNull(draft?.context?.equipmentName ?: draft?.context?.equipmentId,
-                draft?.context?.setup, draft?.context?.loadBasis, draft?.context?.side).joinToString(" · "))
+                draft?.context?.setup, draft?.context?.loadBasis?.let(::loadBasisLabel),
+                draft?.context?.side?.let(::sideLabel)).joinToString(" · "))
             Text("Подходы: ${state.saved.size}/${state.exercise.plannedSets.size}")
             state.saved.forEach { result -> SetResultRow(result, saving, requiresRir(state, result.plannedSetNo), onInteraction,
                 { weight, reps, rir, deviations, note, completed ->
@@ -102,15 +108,15 @@ fun ExerciseCard(
                 }) }
             state.skipped.sortedBy { it.plannedSetNo }.forEach { skipped ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("${skipped.plannedSetNo}. Пропущено" + (skipped.reason?.let { " · ${skipReasonLabels[it] ?: it}" } ?: ""),
+                    Text("${skipped.plannedSetNo}. Пропущено" + (skipped.reason?.let { " · ${skipReasonLabel(it)}" } ?: ""),
                         modifier = Modifier.weight(1f))
                     TextButton({ onRestore(skipped.plannedSetNo) }, enabled = !saving,
                         modifier = Modifier.testTag("restore-${state.exercise.exerciseInstanceId}-${skipped.plannedSetNo}")) { Text("Вернуть подход") }
                 }
             }
             if (slot != null && draft != null) {
-                Text("Подход ${slot.plannedSetNo} · ${slot.setType}")
-                Text("Цель: ${slot.targetWeightKg.display()} кг · ${slot.repsMin}–${slot.repsMax}" + (slot.targetRir?.let { " · RIR ${it.rirText()}" } ?: ""))
+                Text("Подход ${slot.plannedSetNo} · ${setTypeLabel(slot.setType)}")
+                Text("Цель: ${slot.targetWeightKg.display()} кг · ${slot.repsMin}–${slot.repsMax}" + (slot.targetRir?.let { " · ${compactRirLabel(it)}" } ?: ""))
                 val rest = state.restReferenceSec ?: slot.restTargetSec
                 Text("Ориентир до следующего подхода: ${rest / 60}:${(rest % 60).toString().padStart(2, '0')}")
                 Text(if (state.saved.isEmpty()) "Ещё не записывали" else "С записи: $elapsed",
@@ -135,10 +141,16 @@ fun ExerciseCard(
                     }, Modifier.testTag("reps-${state.exercise.exerciseInstanceId}"), enabled = !saving)
                     }
                 }
-                if (requiresRir(state)) RirSelector(draft.rir, draft.rirAnswered, enabled = !saving) {
-                    onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), it, true)
+                if (requiresRir(state)) {
+                    Text("Запас повторов")
+                    RirSelector(visibleRir, visibleRirAnswered, enabled = !saving) {
+                        visibleRir = it; visibleRirAnswered = true
+                        onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), it, true)
+                    }
                 }
-                Button(onClick = onSave, enabled = !saving, modifier = Modifier.testTag("save-${state.exercise.exerciseInstanceId}")) {
+                Button(onClick = { onSave(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(),
+                    parseNumeric(repsText, NumericKind.REPS)?.toInt(), visibleRir, visibleRirAnswered) },
+                    enabled = !saving, modifier = Modifier.testTag("save-${state.exercise.exerciseInstanceId}")) {
                     Text("Записать подход")
                 }
                 TextButton({ skipDialog = true; onInteraction(InteractionSource.SKIP_DIALOG, true) }, enabled = !saving,
@@ -185,9 +197,9 @@ private val loadBases = listOf("machine_display", "total_external", "per_hand", 
             }, { Text(item.name) }, modifier = Modifier.testTag("equipment-${item.equipmentId}")) }
             FilterChip(manual, { manual = true; selectedId = manualId }, { Text("Другое оборудование") })
             if (manual) OutlinedTextField(name, { name = it }, label = { Text("Название") }, modifier = Modifier.testTag("manual-equipment-name"))
-            OutlinedTextField(setup, { setup = it }, label = { Text("Настройка / setup") }, modifier = Modifier.testTag("actual-setup"))
+            OutlinedTextField(setup, { setup = it }, label = { Text("Настройка тренажёра") }, modifier = Modifier.testTag("actual-setup"))
             if (manual) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                loadBases.forEach { value -> FilterChip(basis == value, { basis = value }, { Text(value) }) }
+                loadBases.forEach { value -> FilterChip(basis == value, { basis = value }, { Text(loadBasisLabel(value)) }) }
             }
         }
     }, dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } }, confirmButton = {
@@ -209,8 +221,9 @@ private val loadBases = listOf("machine_display", "total_external", "per_hand", 
             OutlinedTextField(weight, { weight = it }, label = { Text("Вес") }, enabled = context.loadBasis != "bodyweight", modifier = Modifier.testTag("extra-weight"))
             OutlinedTextField(reps, { reps = it }, label = { Text("Повторы") }, modifier = Modifier.testTag("extra-reps"))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("work", "warmup").forEach { value -> FilterChip(type == value, { type = value }, { Text(value) }) }
+                listOf("work", "warmup").forEach { value -> FilterChip(type == value, { type = value }, { Text(setTypeLabel(value)) }) }
             }
+            Text("Запас повторов")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 (0..4).forEach { value -> FilterChip(rir == value, { rir = value }, { Text(if (value == 4) "4+" else "$value") }) }
                 FilterChip(rir == null, { rir = null }, { Text("Не оценил") }) }
@@ -227,8 +240,7 @@ private fun requiresRir(state: ExerciseUiState, setNo: Int? = state.currentSlot?
     "last_work_set" -> setNo == state.exercise.plannedSets.lastOrNull { it.setType == "work" }?.setNo
     else -> false
 }
-private val skipReasonLabels = linkedMapOf<String?, String>(null to "Без причины", "equipment_busy" to "Оборудование занято",
-    "time_limit" to "Не хватает времени", "fatigue" to "Усталость", "discomfort" to "Дискомфорт", "other" to "Другое")
+private val skipReasons = listOf<String?>(null, "equipment_busy", "time_limit", "fatigue", "discomfort", "other")
 
 @Composable private fun SkipSetDialog(saving: Boolean, onDismiss: () -> Unit, onSkip: (String?, String?) -> Unit) {
     var reason by remember { mutableStateOf<String?>(null) }
@@ -247,11 +259,11 @@ private val skipReasonLabels = linkedMapOf<String?, String>(null to "Без пр
                         modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        skipReasonLabels.forEach { (value, label) ->
+                        skipReasons.forEach { value ->
                             FilterChip(
                                 selected = reason == value,
                                 onClick = { reason = value },
-                                label = { Text(label) },
+                                label = { Text(skipReasonLabel(value)) },
                                 modifier = Modifier.testTag("skip-reason-${value ?: "none"}"),
                             )
                         }
