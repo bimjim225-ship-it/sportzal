@@ -6,6 +6,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -210,6 +211,7 @@ class UxClarityTest {
         compose.onNodeWithText("Как прошла тренировка").performScrollTo().performTextInput("Моя заметка")
         compose.onNodeWithText("Передать отчёт ИИ").assertIsDisplayed().performClick()
         compose.onNodeWithText("Передать отчёт ИИ").assertIsDisplayed()
+        assertUsableInViewport(compose.onNodeWithText("Передать отчёт ИИ"), "ime-viewport")
         compose.onNodeWithText("Моя заметка").performScrollTo().assertIsDisplayed()
         assertEquals(0, sends)
         compose.onNodeWithText(message).performClick()
@@ -228,7 +230,7 @@ class UxClarityTest {
                         NavigationBarItem(title == "Тренажёры", {}, icon = { Box(Modifier.size(24.dp)) }, label = { Text(title) })
                     }
                 }
-            }) { padding -> Box(Modifier.padding(padding)) {
+            }) { padding -> Box(Modifier.padding(padding).fillMaxSize().testTag("catalog-viewport")) {
                 EquipmentScreen(EquipmentUiState(items, loading = false),
                     EquipmentPhotoStore(ApplicationProvider.getApplicationContext<Context>()), {}, { _, done -> done(true) }, { _, _ -> }, {})
             } }
@@ -238,6 +240,7 @@ class UxClarityTest {
         val clipped = query.getBoundsInRoot()
         val full = query.getUnclippedBoundsInRoot()
         println("UX catalog query clipped=$clipped full=$full")
+        assertUsableInViewport(query, "catalog-viewport")
         assertTrue("Search input keeps a usable touch target", clipped.bottom - clipped.top >= 48.dp)
         assertTrue("Search input must not collapse behind the fixed header",
             clipped.bottom - clipped.top + 1.dp >= full.bottom - full.top)
@@ -266,11 +269,13 @@ class UxClarityTest {
         val weight = compose.onNodeWithTag("weight-${exercise.exerciseInstanceId}").performScrollTo().assertIsDisplayed()
         val weightBounds = weight.getBoundsInRoot()
         println("UX workout weight=$weightBounds")
+        assertUsableInViewport(weight, "ime-viewport")
         assertTrue("Weight input keeps a usable touch target", weightBounds.bottom - weightBounds.top >= 48.dp)
         weight.performTextReplacement("37,5")
         val save = compose.onNodeWithTag("save-${exercise.exerciseInstanceId}").performScrollTo().assertIsDisplayed()
         val saveBounds = save.getBoundsInRoot()
         println("UX workout save=$saveBounds")
+        assertUsableInViewport(save, "ime-viewport")
         assertTrue("Save keeps a usable touch target", saveBounds.bottom - saveBounds.top >= 48.dp)
         save.performClick()
         assertEquals(1, saves)
@@ -279,7 +284,19 @@ class UxClarityTest {
 
     private fun showWithKeyboard(content: @Composable () -> Unit) = show(2f) {
         AppSafeArea(safeDrawingInsets = WindowInsets(top = 24.dp, bottom = 24.dp),
-            imeInsets = WindowInsets(bottom = 280.dp), content = content)
+            imeInsets = WindowInsets(bottom = 280.dp)) {
+            Box(Modifier.fillMaxSize().testTag("ime-viewport")) { content() }
+        }
+    }
+
+    // Simulated insets reserve space but do not draw an actual keyboard over it.
+    // Count only the usable part inside the viewport, not pixels hidden by a real IME/navigation bar.
+    private fun assertUsableInViewport(node: SemanticsNodeInteraction, viewportTag: String) {
+        val target = node.getBoundsInRoot()
+        val viewport = compose.onNodeWithTag(viewportTag).getBoundsInRoot()
+        val height = minOf(target.bottom, viewport.bottom) - maxOf(target.top, viewport.top)
+        println("UX visible target=$target viewport=$viewport usableHeight=$height")
+        assertTrue("A touch target needs 48dp inside the usable viewport", height >= 48.dp)
     }
 
     private fun scrollTo(label: String) {
