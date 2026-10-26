@@ -1,0 +1,31 @@
+{
+  "app_version": "0.2.1",
+  "ci_run": 40315344607,
+  "tested_remote_commit": "6c77e703ad343a1907ba9c2a025d5824eb96b57e",
+  "tested_local_commit": "971bbd43fa83dac841828dbf19326084fef3db18",
+  "device": "Android 11 / API30 / x86_64, hardware accelerated CI emulator",
+  "viewport_px": [
+    360,
+    800
+  ],
+  "data": "synthetic acceptance fixtures",
+  "captures": {
+    "00-ai-help.png": "0280f8e9c1a06e55e9679ff24701e5028f01d186b5d4a12142924147f1c3078a",
+    "00-onboarding.png": "b88196683beec963ed2f877685c7d9d3cfa8e497087e567c306faf5bf559888c",
+    "01-today.png": "9f6c3a75c962115c995339cda4893fc6319f62d3b623964fc91adb47d550459b",
+    "02-plan.png": "f4b7cb422fd23bca81bd514593f1722ad1aa88e46d1d0361caccd1de57d7ecb8",
+    "03-workout.png": "cd88837b1e286e3eb34df104f902e8e4570acc77922191488ea5cd563a9b8f79",
+    "04-entry.png": "015d572401e4837a9fb9df9e3f2162c2d3ea3811aa29eea80cc0438ab3e6be4c",
+    "05-setup.png": "0f5fc35499d464befab9e0889c09d9a9e2a167305a8985f8c07e8327075ccc70",
+    "06-technique.png": "80bbfef2cc2c815ee4bb7edbfdc517b257da736548e03f0886a67bb3a8675483",
+    "07-import.png": "5531e8c8f6d2a5a663aecd9e5929c3efc2b782e3d4436ced8c6e18f0ebf7e537",
+    "08-finish.png": "d1b763aa9fb62dc11316b1c2b6a1118f3b754c072703fa7803429f49cb580f67",
+    "09-history.png": "56fe199cf1d2c8348d3b48b4f1503a8f12536c27fefabf93eb2889a6934c9ed2",
+    "10-catalog.png": "a8394f0a0e9af789233707942a653ccb8e647891c25551cdd1f644ebea4b8f3a",
+    "11-equipment.png": "4335b1dcb3d16e2a2dfce9d51a4eef52dbda805bb10554e81968ceb339b1e68a",
+    "12-replacement.png": "ee6083dfc16ea8cab3a652fdd8725e76eb18a56db06b21c4dba727890c8d8e5e",
+    "13-skip-remaining.png": "bb41bca09b353d16b1cf36d81287b00003f84a2055d9b40f91efc70866cc35bb",
+    "14-inline-validation.png": "bc095892249097ca107af69ea06a5f117bb768f60726f258206052e1b3578986",
+    "overview.png": "59af2a3c9845b098d2bff46246b7e2c2d4180ed3ebb95a08230654409a39f704"
+  }
+}
