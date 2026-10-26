@@ -1,6 +1,7 @@
 package ru.sportzal.app.ui.equipment
 
 import android.content.Context
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
@@ -19,7 +20,9 @@ class EquipmentFlowTest {
         compose.onNodeWithText(item.name).performClick()
         compose.onNodeWithText("Моя настройка").assertExists()
         compose.onNodeWithText("Название").assertDoesNotExist()
-        compose.onNodeWithText("Изменить настройки").performScrollTo().performClick()
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
+            .performScrollToNode(hasText("Изменить настройки"))
+        compose.onNodeWithText("Изменить настройки").assertIsDisplayed().performClick()
         compose.onNodeWithText("Название").assertExists()
         compose.onNodeWithText("Отмена").performClick()
         compose.onNodeWithContentDescription("Назад").performClick()
