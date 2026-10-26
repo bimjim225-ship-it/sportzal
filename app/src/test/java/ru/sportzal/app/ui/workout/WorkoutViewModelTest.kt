@@ -11,6 +11,7 @@ import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
 import kotlin.coroutines.resume
 import kotlinx.serialization.encodeToString
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertFalse
@@ -34,6 +35,60 @@ import ru.sportzal.app.model.WorkoutRuntime
 import ru.sportzal.app.platform.ClockProvider
 
 class WorkoutViewModelTest {
+    @Test fun finishSeparatesPlannedWorkWarmupsExtrasAndSkips() = runBlocking {
+        val exercise = exercise(sets = listOf(
+            PlannedSetDocument(1, "warmup", 10.0, 10, 10, null, 30),
+            PlannedSetDocument(2, "work", 20.0, 8, 10, null, 90),
+            PlannedSetDocument(3, "work", 20.0, 8, 10, null, 90)))
+        val original = details(exercise)
+        val finished = original.copy(runtime = original.runtime.copy(startedAt = "2026-09-08T11:00:00Z",
+            finishedAt = "2026-09-08T12:00:00Z", completionStatus = "ended_early"),
+            sets = listOf(saved("instance", 1).copy(setType = "warmup"),
+                saved("instance", 2).copy(plannedSetNo = 2),
+                saved("instance", 3).copy(plannedSetNo = null)),
+            skippedSets = listOf(SkippedSetEntity("workout", "instance", 3, "now", null, null)))
+        val vm = WorkoutViewModel(repository(finished), fixedClock())
+        assertTrue(vm.restoreFinish("workout"))
+        val summary = vm.state.value.finishSummary!!
+        assertEquals(2, summary.plannedWorkCount)
+        assertEquals(1, summary.completedPlannedWork)
+        assertEquals(1, summary.warmupSetCount)
+        assertEquals(1, summary.extraSetCount)
+        assertEquals(1, summary.skippedSetCount)
+    }
+
+    @Test fun explicitUnassessedRirSurvivesDraftReloadAndContextSave() = runBlocking {
+        var current = details(exercise(rirCapture = "all_work_sets"))
+        val repo = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, method, args -> when (method.name) {
+                "workoutDetails" -> current
+                "saveDraft" -> { current = current.copy(drafts = listOf(args!![0] as DraftEntity)); Unit }
+                else -> error("Unexpected ${method.name}")
+            } } as SportzalRepository
+        val vm = WorkoutViewModel(repo, fixedClock())
+        vm.open("workout")
+        vm.updateDraft("instance", 72.5, 8, null, true)
+        assertTrue(vm.updateActualContext("instance", ActualContext("squat", "rack", "Сиденье 3", "external", "bilateral")))
+        val reopened = WorkoutViewModel(repo, fixedClock())
+        reopened.open("workout")
+        val draft = reopened.state.value.blocks.single().cards.single().draft!!
+        assertTrue("explicit Не оценил must survive", draft.rirAnswered)
+        assertNull(draft.rir)
+        assertEquals(72.5, draft.weightKg!!, 0.0)
+        assertEquals(8, draft.reps)
+    }
+
+    @Test fun unansweredAndNumericRirRestoreWithoutInventingAnswers() = runBlocking {
+        for (rir in listOf(null, 0, 1, 2, 3, 4)) {
+            val draft = DraftEntity("workout", "instance", 1, "40", "8", rir, null, "2026-09-08T12:00:00Z")
+            val vm = WorkoutViewModel(repository(details(exercise()).copy(drafts = listOf(draft))), fixedClock())
+            vm.open("workout")
+            val restored = vm.state.value.blocks.single().cards.single().draft!!
+            assertEquals(rir != null, restored.rirAnswered)
+            assertEquals(rir, restored.rir)
+        }
+    }
+
     @Test fun `save uses visible values even when draft persistence has not completed`() = runBlocking {
         val planned = (1..10).map { PlannedSetDocument(it, "work", 100.0, 5, 10, 2, 60) }
         var current = details(exercise(sets = planned, rirCapture = "all_work_sets"))
@@ -541,6 +596,67 @@ class WorkoutViewModelTest {
         assertFalse(vm.state.value.finishConfirmation)
         assertEquals(persisted, current)
         assertEquals(1, finishCalls)
+    }
+
+    @Test fun replacementChoicesIncludeEquipmentOutsideThePlannedWorkout() = runBlocking {
+        val original = details(exercise(), listOf(ru.sportzal.app.model.EquipmentDocument("rack", "Рама", null)))
+        val repo = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, method, _ -> when(method.name) {
+            "workoutDetails" -> original
+            "equipmentCatalog" -> listOf(ru.sportzal.app.model.EquipmentCatalogItem("other", "Другой тренажёр", "Сиденье 2", null, null, null, null))
+            else -> error("Unexpected ${method.name}")
+        } } as SportzalRepository
+        val vm = WorkoutViewModel(repo, fixedClock()); vm.open("workout")
+        assertTrue(vm.state.value.blocks.single().cards.single().equipmentChoices.any { it.equipmentId == "other" })
+        assertEquals("rack", vm.state.value.blocks.single().cards.single().draft!!.context.equipmentId)
+    }
+
+    @Test fun actualMovementTitleAndIdentityAreRecordedAndContinueToNextSlot() = runBlocking {
+        var current = details(exercise(sets=listOf(PlannedSetDocument(1,"work",100.0,5,8,2,90), PlannedSetDocument(2,"work",100.0,5,8,2,90))))
+        val commands = mutableListOf<SaveSetCommand>()
+        val vm = WorkoutViewModel(repository({ current }) { command ->
+            commands += command
+            current = current.copy(sets = current.sets + entity(command).copy(sequenceNo=commands.size))
+            SaveSetResult.Saved(command.setResultId, commands.size, false)
+        }, fixedClock())
+        vm.open("workout")
+        vm.updateDraft("instance",100.0,6,2,true)
+        val replacement = ActualContext("local-exercise:test",null,null,"total_external","bilateral",title="Другая тяга")
+        assertTrue(vm.updateActualContext("instance",replacement))
+        val draft = vm.state.value.blocks.single().cards.single().draft!!
+        assertNull(draft.weightKg); assertNull(draft.reps); assertFalse(draft.rirAnswered)
+        vm.saveSet("instance",1,25.0,12,3,true)
+        assertEquals("local-exercise:test", commands.single().exerciseIdActual)
+        assertEquals("Другая тяга",commands.single().titleActual)
+        assertEquals("Другая тяга",vm.state.value.blocks.single().cards.single().draft!!.context.title)
+        assertEquals("squat",vm.state.value.blocks.single().cards.single().exercise.exerciseId)
+    }
+
+    @Test fun cancelledUncertainExtraIsReconciledBeforeANewExtraGetsANewIdentity() = runBlocking {
+        var current = details(exercise())
+        val commands = mutableListOf<SaveSetCommand>()
+        var serial = 0
+        val vm = WorkoutViewModel(repository({ current }) { command ->
+            commands += command
+            current = current.copy(sets = current.sets + entity(command).copy(sequenceNo=commands.size))
+            if (commands.size == 1) error("Lost acknowledgement")
+            SaveSetResult.Saved(command.setResultId, commands.size, false)
+        }, fixedClock(), { "extra-${++serial}" })
+        vm.open("workout")
+        assertFalse(vm.saveExtraSet("instance","work",20.0,8,2,null))
+        assertTrue(vm.cancelExtraAttempt("instance"))
+        assertTrue(vm.saveExtraSet("instance","work",25.0,9,2,null))
+        assertEquals(2,current.sets.size)
+        assertNotEquals(commands[0].setResultId,commands[1].setResultId)
+        assertEquals(20.0,current.sets[0].weightKg,0.0)
+    }
+
+    @Test fun elapsedLabelMarksWallClockFallbackAndFormatsHours() = runBlocking {
+        val vm = WorkoutViewModel(repository(details(exercise())), fixedClock())
+        vm.open("workout")
+        val fact = saved("instance",1).copy(completedAt="2026-09-08T10:00:00Z",bootId="older-boot")
+        assertEquals("≈ 2:00:00",vm.elapsedText(fact))
+        assertEquals("0:00",vm.elapsedText(fact.copy(bootId="boot",elapsedRealtimeMs=42L)))
     }
 
     private fun fixedClock() = object : ClockProvider {

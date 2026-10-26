@@ -1,48 +1,82 @@
 package ru.sportzal.app.ui.workout
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import ru.sportzal.app.R
+import ru.sportzal.app.ui.components.*
+import ru.sportzal.app.ui.theme.*
+import java.util.Locale
 
 @Composable fun FinishScreen(summary: FinishSummary, error: String?, preparing: Boolean = false,
     notes: String? = null, onNote: (String, (Boolean) -> Unit) -> Unit = { _, done -> done(true) },
-    onShare: () -> Unit, onSave: () -> Unit, onClose: () -> Unit) {
-    var noteDialog by remember { mutableStateOf(false) }
-    var noteValue by remember(notes) { mutableStateOf(notes.orEmpty()) }
-    Column(Modifier.safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Тренировка завершена", style = MaterialTheme.typography.headlineMedium)
-        Text("Длительность: ${formatDuration(summary.durationSeconds)}")
-        Text("Рабочих подходов: ${summary.workSetCount}")
-        summary.exercises.forEach { Text("${it.title} — ${it.workSetCount} подходов") }
-        if (summary.endedEarly) Text("Остались невыполненные подходы")
-        notes?.let { Text(it) }
-        androidx.compose.material3.TextButton({ noteDialog = true }) { Text("Заметка") }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        Button(onClick = onShare, enabled = !preparing) { Text(if (preparing) "Подготовка JSON…" else "Отправить JSON") }
-        Button(onClick = onSave, enabled = !preparing) { Text("Сохранить JSON") }
-        Button(onClick = onClose) { Text("Закрыть") }
+    onShare: () -> Unit, onSave: () -> Unit, onClose: () -> Unit, onAiHelp: (() -> Unit)? = null) {
+    var noteValue by rememberSaveable(notes) { mutableStateOf(notes.orEmpty()) }
+    var noteSaving by remember { mutableStateOf(false) }
+    var closeRequested by remember { mutableStateOf(false) }
+    val dirty = noteValue.trim() != notes.orEmpty().trim()
+    val busy = preparing || noteSaving
+    fun commitThen(action: () -> Unit) {
+        if (busy) return
+        if (!dirty) action()
+        else {
+            noteSaving = true
+            onNote(noteValue) { success -> noteSaving = false; if (success) action() }
+        }
     }
-    if (noteDialog) androidx.compose.material3.AlertDialog(onDismissRequest = { noteDialog = false }, title = { Text("Заметка к тренировке") }, text = {
-        androidx.compose.material3.OutlinedTextField(noteValue, { noteValue = it }, minLines = 3)
-    }, dismissButton = { androidx.compose.material3.TextButton({ noteDialog = false }) { Text("Отмена") } }, confirmButton = {
-        androidx.compose.material3.TextButton({ onNote(noteValue) { if (it) noteDialog = false } }) { Text("Сохранить") }
-    })
+    fun requestClose() { if (!busy) { if (dirty) closeRequested = true else onClose() } }
+    BackHandler { requestClose() }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Icon(painterResource(R.drawable.sz_ic_check), null, Modifier.size(44.dp), tint = SportzalColors.Success)
+        Text("Тренировка завершена", style = MaterialTheme.typography.headlineLarge)
+        if (summary.title.isNotBlank()) Text(summary.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(formatDuration(summary.durationSeconds), style = NumericTextStyle)
+            Text("Длительность", style = MaterialTheme.typography.bodyMedium)
+            HorizontalDivider()
+            Text("${summary.completedPlannedWork} из ${summary.plannedWorkCount}", style = NumericTextStyle)
+            Text("Рабочих подходов по плану", style = MaterialTheme.typography.bodyMedium)
+            if (summary.warmupSetCount > 0) Text("Разминочных: ${summary.warmupSetCount}")
+            if (summary.extraSetCount > 0) Text("Дополнительных: ${summary.extraSetCount}")
+            if (summary.skippedSetCount > 0) Text("Пропущено: ${summary.skippedSetCount}")
+        } }
+        if (summary.endedEarly) StatusNotice("Есть невыполненные подходы", "В отчёте сохранены фактические результаты и отмеченные пропуски.")
+        if (summary.exercises.isNotEmpty()) Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                summary.exercises.forEach { exercise ->
+                    Text(exercise.title, style = MaterialTheme.typography.titleMedium)
+                    Text("Рабочих подходов: ${exercise.workSetCount}", style = MaterialTheme.typography.bodyMedium)
+                    HorizontalDivider()
+                }
+            }
+        }
+        OutlinedTextField(noteValue, { noteValue = it }, Modifier.fillMaxWidth(), enabled = !busy,
+            label = { Text("Как прошла тренировка") }, supportingText = { Text("Комментарий необязателен") }, minLines = 3)
+        if (dirty) TextButton({ commitThen {} }, enabled = !busy) { Text("Сохранить заметку") }
+        error?.let { StatusNotice(it, error = true) }
+        SportzalButton("Передать отчёт ИИ", { commitThen(onShare) }, busy = busy)
+        Text("Отчёт содержит последние 24 завершённые тренировки и текущее занятие. Открытие меню отправки не подтверждает доставку.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SportzalButton("Сохранить файл", { commitThen(onSave) }, enabled = !busy, secondary = true)
+        onAiHelp?.let { help -> TextButton({ commitThen(help) }, enabled = !busy) { Text("Как получить следующий план") } }
+        TextButton(::requestClose, enabled = !busy) { Text("На главный экран") }
+    }
+    if (closeRequested) AlertDialog(onDismissRequest = { closeRequested = false }, title = { Text("Сохранить заметку?") },
+        text = { Column {
+            Text("Комментарий ещё не сохранён. Записанные подходы уже находятся в истории.")
+            TextButton({ closeRequested = false; onClose() }, enabled = !busy) { Text("Закрыть без сохранения") }
+        } }, dismissButton = { TextButton({ closeRequested = false }) { Text("Остаться") } },
+        confirmButton = { TextButton({ commitThen { closeRequested = false; onClose() } }, enabled = !busy) { Text("Сохранить и закрыть") } })
 }
 
 internal fun formatDuration(seconds: Long): String = if (seconds >= 3600) {
-    "%d:%02d:%02d".format(seconds / 3600, seconds / 60 % 60, seconds % 60)
-} else "%02d:%02d".format(seconds / 60, seconds % 60)
+    String.format(Locale.ROOT, "%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
+} else String.format(Locale.ROOT, "%02d:%02d", seconds / 60, seconds % 60)

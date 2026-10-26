@@ -16,7 +16,7 @@ class SnapshotExporter(
     private val repository: SportzalRepository,
     private val now: () -> String = { Instant.now().toString() },
     private val newId: () -> String = { UUID.randomUUID().toString() },
-    private val appVersion: String = "0.1.0",
+    private val appVersion: String = ru.sportzal.app.BuildConfig.VERSION_NAME,
 ) {
     suspend fun export(focusWorkoutId: String? = null): ExportedSnapshot {
         val source = repository.snapshotSource(focusWorkoutId)

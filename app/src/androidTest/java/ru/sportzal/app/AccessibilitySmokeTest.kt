@@ -2,6 +2,8 @@ package ru.sportzal.app
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
@@ -76,10 +78,19 @@ class AccessibilitySmokeTest {
 
         compose.onNode(hasContentDescription("Меню упражнения")).assertExists()
         compose.onNode(hasContentDescription("Меню записанного подхода")).assertExists()
-        compose.onNode(hasContentDescription("Таймер отдыха")).assertExists()
+        compose.onNode(hasContentDescription("Время с записи подхода")).assertExists()
     }
 
-    private fun setWorkoutContent() {
+    @Test fun focusedInputAndManyRecordedSetsRemainReachableWithLargeTextAndImeInsets() {
+        setWorkoutContent(focused=true,many=true)
+        compose.onNodeWithTag("weight-exercise").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("reps-exercise").performScrollTo().performClick().assertIsFocused()
+        compose.onNodeWithTag("save-exercise").performScrollTo().assertIsDisplayed().assertHeightIsAtLeast(56.dp)
+        compose.onNodeWithText("Записанные подходы (40)").performScrollTo().performClick()
+        compose.onNodeWithTag("set-actions-extra-39").performScrollTo().assertIsDisplayed()
+    }
+
+    private fun setWorkoutContent(focused: Boolean = false, many: Boolean = false) {
         val context = ActualContext("squat", "rack", "Высокий гриф", "external", "bilateral")
         val slot = PlannedSlot(2, "work", 100.0, 5, 8, 2, 120, context)
         val exercise = ExerciseDocument(
@@ -98,15 +109,20 @@ class AccessibilitySmokeTest {
         )
         val state = WorkoutUiState(
             "workout", "Тренировка", listOf(BlockUiState("block", "Основной блок", "straight", listOf(
-                ExerciseUiState(exercise, slot, SetDraft(100.0, 5, null, context), listOf(saved)),
+                ExerciseUiState(exercise, slot, SetDraft(100.0, 5, null, context), (if (many) listOf(saved) + (1..39).map { saved.copy(setResultId="extra-$it",sequenceNo=it+1,plannedSetNo=null) } else listOf(saved))),
             ))), ClockReading(Instant.parse("2026-09-11T10:01:00Z"), "boot", 61_000),
         )
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 2f)) {
                 SportzalTheme {
                     focusManager = LocalFocusManager.current
-                    Box(Modifier.width(320.dp)) {
-                        WorkoutScreen(state, { "1:00" }, { _, _, _, _, _ -> }, { _, _, _, _, _, _ -> }, { _, _, _ -> }, {})
+                    Box(if (focused) Modifier.size(320.dp,640.dp) else Modifier.width(320.dp)) {
+                        ru.sportzal.app.ui.components.AppSafeArea(
+                            safeDrawingInsets=WindowInsets(0.dp,24.dp,0.dp,48.dp),
+                            imeInsets=WindowInsets(0.dp,0.dp,0.dp,if(focused) 160.dp else 0.dp)) {
+                            WorkoutScreen(state, { "1:00" }, { _, _, _, _, _ -> }, { _, _, _, _, _, _ -> }, { _, _, _ -> }, {},
+                                focusedExerciseId=if(focused) "exercise" else null)
+                        }
                     }
                 }
             }

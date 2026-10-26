@@ -19,11 +19,13 @@ android {
         applicationId = "ru.sportzal.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 3
+        versionName = "0.2.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
+    sourceSets.getByName("main").assets.srcDir("$rootDir/docs/schemas")
+    sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
 

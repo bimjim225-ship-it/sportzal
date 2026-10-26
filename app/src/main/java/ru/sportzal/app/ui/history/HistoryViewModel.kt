@@ -15,6 +15,7 @@ data class HistoryUiState(
     val loading: Boolean = true,
     val saving: Boolean = false,
     val error: String? = null,
+    val equipmentChoices: List<EquipmentDocument> = emptyList(),
 )
 
 class HistoryViewModel(private val repository: SportzalRepository) {
@@ -83,36 +84,47 @@ class HistoryViewModel(private val repository: SportzalRepository) {
                 setupActual = context.setup,
                 loadBasisActual = context.loadBasis,
                 sideActual = context.side,
+                exerciseIdActual = context.exerciseId,
+                titleActual = context.title ?: old.titleActual,
             ),
         )
     }
 
+    private suspend fun catalog(details: HistoryWorkoutDetails): List<EquipmentDocument> = runCatching {
+        repository.equipmentCatalog().map { EquipmentDocument(it.equipmentId, it.name, it.setupHint,
+            it.weightStepKg, it.availableWeightsKg, it.notes) }
+    }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it else details.equipmentAtStart }
+
     private suspend fun commit(block: suspend () -> Unit): Boolean {
+        if (state.value.saving) return false
         val id = state.value.details?.runtime?.workoutId ?: return false
-        mutableState.value = mutableState.value.copy(saving = true, error = null)
+        mutableState.value = state.value.copy(saving = true, error = null)
+        var committed = false
         return runCatching {
             block()
-            reloadDetails(id)
-            load()
-        }.fold(
-            { true },
-            {
-                mutableState.value = mutableState.value.copy(
-                    saving = false,
-                    error = it.message ?: "Не удалось сохранить",
-                )
-                false
-            },
-        )
+            committed = true
+            val details = repository.historyDetails(id)
+            val workouts = repository.history()
+            val choices = catalog(details)
+            mutableState.value = state.value.copy(details = details, workouts = workouts,
+                equipmentChoices = choices, saving = false, error = null)
+        }.fold({ true }, {
+            if (it is kotlinx.coroutines.CancellationException) throw it
+            mutableState.value = state.value.copy(saving = false,
+                error = if (committed) "Изменение сохранено. Не удалось обновить историю; откройте запись заново."
+                    else it.message ?: "Не удалось сохранить")
+            false
+        })
     }
 
-    private suspend fun reloadDetails(id: String) = runCatching { repository.historyDetails(id) }.onSuccess {
-        mutableState.value = mutableState.value.copy(details = it, loading = false, saving = false, error = null)
+    private suspend fun reloadDetails(id: String) = runCatching {
+        val details = repository.historyDetails(id)
+        details to catalog(details)
+    }.onSuccess { (details, choices) ->
+        mutableState.value = state.value.copy(details = details, equipmentChoices = choices,
+            loading = false, saving = false, error = null)
     }.onFailure {
-        mutableState.value = mutableState.value.copy(
-            loading = false,
-            saving = false,
-            error = "Не удалось загрузить историю",
-        )
+        if (it is kotlinx.coroutines.CancellationException) throw it
+        mutableState.value = state.value.copy(loading = false, saving = false, error = "Не удалось загрузить историю")
     }
 }

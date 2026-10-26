@@ -11,6 +11,7 @@ import ru.sportzal.app.model.ImportResult
 
 class ProgramImporterTest {
     private var writes = 0
+    private var activeVersion: Int? = null
     private val saved = mutableMapOf<Pair<String, Int>, String>()
     private val repository = Proxy.newProxyInstance(
         SportzalRepository::class.java.classLoader,
@@ -24,11 +25,22 @@ class ProgramImporterTest {
                 val key = program.programId to program.programVersion
                 val previous = saved[key]
                 when {
-                    previous == null -> { saved[key] = hash; ImportResult.Imported }
+                    previous == null -> { saved[key] = hash; activeVersion = program.programVersion; ImportResult.Imported }
                     previous == hash -> ImportResult.NoOp
                     else -> ImportResult.Conflict
                 }
             }
+            "programImportStatus" -> {
+                val key = args!![0] as String to args[1] as Int
+                when {
+                    saved[key] == null -> ru.sportzal.app.model.ProgramImportStatus.NEW
+                    saved[key] != args[2] -> ru.sportzal.app.model.ProgramImportStatus.CONFLICT
+                    activeVersion == key.second -> ru.sportzal.app.model.ProgramImportStatus.ALREADY_ACTIVE
+                    else -> ru.sportzal.app.model.ProgramImportStatus.STORED_INACTIVE
+                }
+            }
+            "activateProgram" -> { activeVersion = args!![1] as Int; Unit }
+            "equipmentCatalog" -> emptyList<ru.sportzal.app.model.EquipmentCatalogItem>()
             "toString" -> "FakeSportzalRepository"
             "hashCode" -> System.identityHashCode(this)
             "equals" -> false
@@ -55,6 +67,29 @@ class ProgramImporterTest {
         val changed = importer.preview(source().replace("Синтетическая тренировка A", "Синтетическая тренировка B")) as ImportPreview.Valid
         assertEquals(ImportResult.Imported, importer.confirm(first))
         assertEquals(ImportResult.Conflict, importer.confirm(changed))
+    }
+
+    @Test fun returningToStoredVersionRequiresExplicitActivation() = runBlocking {
+        val first = importer.preview(source()) as ImportPreview.Valid
+        importer.confirm(first)
+        val nextSource = source().replace("\"program_version\": 1", "\"program_version\": 2")
+        val next = importer.preview(nextSource) as ImportPreview.Valid
+        importer.confirm(next)
+        val stored = importer.preview(source()) as ImportPreview.Valid
+        assertEquals(ru.sportzal.app.model.ProgramImportStatus.STORED_INACTIVE, stored.status)
+        assertEquals(ru.sportzal.app.model.ImportResult.NoOp, importer.confirm(stored))
+        assertEquals(2, activeVersion)
+        importer.activate(stored)
+        assertEquals(1, activeVersion)
+        assertEquals(ru.sportzal.app.model.ProgramImportStatus.ALREADY_ACTIVE,
+            (importer.preview(source()) as ImportPreview.Valid).status)
+    }
+
+    @Test fun unavailableCatalogReturnsRecoverablePreviewError() = runBlocking {
+        val broken = Proxy.newProxyInstance(SportzalRepository::class.java.classLoader,
+            arrayOf(SportzalRepository::class.java)) { _, _, _ -> error("catalog unavailable") } as SportzalRepository
+        val result = ProgramImporter(null, ProgramValidator(), broken).preview(source())
+        assertTrue(result is ImportPreview.Error)
     }
 
     @Test fun oversizedInputIsRejectedBeforeDatabaseMutation() = runBlocking {

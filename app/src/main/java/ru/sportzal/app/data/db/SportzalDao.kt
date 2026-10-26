@@ -45,6 +45,9 @@ interface SportzalDao {
     @Query("SELECT * FROM equipment ORDER BY equipment_id")
     suspend fun equipment(): List<EquipmentEntity>
 
+    @Query("SELECT * FROM set_results WHERE equipment_id_actual IS NOT NULL AND NOT EXISTS (SELECT 1 FROM equipment WHERE equipment_id = equipment_id_actual) ORDER BY sequence_no DESC")
+    suspend fun missingEquipmentFacts(): List<SetResultEntity>
+
     @Query("SELECT * FROM workouts WHERE completion_status='active' LIMIT 1")
     suspend fun activeWorkout(): WorkoutEntity?
 

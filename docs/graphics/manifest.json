@@ -1,0 +1,902 @@
+{
+  "package": "sportzal-graphics",
+  "version": 1,
+  "created_at": "2026-10-26",
+  "generation_method": "built-in imagegen; vector icons authored as paths",
+  "source_type": "generic apparatus derived from approved mockup style; not user gym photos",
+  "illustration_counts": {
+    "equipment": 5,
+    "thumbnails": 5,
+    "technique_frames": 10,
+    "technique_pairs": 5
+  },
+  "icon_count": 24,
+  "keyframe_sequence": [
+    "start",
+    "end"
+  ],
+  "assets": [
+    {
+      "asset_id": "sz_eq_row",
+      "kind": "equipment",
+      "equipment_type": "row",
+      "png": "png/equipment/row.png",
+      "android_resource": "sz_eq_row",
+      "android_file": "android/res/drawable-nodpi/sz_eq_row.webp",
+      "width": 1024,
+      "height": 1024,
+      "content_bounds_px": [
+        74,
+        115,
+        951,
+        951
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit"
+    },
+    {
+      "asset_id": "sz_thumb_row",
+      "kind": "thumbnail",
+      "equipment_type": "row",
+      "png": "png/thumbnails/row.png",
+      "android_resource": "sz_thumb_row",
+      "android_file": "android/res/drawable-nodpi/sz_thumb_row.webp",
+      "width": 256,
+      "height": 256,
+      "content_bounds_px": [
+        18,
+        28,
+        238,
+        238
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit"
+    },
+    {
+      "asset_id": "sz_tech_row_00",
+      "kind": "technique_keyframe",
+      "equipment_type": "row",
+      "png": "png/technique/row_00.png",
+      "android_resource": "sz_tech_row_00",
+      "android_file": "android/res/drawable-nodpi/sz_tech_row_00.webp",
+      "width": 768,
+      "height": 768,
+      "content_bounds_px": [
+        55,
+        59,
+        711,
+        710
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frame_index": 0,
+      "frame_role": "start",
+      "frame_set": "row",
+      "camera_alignment": "shared_crop_and_scale"
+    },
+    {
+      "asset_id": "sz_tech_row_01",
+      "kind": "technique_keyframe",
+      "equipment_type": "row",
+      "png": "png/technique/row_01.png",
+      "android_resource": "sz_tech_row_01",
+      "android_file": "android/res/drawable-nodpi/sz_tech_row_01.webp",
+      "width": 768,
+      "height": 768,
+      "content_bounds_px": [
+        66,
+        57,
+        712,
+        712
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frame_index": 1,
+      "frame_role": "end",
+      "frame_set": "row",
+      "camera_alignment": "shared_crop_and_scale"
+    },
+    {
+      "asset_id": "sz_tech_row_pair",
+      "kind": "technique_pair",
+      "equipment_type": "row",
+      "png": "png/strips/row_pair.png",
+      "android_resource": "sz_tech_row_pair",
+      "android_file": "android/res/drawable-nodpi/sz_tech_row_pair.webp",
+      "width": 1536,
+      "height": 768,
+      "content_bounds_px": [
+        55,
+        57,
+        1480,
+        712
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frames_px": [
+        [
+          0,
+          0,
+          768,
+          768
+        ],
+        [
+          768,
+          0,
+          768,
+          768
+        ]
+      ],
+      "frame_count": 2,
+      "motion": "two_key_positions_not_continuous_animation"
+    },
+    {
+      "asset_id": "sz_eq_leg_press",
+      "kind": "equipment",
+      "equipment_type": "leg_press",
+      "png": "png/equipment/leg_press.png",
+      "android_resource": "sz_eq_leg_press",
+      "android_file": "android/res/drawable-nodpi/sz_eq_leg_press.webp",
+      "width": 1024,
+      "height": 1024,
+      "content_bounds_px": [
+        74,
+        185,
+        950,
+        951
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit"
+    },
+    {
+      "asset_id": "sz_thumb_leg_press",
+      "kind": "thumbnail",
+      "equipment_type": "leg_press",
+      "png": "png/thumbnails/leg_press.png",
+      "android_resource": "sz_thumb_leg_press",
+      "android_file": "android/res/drawable-nodpi/sz_thumb_leg_press.webp",
+      "width": 256,
+      "height": 256,
+      "content_bounds_px": [
+        18,
+        46,
+        238,
+        238
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit"
+    },
+    {
+      "asset_id": "sz_tech_leg_press_00",
+      "kind": "technique_keyframe",
+      "equipment_type": "leg_press",
+      "png": "png/technique/leg_press_00.png",
+      "android_resource": "sz_tech_leg_press_00",
+      "android_file": "android/res/drawable-nodpi/sz_tech_leg_press_00.webp",
+      "width": 768,
+      "height": 768,
+      "content_bounds_px": [
+        56,
+        171,
+        713,
+        712
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frame_index": 0,
+      "frame_role": "start",
+      "frame_set": "leg_press",
+      "camera_alignment": "shared_crop_and_scale"
+    },
+    {
+      "asset_id": "sz_tech_leg_press_01",
+      "kind": "technique_keyframe",
+      "equipment_type": "leg_press",
+      "png": "png/technique/leg_press_01.png",
+      "android_resource": "sz_tech_leg_press_01",
+      "android_file": "android/res/drawable-nodpi/sz_tech_leg_press_01.webp",
+      "width": 768,
+      "height": 768,
+      "content_bounds_px": [
+        56,
+        159,
+        696,
+        712
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frame_index": 1,
+      "frame_role": "end",
+      "frame_set": "leg_press",
+      "camera_alignment": "shared_crop_and_scale"
+    },
+    {
+      "asset_id": "sz_tech_leg_press_pair",
+      "kind": "technique_pair",
+      "equipment_type": "leg_press",
+      "png": "png/strips/leg_press_pair.png",
+      "android_resource": "sz_tech_leg_press_pair",
+      "android_file": "android/res/drawable-nodpi/sz_tech_leg_press_pair.webp",
+      "width": 1536,
+      "height": 768,
+      "content_bounds_px": [
+        56,
+        159,
+        1464,
+        712
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frames_px": [
+        [
+          0,
+          0,
+          768,
+          768
+        ],
+        [
+          768,
+          0,
+          768,
+          768
+        ]
+      ],
+      "frame_count": 2,
+      "motion": "two_key_positions_not_continuous_animation"
+    },
+    {
+      "asset_id": "sz_eq_chest_press",
+      "kind": "equipment",
+      "equipment_type": "chest_press",
+      "png": "png/equipment/chest_press.png",
+      "android_resource": "sz_eq_chest_press",
+      "android_file": "android/res/drawable-nodpi/sz_eq_chest_press.webp",
+      "width": 1024,
+      "height": 1024,
+      "content_bounds_px": [
+        73,
+        110,
+        952,
+        951
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit"
+    },
+    {
+      "asset_id": "sz_thumb_chest_press",
+      "kind": "thumbnail",
+      "equipment_type": "chest_press",
+      "png": "png/thumbnails/chest_press.png",
+      "android_resource": "sz_thumb_chest_press",
+      "android_file": "android/res/drawable-nodpi/sz_thumb_chest_press.webp",
+      "width": 256,
+      "height": 256,
+      "content_bounds_px": [
+        18,
+        27,
+        238,
+        238
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit"
+    },
+    {
+      "asset_id": "sz_tech_chest_press_00",
+      "kind": "technique_keyframe",
+      "equipment_type": "chest_press",
+      "png": "png/technique/chest_press_00.png",
+      "android_resource": "sz_tech_chest_press_00",
+      "android_file": "android/res/drawable-nodpi/sz_tech_chest_press_00.webp",
+      "width": 768,
+      "height": 768,
+      "content_bounds_px": [
+        65,
+        56,
+        702,
+        712
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frame_index": 0,
+      "frame_role": "start",
+      "frame_set": "chest_press",
+      "camera_alignment": "shared_crop_and_scale"
+    },
+    {
+      "asset_id": "sz_tech_chest_press_01",
+      "kind": "technique_keyframe",
+      "equipment_type": "chest_press",
+      "png": "png/technique/chest_press_01.png",
+      "android_resource": "sz_tech_chest_press_01",
+      "android_file": "android/res/drawable-nodpi/sz_tech_chest_press_01.webp",
+      "width": 768,
+      "height": 768,
+      "content_bounds_px": [
+        103,
+        56,
+        702,
+        712
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frame_index": 1,
+      "frame_role": "end",
+      "frame_set": "chest_press",
+      "camera_alignment": "shared_crop_and_scale"
+    },
+    {
+      "asset_id": "sz_tech_chest_press_pair",
+      "kind": "technique_pair",
+      "equipment_type": "chest_press",
+      "png": "png/strips/chest_press_pair.png",
+      "android_resource": "sz_tech_chest_press_pair",
+      "android_file": "android/res/drawable-nodpi/sz_tech_chest_press_pair.webp",
+      "width": 1536,
+      "height": 768,
+      "content_bounds_px": [
+        65,
+        56,
+        1470,
+        712
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frames_px": [
+        [
+          0,
+          0,
+          768,
+          768
+        ],
+        [
+          768,
+          0,
+          768,
+          768
+        ]
+      ],
+      "frame_count": 2,
+      "motion": "two_key_positions_not_continuous_animation"
+    },
+    {
+      "asset_id": "sz_eq_lat_pulldown",
+      "kind": "equipment",
+      "equipment_type": "lat_pulldown",
+      "png": "png/equipment/lat_pulldown.png",
+      "android_resource": "sz_eq_lat_pulldown",
+      "android_file": "android/res/drawable-nodpi/sz_eq_lat_pulldown.webp",
+      "width": 1024,
+      "height": 1024,
+      "content_bounds_px": [
+        175,
+        74,
+        849,
+        951
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit"
+    },
+    {
+      "asset_id": "sz_thumb_lat_pulldown",
+      "kind": "thumbnail",
+      "equipment_type": "lat_pulldown",
+      "png": "png/thumbnails/lat_pulldown.png",
+      "android_resource": "sz_thumb_lat_pulldown",
+      "android_file": "android/res/drawable-nodpi/sz_thumb_lat_pulldown.webp",
+      "width": 256,
+      "height": 256,
+      "content_bounds_px": [
+        43,
+        18,
+        212,
+        238
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit"
+    },
+    {
+      "asset_id": "sz_tech_lat_pulldown_00",
+      "kind": "technique_keyframe",
+      "equipment_type": "lat_pulldown",
+      "png": "png/technique/lat_pulldown_00.png",
+      "android_resource": "sz_tech_lat_pulldown_00",
+      "android_file": "android/res/drawable-nodpi/sz_tech_lat_pulldown_00.webp",
+      "width": 768,
+      "height": 768,
+      "content_bounds_px": [
+        128,
+        54,
+        606,
+        711
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frame_index": 0,
+      "frame_role": "start",
+      "frame_set": "lat_pulldown",
+      "camera_alignment": "shared_crop_and_scale"
+    },
+    {
+      "asset_id": "sz_tech_lat_pulldown_01",
+      "kind": "technique_keyframe",
+      "equipment_type": "lat_pulldown",
+      "png": "png/technique/lat_pulldown_01.png",
+      "android_resource": "sz_tech_lat_pulldown_01",
+      "android_file": "android/res/drawable-nodpi/sz_tech_lat_pulldown_01.webp",
+      "width": 768,
+      "height": 768,
+      "content_bounds_px": [
+        133,
+        54,
+        639,
+        713
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frame_index": 1,
+      "frame_role": "end",
+      "frame_set": "lat_pulldown",
+      "camera_alignment": "shared_crop_and_scale"
+    },
+    {
+      "asset_id": "sz_tech_lat_pulldown_pair",
+      "kind": "technique_pair",
+      "equipment_type": "lat_pulldown",
+      "png": "png/strips/lat_pulldown_pair.png",
+      "android_resource": "sz_tech_lat_pulldown_pair",
+      "android_file": "android/res/drawable-nodpi/sz_tech_lat_pulldown_pair.webp",
+      "width": 1536,
+      "height": 768,
+      "content_bounds_px": [
+        128,
+        54,
+        1407,
+        713
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frames_px": [
+        [
+          0,
+          0,
+          768,
+          768
+        ],
+        [
+          768,
+          0,
+          768,
+          768
+        ]
+      ],
+      "frame_count": 2,
+      "motion": "two_key_positions_not_continuous_animation"
+    },
+    {
+      "asset_id": "sz_eq_leg_curl",
+      "kind": "equipment",
+      "equipment_type": "leg_curl",
+      "png": "png/equipment/leg_curl.png",
+      "android_resource": "sz_eq_leg_curl",
+      "android_file": "android/res/drawable-nodpi/sz_eq_leg_curl.webp",
+      "width": 1024,
+      "height": 1024,
+      "content_bounds_px": [
+        127,
+        74,
+        897,
+        951
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit"
+    },
+    {
+      "asset_id": "sz_thumb_leg_curl",
+      "kind": "thumbnail",
+      "equipment_type": "leg_curl",
+      "png": "png/thumbnails/leg_curl.png",
+      "android_resource": "sz_thumb_leg_curl",
+      "android_file": "android/res/drawable-nodpi/sz_thumb_leg_curl.webp",
+      "width": 256,
+      "height": 256,
+      "content_bounds_px": [
+        31,
+        18,
+        225,
+        238
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit"
+    },
+    {
+      "asset_id": "sz_tech_leg_curl_00",
+      "kind": "technique_keyframe",
+      "equipment_type": "leg_curl",
+      "png": "png/technique/leg_curl_00.png",
+      "android_resource": "sz_tech_leg_curl_00",
+      "android_file": "android/res/drawable-nodpi/sz_tech_leg_curl_00.webp",
+      "width": 768,
+      "height": 768,
+      "content_bounds_px": [
+        55,
+        74,
+        714,
+        713
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frame_index": 0,
+      "frame_role": "start",
+      "frame_set": "leg_curl",
+      "camera_alignment": "shared_crop_and_scale"
+    },
+    {
+      "asset_id": "sz_tech_leg_curl_01",
+      "kind": "technique_keyframe",
+      "equipment_type": "leg_curl",
+      "png": "png/technique/leg_curl_01.png",
+      "android_resource": "sz_tech_leg_curl_01",
+      "android_file": "android/res/drawable-nodpi/sz_tech_leg_curl_01.webp",
+      "width": 768,
+      "height": 768,
+      "content_bounds_px": [
+        202,
+        74,
+        697,
+        712
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frame_index": 1,
+      "frame_role": "end",
+      "frame_set": "leg_curl",
+      "camera_alignment": "shared_crop_and_scale"
+    },
+    {
+      "asset_id": "sz_tech_leg_curl_pair",
+      "kind": "technique_pair",
+      "equipment_type": "leg_curl",
+      "png": "png/strips/leg_curl_pair.png",
+      "android_resource": "sz_tech_leg_curl_pair",
+      "android_file": "android/res/drawable-nodpi/sz_tech_leg_curl_pair.webp",
+      "width": 1536,
+      "height": 768,
+      "content_bounds_px": [
+        55,
+        74,
+        1465,
+        713
+      ],
+      "has_alpha": true,
+      "scale_mode": "fit",
+      "frames_px": [
+        [
+          0,
+          0,
+          768,
+          768
+        ],
+        [
+          768,
+          0,
+          768,
+          768
+        ]
+      ],
+      "frame_count": 2,
+      "motion": "two_key_positions_not_continuous_animation"
+    },
+    {
+      "asset_id": "sz_ic_back",
+      "kind": "icon",
+      "svg": "svg/icons/back.svg",
+      "android_file": "android/res/drawable/sz_ic_back.xml",
+      "android_resource": "sz_ic_back",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_chevron_right",
+      "kind": "icon",
+      "svg": "svg/icons/chevron_right.svg",
+      "android_file": "android/res/drawable/sz_ic_chevron_right.xml",
+      "android_resource": "sz_ic_chevron_right",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_more",
+      "kind": "icon",
+      "svg": "svg/icons/more.svg",
+      "android_file": "android/res/drawable/sz_ic_more.xml",
+      "android_resource": "sz_ic_more",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_plus",
+      "kind": "icon",
+      "svg": "svg/icons/plus.svg",
+      "android_file": "android/res/drawable/sz_ic_plus.xml",
+      "android_resource": "sz_ic_plus",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_minus",
+      "kind": "icon",
+      "svg": "svg/icons/minus.svg",
+      "android_file": "android/res/drawable/sz_ic_minus.xml",
+      "android_resource": "sz_ic_minus",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_close",
+      "kind": "icon",
+      "svg": "svg/icons/close.svg",
+      "android_file": "android/res/drawable/sz_ic_close.xml",
+      "android_resource": "sz_ic_close",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_search",
+      "kind": "icon",
+      "svg": "svg/icons/search.svg",
+      "android_file": "android/res/drawable/sz_ic_search.xml",
+      "android_resource": "sz_ic_search",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_check",
+      "kind": "icon",
+      "svg": "svg/icons/check.svg",
+      "android_file": "android/res/drawable/sz_ic_check.xml",
+      "android_resource": "sz_ic_check",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_today",
+      "kind": "icon",
+      "svg": "svg/icons/today.svg",
+      "android_file": "android/res/drawable/sz_ic_today.xml",
+      "android_resource": "sz_ic_today",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_history",
+      "kind": "icon",
+      "svg": "svg/icons/history.svg",
+      "android_file": "android/res/drawable/sz_ic_history.xml",
+      "android_resource": "sz_ic_history",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_equipment",
+      "kind": "icon",
+      "svg": "svg/icons/equipment.svg",
+      "android_file": "android/res/drawable/sz_ic_equipment.xml",
+      "android_resource": "sz_ic_equipment",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_timer",
+      "kind": "icon",
+      "svg": "svg/icons/timer.svg",
+      "android_file": "android/res/drawable/sz_ic_timer.xml",
+      "android_resource": "sz_ic_timer",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_import",
+      "kind": "icon",
+      "svg": "svg/icons/import.svg",
+      "android_file": "android/res/drawable/sz_ic_import.xml",
+      "android_resource": "sz_ic_import",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_share",
+      "kind": "icon",
+      "svg": "svg/icons/share.svg",
+      "android_file": "android/res/drawable/sz_ic_share.xml",
+      "android_resource": "sz_ic_share",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_settings",
+      "kind": "icon",
+      "svg": "svg/icons/settings.svg",
+      "android_file": "android/res/drawable/sz_ic_settings.xml",
+      "android_resource": "sz_ic_settings",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_info",
+      "kind": "icon",
+      "svg": "svg/icons/info.svg",
+      "android_file": "android/res/drawable/sz_ic_info.xml",
+      "android_resource": "sz_ic_info",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_edit",
+      "kind": "icon",
+      "svg": "svg/icons/edit.svg",
+      "android_file": "android/res/drawable/sz_ic_edit.xml",
+      "android_resource": "sz_ic_edit",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_delete",
+      "kind": "icon",
+      "svg": "svg/icons/delete.svg",
+      "android_file": "android/res/drawable/sz_ic_delete.xml",
+      "android_resource": "sz_ic_delete",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_expand",
+      "kind": "icon",
+      "svg": "svg/icons/expand.svg",
+      "android_file": "android/res/drawable/sz_ic_expand.xml",
+      "android_resource": "sz_ic_expand",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_pause",
+      "kind": "icon",
+      "svg": "svg/icons/pause.svg",
+      "android_file": "android/res/drawable/sz_ic_pause.xml",
+      "android_resource": "sz_ic_pause",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_play",
+      "kind": "icon",
+      "svg": "svg/icons/play.svg",
+      "android_file": "android/res/drawable/sz_ic_play.xml",
+      "android_resource": "sz_ic_play",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_retry",
+      "kind": "icon",
+      "svg": "svg/icons/retry.svg",
+      "android_file": "android/res/drawable/sz_ic_retry.xml",
+      "android_resource": "sz_ic_retry",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_guide",
+      "kind": "icon",
+      "svg": "svg/icons/guide.svg",
+      "android_file": "android/res/drawable/sz_ic_guide.xml",
+      "android_resource": "sz_ic_guide",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    },
+    {
+      "asset_id": "sz_ic_camera",
+      "kind": "icon",
+      "svg": "svg/icons/camera.svg",
+      "android_file": "android/res/drawable/sz_ic_camera.xml",
+      "android_resource": "sz_ic_camera",
+      "viewport": [
+        24,
+        24
+      ],
+      "stroke_width": 1.8,
+      "tintable": true
+    }
+  ]
+}

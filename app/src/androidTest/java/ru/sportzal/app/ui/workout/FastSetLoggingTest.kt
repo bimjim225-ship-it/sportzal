@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -14,6 +15,10 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.semantics.SemanticsActions
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -56,7 +61,7 @@ class FastSetLoggingTest {
         }, { _, _, _ -> }, {}) } }
 
         compose.onNodeWithText("Цель: 100 кг · 5–8 · Запас: 2").assertIsDisplayed()
-        compose.onNode(hasContentDescription("Таймер отдыха")).performScrollTo().assertIsDisplayed()
+        compose.onNode(hasContentDescription("Время с записи подхода")).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("rir-2").assertIsNotSelected()
         compose.onNodeWithTag("weight-instance").performTextClearance()
         compose.onNodeWithTag("weight-instance").performTextInput("30")
@@ -64,9 +69,12 @@ class FastSetLoggingTest {
         compose.onNodeWithTag("reps-instance").performTextInput("7")
         compose.onNodeWithTag("rir-2").performScrollTo().assertIsDisplayed().performClick().assertIsSelected()
         compose.onNodeWithTag("save-instance").performScrollTo().assertIsDisplayed().performClick()
+        compose.onNodeWithTag("reps-instance").assertIsNotFocused()
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
+            .performScrollToNode(hasText("1. 30 кг × 7 · Запас: 2"))
         compose.onNodeWithText("1. 30 кг × 7 · Запас: 2").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Подход 2 · Рабочий").performScrollTo().assertIsDisplayed()
-        compose.onNode(hasContentDescription("Таймер отдыха")).performScrollTo().assertIsDisplayed()
+        compose.onNode(hasContentDescription("Время с записи подхода")).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("save-instance").performScrollTo().assertIsDisplayed().performClick()
         assertEquals("UI exposes only one fact for the planned slot", 1, ui.blocks.single().cards.single().saved.size)
     }

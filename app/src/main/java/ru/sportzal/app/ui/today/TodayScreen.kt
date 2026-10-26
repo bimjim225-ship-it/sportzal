@@ -1,83 +1,102 @@
 package ru.sportzal.app.ui.today
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import ru.sportzal.app.R
 import ru.sportzal.app.data.files.ImportPreview
-import ru.sportzal.app.domain.PlannedWorkout
-import ru.sportzal.app.domain.TodaySelection
+import ru.sportzal.app.domain.*
+import ru.sportzal.app.model.*
+import ru.sportzal.app.ui.components.*
+import ru.sportzal.app.ui.media.*
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
-fun TodayScreen(
-    selection: TodaySelection,
-    manualChoices: List<PlannedWorkout>,
-    preview: ImportPreview?,
-    message: String?,
-    onPickProgram: () -> Unit,
-    onConfirmImport: (ImportPreview.Valid) -> Unit,
-    onChooseWorkout: (String) -> Unit,
-    onStart: () -> Unit,
-    onResume: () -> Unit,
-    onShare: () -> Unit = {},
-    preparing: Boolean = false,
-) {
-    LazyColumn(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { Text("Сегодня", style = MaterialTheme.typography.headlineLarge) }
-        item {
+fun TodayScreen(selection: TodaySelection, manualChoices: List<PlannedWorkout>, preview: ImportPreview?,
+    message: String?, onPickProgram: () -> Unit, onConfirmImport: (ImportPreview.Valid) -> Unit,
+    onChooseWorkout: (String) -> Unit, onStart: () -> Unit, onResume: () -> Unit,
+    onShare: () -> Unit = {}, preparing: Boolean = false,
+    plannedWorkout: PlannedWorkoutDocument? = null, equipment: List<EquipmentDocument> = emptyList(),
+    loading: Boolean = false, busy: Boolean = false, onSaveFile: (() -> Unit)? = null,
+    error: String? = null, onRetry: () -> Unit = {}, onEquipment: (() -> Unit)? = null, onAiHelp: (() -> Unit)? = null) {
+    if (preview != null) {
+        ProgramImportScreen(preview, false, busy, message, {}, onPickProgram, onConfirmImport)
+        return
+    }
+    val bindings = LocalVisualBindings.current
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item { Text("Спортзал", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { AppHeader("Сегодня", formatPlanDate(LocalDate.now().toString())) }
+        if (loading) item { LoadingState("Загрузка плана") }
+        else if (error == null) item {
             when (selection) {
-                TodaySelection.NoProgram -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Нет активной программы")
-                    Button(onClick = onPickProgram) { Text("Импортировать программу") }
-                }
-                TodaySelection.Exhausted -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("План выполнен")
-                    OutlinedButton(onClick = onPickProgram) { Text("Импортировать программу") }
-                }
-                is TodaySelection.Resume -> Button(onClick = onResume) { Text("Продолжить тренировку") }
-                is TodaySelection.Ready -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(selection.workout.title, style = MaterialTheme.typography.titleLarge)
-                    Text("Запланировано: ${selection.workout.plannedDate}")
-                    Button(onClick = onStart) { Text("Начать") }
-                }
+                TodaySelection.NoProgram -> Card { Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Ваш план — здесь", style = MaterialTheme.typography.headlineSmall)
+                    Text("Добавьте оборудование зала, передайте данные ИИ и загрузите полученный план.")
+                    SportzalButton("Загрузить план от ИИ", onPickProgram)
+                    onAiHelp?.let { TextButton(it) { Text("Как получить план от ИИ") } }
+                    onEquipment?.let { TextButton(it) { Text("Добавить тренажёры") } }
+                } }
+                TodaySelection.Exhausted -> StatusNotice("План выполнен", "Передайте результаты ИИ, чтобы получить следующий план.",
+                    actionLabel = "Загрузить план от ИИ", onAction = onPickProgram)
+                is TodaySelection.Ready, is TodaySelection.Resume -> Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text(plannedWorkout?.title ?: (selection as? TodaySelection.Ready)?.workout?.title ?: "Активная тренировка",
+                        style = MaterialTheme.typography.headlineSmall)
+                    if (selection is TodaySelection.Resume) Text("В процессе · можно продолжить", style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary)
+                    else plannedWorkout?.plannedDate?.let { Text("По плану: ${formatPlanDate(it)}", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    plannedWorkout?.let { plan ->
+                        val exercises = plan.blocks.flatMap { it.exercises }
+                        Text("Упражнений: ${exercises.size} · Рабочих подходов: ${exercises.sumOf { ex -> ex.plannedSets.count { it.setType == "work" } }}",
+                            style = MaterialTheme.typography.bodyMedium)
+                        exercises.take(3).forEach { exercise ->
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                EquipmentIllustration(bindings.equipment(exercise.equipmentId), Modifier.size(64.dp), thumbnail = true)
+                                Column(Modifier.weight(1f)) {
+                                    Text(exercise.title, style = MaterialTheme.typography.titleSmall)
+                                    plannedSetLines(exercise).firstOrNull()?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                }
+                            }
+                        }
+                        if (exercises.size > 3) Text("Ещё упражнений: ${exercises.size - 3}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    SportzalButton(if (selection is TodaySelection.Resume) "Продолжить тренировку" else "Открыть тренировку",
+                        if (selection is TodaySelection.Resume) onResume else onStart, enabled = !busy)
+                } }
             }
         }
-        if (selection is TodaySelection.Ready || selection is TodaySelection.Resume) {
-            item { OutlinedButton(onClick = onPickProgram) { Text("Импортировать программу") } }
-        }
+        error?.let { item { StatusNotice(it, error = true, actionLabel = "Повторить", onAction = onRetry) } }
+        message?.let { item { StatusNotice(it) } }
         if (manualChoices.isNotEmpty() && selection !is TodaySelection.Resume) {
-            item { Text("Выбрать другую тренировку", style = MaterialTheme.typography.titleMedium) }
-            items(manualChoices, key = { it.workoutInstanceId }) { workout ->
-                OutlinedButton(onClick = { onChooseWorkout(workout.workoutInstanceId) }, modifier = Modifier.fillMaxWidth()) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(workout.title); Text(workout.plannedDate.toString())
+            item { Text("Другие тренировки", style = MaterialTheme.typography.titleMedium) }
+            items(manualChoices, key = { it.workoutInstanceId }) { plan ->
+                Card(onClick = { onChooseWorkout(plan.workoutInstanceId) }, modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) { Text(plan.title, style = MaterialTheme.typography.titleMedium); Text(formatPlanDate(plan.plannedDate.toString()), style = MaterialTheme.typography.bodySmall) }
+                        Icon(painterResource(R.drawable.sz_ic_chevron_right), null, Modifier.size(20.dp))
                     }
                 }
             }
         }
-        when (preview) {
-            is ImportPreview.Valid -> item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Предпросмотр: ${preview.program.workouts.size} тренировок")
-                    Text("Программа ${preview.program.programId}, версия ${preview.program.programVersion}")
-                    Button(onClick = { onConfirmImport(preview) }) { Text("Импортировать") }
-                }
-            }
-            is ImportPreview.Error -> item { Text(preview.message, color = MaterialTheme.colorScheme.error) }
-            null -> Unit
-        }
-        message?.let { item { Text(it) } }
-        item { OutlinedButton(onClick = onShare, enabled = !preparing) { Text(if (preparing) "Подготовка JSON…" else "Отправить JSON") } }
+        item { Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Обмен с ИИ", style = MaterialTheme.typography.titleMedium)
+            if (selection != TodaySelection.NoProgram) onAiHelp?.let { TextButton(it) { Text("Как получить план от ИИ") } }
+            Text("Каталог, план и последние 24 завершённые тренировки. Отправьте файл в свой чат с ИИ.", style = MaterialTheme.typography.bodyMedium)
+            SportzalButton("Передать отчёт ИИ", onShare, busy = preparing, secondary = true)
+            onSaveFile?.let { TextButton(it, enabled = !preparing) { Text("Сохранить файл") } }
+            if (selection is TodaySelection.Ready || selection is TodaySelection.Resume) TextButton(onPickProgram, enabled = !busy) { Text("Загрузить план от ИИ") }
+        } } }
     }
 }
+
+internal fun formatPlanDate(value: String): String = runCatching {
+    LocalDate.parse(value).format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale("ru")))
+}.getOrDefault(value)

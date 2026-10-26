@@ -23,7 +23,7 @@
 ## Visual contract
 
 - **Project `DESIGN.md`:** `DESIGN.md`.
-- **Token ownership model:** до реализации `DESIGN.md` нормативен; после появления Compose theme точное сопоставление фиксируется в том же changeset.
+- **Token ownership model:** `DESIGN.md` → `ui/theme/SportzalTheme.kt` → MaterialTheme → общие Compose controls.
 - **Supported themes:** light only в MVP.
 - **Design review policy:** новые экраны не должны добавлять отдельную визуальную грамматику без обновления `DESIGN.md`.
 
@@ -37,7 +37,7 @@
 | Workout card | shared `ExerciseCard` | this contract | straight / rotation / completed | UI test |
 | Set row | shared `SetResultRow` | this contract | normal / edited / warmup | UI test |
 | Overflow deviations | shared app-owned menu/bottom sheet | this contract | exercise / set | keyboard/touch test |
-| File import | `ProgramImportCoordinator` | `docs/data-contracts.md` | picker / Open with | integration test |
+| File import | `ProgramImporter` + `ProgramImportScreen` | `docs/data-contracts.md` | picker / Open with | integration test |
 | JSON share | `SnapshotShareCoordinator` | `docs/data-contracts.md` | Android Share Sheet | device test |
 
 ## Navigation
@@ -256,7 +256,7 @@ Prefill — удобство ввода, а не рекомендация.
 
 Primary action:
 
-> **Отправить JSON**
+> **Передать отчёт ИИ**
 
 Secondary:
 
@@ -264,7 +264,7 @@ Secondary:
 
 ## Share JSON
 
-`Отправить JSON`:
+`Передать отчёт ИИ`:
 
 1. формирует snapshot по `docs/data-contracts.md`;
 2. сохраняет временный `.json` в app cache;
@@ -341,14 +341,14 @@ Equipment list показывает:
 
 ## Async and resilience
 
-- **Mutation model:** локальные записи pessimistic/transactional; UI считает set сохранённым только после успешной записи Room.
+- **Mutation model:** локальные записи pessimistic/transactional; UI считает set сохранённым только после успешной записи Room. Новый подтверждённый факт завершает фокус ввода и закрывает клавиатуру; ошибка записи оставляет ввод и фокус доступными для исправления.
 - **Auto-save:** каждый set сохраняется сразу; active workout восстанавливается после process death.
 - **Offline:** полная функциональность без сети.
 - **Network:** отсутствует как продуктовая зависимость MVP.
 - **Timer resilience:** монотонное время в пределах одной загрузки устройства; после перезагрузки wall-clock fallback с пометкой приблизительности. См. docs/data-contracts.md.
 - **Duplicate submit:** кнопка `Записать подход` блокируется на время локальной транзакции.
 - **Program import:** атомарная транзакция; partial import запрещён.
-- **Share failure:** snapshot остаётся регенерируемым из Room; пользователь может повторить `Отправить JSON`.
+- **Share failure:** snapshot остаётся регенерируемым из Room; пользователь может повторить `Передать отчёт ИИ`.
 
 ## Validation
 
@@ -383,3 +383,34 @@ Equipment list показывает:
 - narrow-phone screenshot review;
 - TalkBack smoke test;
 - font scale 200% smoke test на ключевых экранах.
+
+## Реализованный сценарий — 26 октября 2026
+
+Просмотр будущей тренировки не создаёт попытку. Только «Начать тренировку» создаёт snapshot. После начала открывается обзор. Выбор упражнения открывает отдельный экран; Back → обзор → Сегодня. Холодный запуск предлагает «Продолжить тренировку»; пересоздание уже открытого экрана восстанавливает маршрут. Выбор упражнения хранится как UI position, отдельно от подтверждённых фактов. Перед выходом выполняется flush draft; при ошибке — «Остаться» / «Уйти без изменений». Пустую попытку можно явно отменить; попытка с фактами этим действием не удаляется.
+
+В каталоге строка открывает read-only detail; «Изменить настройки» открывает editor. Поиск локальный, без сети/debounce, с явной очисткой и возвратом фокуса. LazyColumn виртуализирует каталог/историю; ограничение 24 относится только к AI export. Схема выбирается из встроенных типов; фото не является главным изображением.
+
+Подтверждённый прогресс считает только действительные плановые слоты. Разминка, дополнительные и пропуски показываются отдельно. Пропуски закрывают очередь, но не считаются выполненными. «С записи» — интервал от completed_at, а «Пауза по плану» — назначение; ни один из них не объявляется измеренным чистым отдыхом.
+
+Новый импорт имеет отдельный экран с полным составом/назначениями/заметками и явным принятием. Конфликт и ошибка оставляют preview доступным для повторного действия. Новый план не заменяет snapshot активной тренировки.
+
+| Capability | Canonical owner | Source of truth | Allowed variants | Verification |
+|---|---|---|---|---|
+| Form | NumericField / EquipmentEditSheet / RirSelector, Material3 fields | PRODUCT.md + this contract | numeric / equipment / notes | unit + Compose |
+| Select/Listbox | Material3 FilterChip / RadioButton + VisualPicker | this contract | RIR / visual asset | Compose selection |
+| Date | java.time formatters, read-only | docs/data-contracts.md | local date / event timestamp | unit + UI |
+| Scrollbar | Android LazyColumn / platform scrolling | DESIGN.md | feature content scroller | native review |
+| Toast | StatusNotice, feature persistent error | this contract | info / error | Compose |
+| CRUD | SportzalRepository + feature routes | PRODUCT.md | catalog editor / historical correction | Room + UI |
+
+Общие видимые CTA принадлежат SportzalButton, IconButton с VectorDrawable и AppHeader. Dialog — Material3 AlertDialog с прокручиваемым телом; системные document picker/share sheet остаются платформенными. Последовательность сохранения: busy → Room commit → обновление UI; ошибка сохраняет ввод и остаётся доступной.
+
+## Дополнения 0.2.1
+
+- На экране подхода текущий ввод предшествует схемам и записанным строкам; схема/техника раскрываются отдельным действием. Ошибки и восстановление после записи доступны рядом с действием записи.
+- Замена выбирается из всего каталога либо создаётся с понятным названием. Фактическое движение и оборудование сохраняются отдельно от неизменного плана. Новое оборудование попадает в каталог и отчёт; при несовместимой замене вес и оценка запаса очищаются, при смене движения очищаются также повторы.
+- «Пропустить оставшиеся подходы» подтверждается пользователем и атомарно закрывает только незаполненные слоты текущего упражнения; записанные подходы сохраняются, пропуски можно вернуть по одному.
+- Неизвестный результат записи сверяется по прежнему ID. Повтор после изменения ввода использует видимые значения без второго факта. Если запись прошла, а чтение упало, ввод блокируется до явного обновления сохранённых данных.
+- Старый импортированный план не активируется повторной загрузкой файла; отдельная кнопка переключает будущие тренировки, сохраняя начатое занятие.
+- «Как получить план от ИИ» содержит офлайн-инструкцию и копируемый запрос с точной JSON Schema. Отчёт можно передать либо сохранить на «Сегодня», итогах и в истории; подготовка блокирует повторные действия.
+- После потери монотонных часов время отмечается «≈»; после часа показываются часы, минуты и секунды.

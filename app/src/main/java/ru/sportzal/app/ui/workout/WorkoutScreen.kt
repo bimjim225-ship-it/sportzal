@@ -1,6 +1,7 @@
 package ru.sportzal.app.ui.workout
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,11 +18,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import ru.sportzal.app.ui.components.ExerciseCard
 import ru.sportzal.app.domain.ActualContext
 import ru.sportzal.app.data.files.EquipmentPhotoStore
+import ru.sportzal.app.ui.components.AppHeader
+import ru.sportzal.app.ui.media.ExerciseMediaPanel
 
 @Composable
 fun WorkoutScreen(
@@ -43,20 +47,42 @@ fun WorkoutScreen(
     onCancelFinish: () -> Unit = {},
     onNote: (String, (Boolean) -> Unit) -> Unit = { _, done -> done(true) },
     photoStore: EquipmentPhotoStore? = null,
+    overview: Boolean = false,
+    focusedExerciseId: String? = null,
+    onBack: () -> Unit = {},
+    onSelectExercise: (String) -> Unit = {},
+    onCancelEmpty: () -> Unit = {},
+    onSelectTechnique: (String, String?, String?, (Boolean) -> Unit) -> Unit = { _, _, _, done -> done(false) },
+    onReload: () -> Unit = {},
+    onSkipRemaining: (String, String?, String?, (Boolean) -> Unit) -> Unit = { _, _, _, _ -> },
+    onCancelExtra: (String, (Boolean) -> Unit) -> Unit = { _, done -> done(true) },
 ) {
-    var noteDialog by remember { mutableStateOf(false) }
+    var noteDialog by rememberSaveable { mutableStateOf(false) }
     if (state.finishConfirmation) AlertDialog(onDismissRequest = onCancelFinish,
         text = { Text("Завершить с невыполненными подходами?") },
         confirmButton = { TextButton(onClick = onConfirmFinish) { Text("Завершить") } },
         dismissButton = { TextButton(onClick = onCancelFinish) { Text("Отмена") } })
     LaunchedEffect(Unit) { while (true) { delay(1_000); onTick() } }
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text(state.title, style = MaterialTheme.typography.headlineLarge) }
-        item { TextButton({ noteDialog = true }) { Text("Заметка к тренировке") }; state.notes?.let { Text(it) } }
-        state.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
+    if (overview) WorkoutOverview(state, onBack, onSelectExercise, onFinish, onCancelEmpty, elapsedFor)
+    else Column(Modifier.fillMaxSize()) {
+      if (focusedExerciseId != null) {
+          val selected = state.blocks.flatMap { it.cards }.firstOrNull { it.exercise.exerciseInstanceId == focusedExerciseId }
+          AppHeader(selected?.actualContext()?.title ?: selected?.exercise?.title ?: "Упражнение", onBack = onBack, compact = true)
+      }
+      LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 8.dp),
+          verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            if (focusedExerciseId == null) Text(state.title, style = MaterialTheme.typography.headlineLarge)
+        }
+        if (focusedExerciseId == null) item { TextButton({ noteDialog = true }) { Text("Заметка к тренировке") }; state.notes?.let { Text(it) } }
+        if (focusedExerciseId == null) state.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
         state.blocks.forEach { block ->
-            item(key = "block-${block.blockId}") { Text(block.title, style = MaterialTheme.typography.titleMedium) }
-            items(block.cards, key = { it.exercise.exerciseInstanceId }) { card ->
+            val cards = block.cards.filter { focusedExerciseId == null || it.exercise.exerciseInstanceId == focusedExerciseId }
+            if (cards.isNotEmpty() && focusedExerciseId == null) item(key = "block-${block.blockId}") {
+                Text(block.title, style = MaterialTheme.typography.titleMedium)
+                block.notes?.let { Text(it) }
+            }
+            items(cards, key = { it.exercise.exerciseInstanceId }) { card ->
                 ExerciseCard(card, elapsedFor(card.saved.maxByOrNull { it.sequenceNo }), state.saving,
                     { weight, reps, rir, answered -> onDraft(card.exercise.exerciseInstanceId, weight, reps, rir, answered) },
                     { weight, reps, rir, answered -> card.currentSlot?.let {
@@ -68,10 +94,31 @@ fun WorkoutScreen(
                     { setNo -> onRestore(card.exercise.exerciseInstanceId, setNo) },
                     { context, completed -> onContext(card.exercise.exerciseInstanceId, context, completed) },
                     { type, weight, reps, rir, note, completed -> onExtra(card.exercise.exerciseInstanceId, type, weight, reps, rir, note, completed) },
-                    onEditActual, photoStore)
+                    onEditActual, photoStore, focused = focusedExerciseId != null,
+                    error = state.error.takeIf { focusedExerciseId != null }, reloadRequired = state.reloadRequired,
+                    onReload = onReload,
+                    onSkipRemaining = { reason, note, done -> onSkipRemaining(card.exercise.exerciseInstanceId, reason, note, done) },
+                    onCancelExtra = { done -> onCancelExtra(card.exercise.exerciseInstanceId, done) })
             }
+            if (focusedExerciseId != null) cards.forEach { card -> item(key = "media-${card.exercise.exerciseInstanceId}") {
+                var expanded by rememberSaveable(card.exercise.exerciseInstanceId) { mutableStateOf(false) }
+                TextButton({ expanded = !expanded }, modifier = Modifier.testTag("toggle-technique")) { Text("Настройка и техника") }
+                if (expanded) {
+                    val context = card.actualContext()
+                    ExerciseMediaPanel(context.exerciseId, context.equipmentId, context.setup,
+                        card.exercise.notes.takeIf { context.exerciseId == card.exercise.exerciseId }, state.saving) { key, done ->
+                        onSelectTechnique(context.exerciseId, context.equipmentId, key, done)
+                    }
+                    block.notes?.let { Text(it) }
+                }
+            } }
         }
-        item { Button(onClick = onFinish, enabled = !state.saving) { Text("Завершить тренировку") } }
+        item {
+            if (focusedExerciseId != null) ru.sportzal.app.ui.components.SportzalButton("К упражнениям", onBack, secondary = true, enabled = !state.saving)
+            else Button(onClick = onFinish, enabled = !state.saving) { Text("Завершить тренировку") }
+        }
+        if (focusedExerciseId != null) item { TextButton({ noteDialog = true }) { Text("Заметка к тренировке") } }
+      }
     }
     if (noteDialog) WorkoutNoteDialog(state.notes.orEmpty(), state.saving, { noteDialog = false }) { value ->
         onNote(value) { if (it) noteDialog = false }

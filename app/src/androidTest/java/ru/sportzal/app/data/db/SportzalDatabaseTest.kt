@@ -40,6 +40,73 @@ import ru.sportzal.app.model.SaveEquipmentCommand
 
 @RunWith(AndroidJUnit4::class)
 class SportzalDatabaseTest {
+    @Test fun equipmentConfigurationAndIllustrationAreSavedAtomically() = runBlocking {
+        val id = repository.saveEquipment(SaveEquipmentCommand(name = "Тяга", setupHint = "Сиденье 4", notes = null,
+            configuration = ru.sportzal.app.model.EquipmentConfiguration(2.5, listOf(5.0, 12.5), "row")))
+        val saved = repository.equipmentCatalog().single { it.equipmentId == id }
+        assertEquals(2.5, saved.weightStepKg!!, 0.0)
+        assertEquals(listOf(5.0, 12.5), saved.availableWeightsKg)
+        assertEquals("row", saved.illustrationKey)
+        repository.saveEquipment(SaveEquipmentCommand(id, "Тяга 2", "Сиденье 5", null))
+        assertEquals("row", repository.equipmentCatalog().single { it.equipmentId == id }.illustrationKey)
+        repository.saveEquipment(SaveEquipmentCommand(id, "Тяга 2", "Сиденье 5", null,
+            ru.sportzal.app.model.EquipmentConfiguration(null, null, null)))
+        assertNull(repository.equipmentCatalog().single { it.equipmentId == id }.illustrationKey)
+    }
+
+    @Test fun localEquipmentFromFactBecomesPersistentCatalogAndExportEntry() = runBlocking {
+        import(program())
+        val id = repository.startWorkout("program",1,"session")
+        repository.saveSet(setCommand("actual",id,1).copy(equipmentIdActual="local:new", equipmentNameActual="Мой тренажёр",setupActual="Сиденье 5"))
+        assertEquals("Мой тренажёр",repository.equipmentCatalog().single { it.equipmentId=="local:new" }.name)
+        assertTrue(repository.snapshotSource(id).equipment.any { it.equipmentId=="local:new" })
+        assertEquals("Мой тренажёр",database.dao().sets(id).single().equipmentNameActual)
+    }
+
+    @Test fun skippingRemainingIsAtomicIdempotentAndKeepsFacts() = runBlocking {
+        import(program(sets=2))
+        val id=repository.startWorkout("program",1,"session")
+        repository.saveSet(setCommand("done",id,1))
+        repository.skipRemainingSets(id,"exercise","2026-10-26T10:00:00Z","equipment_busy","Занят")
+        repository.skipRemainingSets(id,"exercise","2026-10-26T10:00:01Z","equipment_busy",null)
+        assertEquals(1,database.dao().setCount(id))
+        assertEquals(1,database.dao().skipCount(id))
+        assertEquals(2,database.dao().skips(id).single().plannedSetNo)
+        assertEquals("Занят",database.dao().skips(id).single().note)
+    }
+
+    @Test fun historyCanCorrectActualMovementWithoutChangingPlanOrTimestamp() = runBlocking {
+        import(program()); val id=repository.startWorkout("program",1,"session")
+        repository.saveSet(setCommand("fact",id,1)); val old=database.dao().set("fact")!!
+        repository.editSet(EditSetCommand("fact",20.0,8,2,"edited",listOf("exercise_changed"),null,
+            null,null,null,"total_external","bilateral",exerciseIdActual="local-exercise:new",titleActual="Другое движение"))
+        val actual=database.dao().set("fact")!!
+        assertEquals("local-exercise:new",actual.exerciseIdActual); assertEquals("Другое движение",actual.titleActual)
+        assertEquals(old.completedAt,actual.completedAt); assertEquals(old.sequenceNo,actual.sequenceNo)
+        assertTrue(database.dao().workout(id)!!.planSnapshotJson.contains("exercise-id"))
+    }
+
+    @Test fun existingOrphanEquipmentReferencesAreRepairedForTheNextExport() = runBlocking {
+        import(program()); val id=repository.startWorkout("program",1,"session")
+        database.dao().insertSet(entity("old-fact",id,1,1).copy(equipmentIdActual="local:legacy",
+            equipmentNameActual="Старый тренажёр",setupActual="Сиденье 6"))
+        assertNull(database.dao().equipment("local:legacy"))
+        assertTrue(repository.snapshotSource(id).equipment.any { it.equipmentId=="local:legacy" })
+        assertEquals("Старый тренажёр",repository.equipmentCatalog().single { it.equipmentId=="local:legacy" }.name)
+    }
+
+    @Test fun extraTypeCanBeCorrectedWhilePlannedTypeRemainsImmutable() = runBlocking {
+        import(program());val id=repository.startWorkout("program",1,"session")
+        repository.saveSet(setCommand("extra",id,null))
+        fun edit(id: String,type: String)=EditSetCommand(id,1.0,1,null,"edited",emptyList(),null,
+            null,null,null,"machine_display","bilateral",setType=type)
+        repository.editSet(edit("extra","warmup"))
+        assertEquals("warmup",database.dao().set("extra")!!.setType)
+        repository.saveSet(setCommand("planned",id,1))
+        assertTrue(runCatching { repository.editSet(edit("planned","warmup")) }.isFailure)
+        assertEquals("work",database.dao().set("planned")!!.setType)
+    }
+
     private lateinit var database: SportzalDatabase
     private lateinit var repository: RoomSportzalRepository
     private var clock = 0
@@ -77,6 +144,23 @@ class SportzalDatabaseTest {
             assertNotNull(database.dao().equipment("equipment"))
             assertEquals("program", repository.observeTodayState().first().activeProgramId)
         }
+    }
+
+    @Test fun explicitActivationPreservesActiveWorkoutAndHistory() = runBlocking {
+        val first = program()
+        repository.importProgram(first, StrictJson.encodeToString(first), "v1")
+        val workoutId = repository.startWorkout("program", 1, "session")
+        val snapshot = database.dao().workout(workoutId)!!.planSnapshotJson
+        val second = program(version = 2)
+        repository.importProgram(second, StrictJson.encodeToString(second), "v2")
+        assertEquals(ru.sportzal.app.model.ProgramImportStatus.STORED_INACTIVE,
+            repository.programImportStatus("program", 1, "v1"))
+        repository.activateProgram("program", 1, "v1")
+        assertEquals(1, database.dao().state()!!.activeProgramVersion)
+        assertEquals(snapshot, database.dao().workout(workoutId)!!.planSnapshotJson)
+        assertEquals(1, database.dao().workout(workoutId)!!.programVersion)
+        assertThrows(IllegalStateException::class.java) { runBlocking { repository.activateProgram("program", 1, "wrong") } }
+        assertEquals(1, database.dao().state()!!.activeProgramVersion)
     }
 
     @Test

@@ -26,6 +26,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import ru.sportzal.app.data.db.SetResultEntity
 import ru.sportzal.app.model.StrictJson
 import ru.sportzal.app.ui.workout.InteractionSource
@@ -47,13 +48,18 @@ fun SetResultRow(
     onEdit: (Double, Int, Int?, List<String>, String?, (Boolean) -> Unit) -> Unit,
     onDelete: ((Boolean) -> Unit) -> Unit,
     onEditContext: (Double, Int, Int?, List<String>, String?, ActualContext, (Boolean) -> Unit) -> Unit = { _, _, _, _, _, _, _ -> },
+    equipmentChoices: List<ru.sportzal.app.model.EquipmentDocument> = emptyList(),
+    exerciseChoices: List<ru.sportzal.app.model.ExerciseDocument> = emptyList(),
+    reloadRequired: Boolean = false,
+    error: String? = null,
 ) {
-    var menu by remember { mutableStateOf(false) }
-    var edit by remember { mutableStateOf(false) }
-    var confirmDelete by remember { mutableStateOf(false) }
+    var menu by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var edit by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var confirmDelete by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     fun closeAll() { menu = false; edit = false; confirmDelete = false; onInteraction(InteractionSource.SET_ACTIONS, false) }
+    androidx.compose.runtime.LaunchedEffect(reloadRequired) { if (reloadRequired) closeAll() }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("${result.plannedSetNo}. ${result.weightKg.g} кг × ${result.reps}" + (result.rir?.let { " · ${compactRirLabel(it)}" } ?: ""))
+        Text("${result.plannedSetNo?.let { "$it." } ?: "Доп."} ${result.weightKg.g} кг × ${result.reps}" + (result.rir?.let { " · ${compactRirLabel(it)}" } ?: ""), modifier = Modifier.weight(1f))
         IconButton({ menu = true; onInteraction(InteractionSource.SET_ACTIONS, true) }, enabled = !saving,
             modifier = Modifier.semantics { contentDescription = "Меню записанного подхода" }
                 .testTag("set-actions-${result.setResultId}")) { Text("⋮") }
@@ -62,11 +68,11 @@ fun SetResultRow(
             DropdownMenuItem({ Text("Удалить") }, { menu = false; confirmDelete = true })
         }
     }
-    if (edit) EditSetDialog(result, showRir, saving, ::closeAll) { weight, reps, rir, deviations, note, context ->
+    if (edit) EditSetDialog(result, showRir, saving, ::closeAll, equipmentChoices, exerciseChoices, error = error) { weight, reps, rir, deviations, note, context ->
         onEditContext(weight, reps, rir, deviations, note, context) { committed -> if (committed) closeAll() }
     }
     if (confirmDelete) AlertDialog(onDismissRequest = { if (!saving) closeAll() }, title = { Text("Удалить этот подход?") },
-        text = { Text("Подход снова станет незаполненным.") },
+        text = { Column { Text(if (result.plannedSetNo != null) "Плановый подход снова станет незаполненным." else "Дополнительный подход будет удалён из истории."); error?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error) } } },
         dismissButton = { TextButton(::closeAll, enabled = !saving) { Text("Отмена") } },
         confirmButton = { TextButton({ onDelete { committed -> if (committed) closeAll() } }, enabled = !saving,
             modifier = Modifier.testTag("confirm-delete")) { Text("Удалить") } })
@@ -75,47 +81,42 @@ fun SetResultRow(
 @Composable
 internal fun EditSetDialog(
     result: SetResultEntity, showRir: Boolean, saving: Boolean, onDismiss: () -> Unit,
+    equipmentChoices: List<ru.sportzal.app.model.EquipmentDocument> = emptyList(),
+    exerciseChoices: List<ru.sportzal.app.model.ExerciseDocument> = emptyList(),
+    error: String? = null,
     onSave: (Double, Int, Int?, List<String>, String?, ActualContext) -> Unit,
 ) {
-    var weight by remember { mutableStateOf(result.weightKg.g) }
-    var reps by remember { mutableStateOf(result.reps.toString()) }
-    var rir by remember { mutableStateOf(result.rir) }
-    var deviations by remember { mutableStateOf(runCatching { StrictJson.decodeFromString<List<String>>(result.deviationsJson) }.getOrDefault(emptyList()).toSet()) }
-    var note by remember { mutableStateOf(result.note.orEmpty()) }
-    var equipmentId by remember { mutableStateOf(result.equipmentIdActual.orEmpty()) }
-    var equipmentName by remember { mutableStateOf(result.equipmentNameActual.orEmpty()) }
-    var setup by remember { mutableStateOf(result.setupActual.orEmpty()) }
-    var loadBasis by remember { mutableStateOf(result.loadBasisActual) }
-    var side by remember { mutableStateOf(result.sideActual) }
+    var weight by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(result.weightKg.g) }
+    var reps by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(result.reps.toString()) }
+    var rir by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(result.rir) }
+    var deviations by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(runCatching { StrictJson.decodeFromString<List<String>>(result.deviationsJson) }.getOrDefault(emptyList()).toSet()) }
+    var note by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(result.note.orEmpty()) }
+    var contextJson by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(StrictJson.encodeToString(
+        ActualContext(result.exerciseIdActual, result.equipmentIdActual, result.setupActual, result.loadBasisActual,
+            result.sideActual, result.equipmentNameActual, result.titleActual))) }
+    val context = StrictJson.decodeFromString<ActualContext>(contextJson)
     val parsedWeight = weight.replace(',', '.').toDoubleOrNull()
     val parsedReps = reps.toIntOrNull()
     val valid = parsedWeight != null && parsedWeight.isFinite() && parsedWeight >= 0 && parsedReps != null && parsedReps >= 0 &&
-        (loadBasis != "bodyweight" || parsedWeight == 0.0)
+        (context.loadBasis != "bodyweight" || parsedWeight == 0.0) && context.validForSave()
     AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text("Подход ${result.plannedSetNo ?: result.sequenceNo}") },
         text = { Column(
             modifier = Modifier.verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            OutlinedTextField(weight, { weight = it }, label = { Text("Вес") }, enabled = loadBasis != "bodyweight")
+            OutlinedTextField(weight, { weight = it }, label = { Text("Вес") }, enabled = !saving && context.loadBasis != "bodyweight")
             OutlinedTextField(reps, { reps = it }, label = { Text("Повторы") }, modifier = Modifier.testTag("edit-reps"))
-            OutlinedTextField(equipmentId, { value -> if (value != equipmentId) { equipmentId = value; weight = "" } },
-                label = { Text("ID оборудования") }, modifier = Modifier.testTag("edit-equipment-id"))
-            OutlinedTextField(equipmentName, { equipmentName = it }, label = { Text("Название оборудования") })
-            OutlinedTextField(setup, { setup = it }, label = { Text("Настройка тренажёра") }, modifier = Modifier.testTag("edit-setup"))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                loadBases.forEach { value -> FilterChip(loadBasis == value, { if (loadBasis != value) {
-                loadBasis = value; weight = if (value == "bodyweight") "0" else ""
-            } }, { Text(loadBasisLabel(value)) }) }
-            }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("bilateral", "left", "right").forEach { value -> FilterChip(side == value, { side = value }, { Text(sideLabel(value)) }) }
+            ActualContextEditor(context, equipmentChoices, exerciseChoices, !saving) { next ->
+                val movementChanged = next.exerciseId != context.exerciseId
+                if (movementChanged || next.equipmentId != context.equipmentId || next.loadBasis != context.loadBasis) {
+                    weight = if (next.loadBasis == "bodyweight") "0" else ""; rir = null
+                }
+                if (movementChanged) reps = ""
+                contextJson = StrictJson.encodeToString(next)
             }
             if (showRir) {
                 Text("Запас повторов")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    (0..4).forEach { value -> FilterChip(rir == value, { rir = value }, { Text(ru.sportzal.app.ui.text.rirLabel(value)) }) }
-                    FilterChip(rir == null, { rir = null }, { Text("Не оценил") })
-                }
+                RirSelector(rir, answered = true, enabled = !saving) { rir = it }
             }
             Text("Отклонения")
             deviationCodes.forEach { value -> FilterChip(value in deviations, {
@@ -124,12 +125,13 @@ internal fun EditSetDialog(
             OutlinedTextField(note, { note = it }, label = { Text("Комментарий") })
         } },
         dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } },
-        confirmButton = { TextButton({ onSave(parsedWeight!!, parsedReps!!, rir, deviations.toList(), note,
-            ActualContext(result.exerciseIdActual, equipmentId.trim().ifEmpty { null }, setup.trim().ifEmpty { null },
-                loadBasis, side, equipmentName.trim().ifEmpty { null })) },
-            enabled = valid && !saving, modifier = Modifier.testTag("save-edit")) { Text("Сохранить") } })
+        confirmButton = { Column {
+            error?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error) }
+            TextButton({ onSave(parsedWeight!!, parsedReps!!, rir, deviations.toList(), note,
+            context.normalized()) },
+            enabled = valid && !saving, modifier = Modifier.testTag("save-edit")) { Text("Сохранить") } } })
 }
 
 private val loadBases = listOf("machine_display", "total_external", "per_hand", "assistance", "bodyweight")
 
-private val Double.g: String get() = if (this % 1.0 == 0.0) toInt().toString() else toString()
+private val Double.g: String get() = (if (this % 1.0 == 0.0) toLong().toString() else toString()).replace('.', ',')

@@ -12,12 +12,17 @@ import kotlinx.coroutines.withContext
 import ru.sportzal.app.data.repository.SportzalRepository
 import ru.sportzal.app.model.ImportResult
 import ru.sportzal.app.model.ProgramDocument
+import ru.sportzal.app.model.EquipmentDocument
+import ru.sportzal.app.model.ProgramImportStatus
+import kotlinx.coroutines.CancellationException
 
 sealed interface ImportPreview {
     data class Valid internal constructor(
         val program: ProgramDocument,
         val canonicalJson: String,
         internal val canonicalHash: String,
+        val status: ProgramImportStatus = ProgramImportStatus.NEW,
+        val equipment: List<EquipmentDocument> = program.equipmentUpserts,
     ) : ImportPreview
     data class Error(val message: String) : ImportPreview
 }
@@ -58,14 +63,27 @@ class ProgramImporter(
         preview(source)
     }
 
-    fun preview(source: String): ImportPreview =
-        when (val result = validator.validate(source)) {
-            is ValidationResult.Success -> ImportPreview.Valid(result.value, result.canonicalJson, result.canonicalHash)
+    suspend fun preview(source: String): ImportPreview = try {
+        val catalog = repository.equipmentCatalog()
+        when (val result = validator.validate(source, catalog.map { it.equipmentId }.toSet())) {
+            is ValidationResult.Success -> {
+                val equipment = catalog.map { EquipmentDocument(it.equipmentId, it.name, it.setupHint,
+                    it.weightStepKg, it.availableWeightsKg, it.notes) }.associateBy { it.equipmentId }.toMutableMap()
+                result.value.equipmentUpserts.forEach { equipment[it.equipmentId] = it }
+                ImportPreview.Valid(result.value, result.canonicalJson, result.canonicalHash,
+                    repository.programImportStatus(result.value.programId, result.value.programVersion, result.canonicalHash), equipment.values.toList())
+            }
             is ValidationResult.Failure -> ImportPreview.Error("Программа не импортирована: ${result.message}")
         }
+    } catch (cancelled: CancellationException) { throw cancelled }
+      catch (_: Exception) { ImportPreview.Error("Не удалось прочитать каталог или сохранённые планы. Повторите загрузку файла.") }
 
     suspend fun confirm(preview: ImportPreview.Valid): ImportResult = repository.importProgram(
         preview.program, preview.canonicalJson, preview.canonicalHash,
+    )
+
+    suspend fun activate(preview: ImportPreview.Valid) = repository.activateProgram(
+        preview.program.programId, preview.program.programVersion, preview.canonicalHash,
     )
 
     private fun decodeUtf8Strict(bytes: ByteArray): String =

@@ -62,6 +62,7 @@ data class EquipmentCatalogItem(
     val availableWeightsKg: List<Double>?,
     val notes: String?,
     val photoPath: String?,
+    val illustrationKey: String? = null,
 )
 
 data class SaveEquipmentCommand(
@@ -69,9 +70,12 @@ data class SaveEquipmentCommand(
     val name: String,
     val setupHint: String?,
     val notes: String?,
+    val configuration: EquipmentConfiguration? = null,
 )
 
 enum class CompletionStatus { ACTIVE, COMPLETED, ENDED_EARLY }
+
+enum class ProgramImportStatus { NEW, ALREADY_ACTIVE, STORED_INACTIVE, CONFLICT }
 
 sealed interface ImportResult {
     data object Imported : ImportResult
@@ -127,6 +131,9 @@ data class EditSetCommand(
     val setupActual: String?,
     val loadBasisActual: String,
     val sideActual: String,
+    val exerciseIdActual: String? = null,
+    val titleActual: String? = null,
+    val setType: String? = null,
 )
 
 data class SkipSetCommand(

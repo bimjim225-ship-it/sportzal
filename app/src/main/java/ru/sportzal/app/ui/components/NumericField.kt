@@ -26,6 +26,7 @@ fun NumericField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    error: String? = null,
 ) {
     OutlinedTextField(
         value = value,
@@ -38,8 +39,10 @@ fun NumericField(
         },
         modifier = modifier.heightIn(min = 48.dp).widthIn(min = 96.dp),
         enabled = enabled,
+        isError = error != null,
+        supportingText = error?.let { message -> { Text(message) } },
         label = { Text(label) },
-        textStyle = androidx.compose.material3.LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace),
+        textStyle = ru.sportzal.app.ui.theme.NumericTextStyle,
         keyboardOptions = KeyboardOptions(keyboardType = if (kind == NumericKind.WEIGHT) KeyboardType.Decimal else KeyboardType.Number),
         singleLine = true,
     )

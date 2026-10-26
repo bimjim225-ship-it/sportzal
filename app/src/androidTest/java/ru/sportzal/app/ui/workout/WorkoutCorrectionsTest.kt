@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -37,6 +38,24 @@ import java.time.Instant
 class WorkoutCorrectionsTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun extraSetRemainsAvailableAfterFinalPlannedSlot() {
+        val original = workout(current = null, saved = listOf(result()))
+        val complete = original.withCard(original.card().copy(
+            exercise = original.card().exercise.copy(plannedSets = listOf(original.card().exercise.plannedSets.first()))))
+        var recorded = 0
+        compose.setContent { SportzalTheme { WorkoutScreen(complete, { "00:00" }, { _, _, _, _, _ -> },
+            { _, _, _, _, _, _ -> }, { _, _, _ -> }, {},
+            onExtra = { _, _, weight, reps, _, _, done ->
+                assertEquals(25.0, weight, 0.0); assertEquals(8, reps); recorded++; done(true)
+            }) } }
+        compose.onNodeWithTag("secondary-instance").performClick()
+        compose.onNodeWithText("Дополнительный подход").performClick()
+        compose.onNodeWithTag("extra-weight").assertExists().performTextInput("25")
+        compose.onNodeWithTag("extra-reps").performTextInput("8")
+        compose.onNodeWithTag("save-extra").performClick()
+        compose.runOnIdle { assertEquals(1, recorded) }
+    }
+
     @Test fun editClosesOnlyAfterCommitAndDisplaysCommittedValues() {
         var ui by mutableStateOf(workout(saved = listOf(result())))
         val interactions = mutableListOf<Pair<InteractionSource, Boolean>>()
@@ -49,7 +68,7 @@ class WorkoutCorrectionsTest {
         compose.onNodeWithText("Изменить").performClick()
         compose.onNodeWithTag("edit-reps").performTextClearance()
         compose.onNodeWithTag("edit-reps").performTextInput("8")
-        compose.onNodeWithText("3 повтора в запасе").performScrollTo().assertIsDisplayed().performClick().assertIsSelected()
+        compose.onNodeWithContentDescription("3 повтора в запасе").performScrollTo().assertIsDisplayed().performClick().assertIsSelected()
         compose.onNodeWithTag("deviation-technique_changed").performScrollTo().assertIsDisplayed().performClick().assertIsSelected()
         compose.onNodeWithTag("save-edit").assertIsDisplayed().assertIsEnabled().performClick()
 
@@ -192,7 +211,7 @@ class WorkoutCorrectionsTest {
         compose.onNodeWithTag("confirm-skip").assertDoesNotExist()
         compose.onNodeWithText("1. 100 кг × 5 · Запас: 2").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("2. Пропущено").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Все подходы записаны").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Подходы закрыты · есть пропуски").performScrollTo().assertIsDisplayed()
         assertEquals(listOf(InteractionSource.SKIP_DIALOG to true, InteractionSource.SKIP_DIALOG to false),
             interactions.filter { it.first == InteractionSource.SKIP_DIALOG })
     }
@@ -250,6 +269,55 @@ class WorkoutCorrectionsTest {
                 update(state.withCard(card.copy(currentSlot = slot(setNo), draft = draft(setNo),
                     skipped = card.skipped.filterNot { it.plannedSetNo == setNo })))
             }) }
+    }
+
+    @Test fun editCommitReadFailureReleasesTheModalForRecovery() = assertModalRecovery(false)
+    @Test fun deleteCommitReadFailureReleasesTheModalForRecovery() = assertModalRecovery(true)
+
+    private fun assertModalRecovery(delete: Boolean) {
+        var ui by mutableStateOf(workout(current=2,saved=listOf(result())))
+        var reloaded=false
+        fun failedRead() { ui=ui.copy(reloadRequired=true,error="Записано; повторите чтение") }
+        compose.setContent { SportzalTheme {
+            WorkoutScreen(ui,{"0:00"},{_,_,_,_,_->},{_,_,_,_,_,_->},{_,_,_->},{},
+                onEdit={_,_,_,_,_,_,done->failedRead();done(false)},
+                onDelete={_,done->failedRead();done(false)},
+                onReload={reloaded=true},focusedExerciseId="instance")
+        } }
+        compose.onNodeWithText("Записанные подходы (1)").performScrollTo().performClick()
+        compose.onNodeWithTag("set-actions-set-1").performScrollTo().performClick()
+        compose.onNodeWithText(if(delete) "Удалить" else "Изменить").performClick()
+        val confirmation=if(delete) "confirm-delete" else "save-edit"
+        compose.onNodeWithTag(confirmation).performClick()
+        compose.onNodeWithTag(confirmation).assertDoesNotExist()
+        compose.onNodeWithTag("reload-workout").performScrollTo().assertIsEnabled().performClick()
+        compose.runOnIdle { assertEquals(true,reloaded) }
+    }
+
+    @Test fun replacementOverviewShowsActualMovementAndNeverAssignsOriginalLoad() {
+        val original=workout(current=1)
+        val actual=ActualContext("local-exercise:row","different",null,"machine_display","bilateral","Другой тренажёр","Другая тяга")
+        val ui=original.withCard(original.card().copy(draft=SetDraft(null,null,null,actual)))
+        compose.setContent { SportzalTheme { WorkoutOverview(ui,{}, {}, {}, {}) } }
+        compose.onNodeWithText("Другая тяга").assertExists()
+        compose.onNodeWithText("Замена · укажите вес и повторы").assertExists()
+        compose.onNodeWithText("Рабочий · 100 кг · 5–8").assertDoesNotExist()
+    }
+
+    @Test fun equipmentReplacementOverviewDoesNotReuseItsOriginalMachineLoad() {
+        val original=workout(current=1)
+        val actual=draft(1).context.copy(equipmentId="different",equipmentName="Другой тренажёр")
+        val ui=original.withCard(original.card().copy(draft=SetDraft(null,5,null,actual)))
+        compose.setContent { SportzalTheme { WorkoutOverview(ui,{}, {}, {}, {}) } }
+        compose.onNodeWithText("Замена · укажите вес и повторы").assertExists()
+        compose.onNodeWithText("Рабочий · 100 кг · 5–8").assertDoesNotExist()
+    }
+
+    @Test fun rotationOverviewKeepsElapsedTimerVisibleWithStableSemantics() {
+        val original=workout(current=2,saved=listOf(result()))
+        val ui=original.copy(blocks=listOf(original.blocks.single().copy(mode="rotation")))
+        compose.setContent { SportzalTheme { WorkoutOverview(ui,{}, {}, {}, {}, {"≈ 1:23"}) } }
+        compose.onNodeWithContentDescription("Время с записи подхода").assertIsDisplayed()
     }
 
     private fun workout(current: Int? = null, saved: List<SetResultEntity> = emptyList(), skipped: List<SkippedSetEntity> = emptyList()): WorkoutUiState {

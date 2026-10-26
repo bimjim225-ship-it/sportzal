@@ -41,7 +41,7 @@ class FinishFlowTest {
             }
         }
 
-        listOf("Отправить JSON", "Сохранить JSON", "Закрыть").forEach { label ->
+        listOf("Передать отчёт ИИ", "Сохранить файл", "На главный экран").forEach { label ->
             compose.onNodeWithText(label).assertExists().performScrollTo().performClick()
         }
         assertEquals(listOf(1, 1, 1), listOf(share, save, close))

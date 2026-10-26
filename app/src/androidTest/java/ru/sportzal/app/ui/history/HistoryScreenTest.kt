@@ -1,8 +1,10 @@
 package ru.sportzal.app.ui.history
 
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -41,7 +43,9 @@ class HistoryScreenTest {
         }
 
         compose.onNodeWithText("Длительность: 30:00").assertExists()
-        assertHistoryText("Факт: 100 кг × 8 · Запас: 4+ · 12:15")
+        val localTime = java.time.Instant.parse("2026-09-08T12:15:00Z")
+            .atZone(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+        assertHistoryText("Факт: 100 кг × 8 · Запас: 4+ · $localTime")
         assertHistoryText("Факт: Жим ногами · сиденье 4 · Вес на тренажёре · Обе стороны")
         assertHistoryText("Отклонения: Дискомфорт")
         assertHistoryText("Комментарий: Болело колено")
@@ -96,10 +100,11 @@ class HistoryScreenTest {
 
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Изменить"))
         compose.onNodeWithText("Изменить").performClick()
-        compose.onNodeWithText("ID оборудования").assertExists()
+        compose.onNodeWithText("ID оборудования").assertDoesNotExist()
+        compose.onNodeWithText("Указать другое оборудование").assertExists()
         compose.onNodeWithText("Настройка тренажёра").assertExists()
         compose.onNodeWithText("Отклонения").assertExists()
-        compose.onNodeWithText("4+ повтора в запасе").assertExists()
+        compose.onNodeWithContentDescription("4+ повтора в запасе").assertExists()
         compose.onNodeWithText("Сохранить").performClick()
 
         assertEquals(listOf("discomfort"), capturedDeviations)
@@ -111,6 +116,17 @@ class HistoryScreenTest {
         assertEquals("machine_display", capturedContext?.loadBasis)
         assertEquals("bilateral", capturedContext?.side)
         assertTrue(capturedContext != null)
+    }
+
+    @Test fun historyExportActionsShareThePreparingGuard() {
+        compose.setContent { SportzalTheme {
+            HistoryDetailScreen(historyState(), {}, { _, done -> done(true) },
+                { _, _, _, _, _, done -> done(true) }, { _, done -> done(true) }, {},
+                preparing = true, onSaveFile = {})
+        } }
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Сохранить файл"))
+        compose.onNodeWithText("Сохранить файл").assertIsNotEnabled()
+        compose.onNodeWithText("Передать отчёт ИИ").assertIsNotEnabled()
     }
 
     private fun assertHistoryText(text: String) {

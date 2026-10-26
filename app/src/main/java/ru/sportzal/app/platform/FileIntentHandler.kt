@@ -19,7 +19,7 @@ class FileIntentHandler(private val reader: JsonFileReader, private val importer
         JsonReadResult.Unreadable -> FileIntentResult.Message("Не удалось прочитать JSON")
         is JsonReadResult.Success -> classify(read.source)
     } }
-    private fun classify(source: String): FileIntentResult {
+    private suspend fun classify(source: String): FileIntentResult {
         val schema = runCatching { StrictJson.parseToJsonElement(source).jsonObject["schema"]?.jsonPrimitive?.content }
             .getOrNull() ?: return FileIntentResult.Message("Не удалось прочитать JSON")
         return when (schema) {
