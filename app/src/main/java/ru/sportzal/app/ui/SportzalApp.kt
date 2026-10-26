@@ -17,6 +17,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import ru.sportzal.app.AppContainer
 import ru.sportzal.app.R
 import ru.sportzal.app.domain.TodaySelection
@@ -33,7 +35,7 @@ import ru.sportzal.app.ui.workout.*
 @Composable
 fun SportzalApp(container: AppContainer, incomingUri: Uri?, consumeIncoming: () -> Unit) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope { Dispatchers.Main.immediate }
     val today = remember { TodayViewModel(container.database, container.repository, container.programImporter, container.workoutService) }
     val workout = remember { WorkoutViewModel(container.repository, container.clockProvider) }
     val history = remember { HistoryViewModel(container.repository) }
@@ -87,7 +89,11 @@ fun SportzalApp(container: AppContainer, incomingUri: Uri?, consumeIncoming: () 
         if (workoutState.finishSummary != null) finishId = workoutState.workoutId
     }
     LaunchedEffect(incomingUri) { incomingUri?.let {
-        today.showFileResult(container.fileIntentHandler.handle(it)); consumeIncoming()
+        val result = container.fileIntentHandler.handle(it)
+        withContext(Dispatchers.Main.immediate) {
+            today.showFileResult(result)
+            consumeIncoming()
+        }
     } }
     fun focusExercise(id: String?) {
         focusedId = id

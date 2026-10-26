@@ -90,7 +90,7 @@ fun TodayScreen(selection: TodaySelection, manualChoices: List<PlannedWorkout>, 
             Text("Каталог, план и последние 24 завершённые тренировки. Отправьте файл в свой чат с ИИ.", style = MaterialTheme.typography.bodyMedium)
             SportzalButton("Передать отчёт ИИ", onShare, busy = preparing, secondary = true)
             onSaveFile?.let { TextButton(it, enabled = !preparing) { Text("Сохранить файл") } }
-            if (selection !is TodaySelection.NoProgram) TextButton(onPickProgram, enabled = !busy) { Text("Загрузить план от ИИ") }
+            if (selection is TodaySelection.Ready || selection is TodaySelection.Resume) TextButton(onPickProgram, enabled = !busy) { Text("Загрузить план от ИИ") }
         } } }
     }
 }
