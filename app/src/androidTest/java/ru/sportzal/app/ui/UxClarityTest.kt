@@ -1,8 +1,8 @@
 package ru.sportzal.app.ui
 
 import android.content.Context
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -20,6 +20,7 @@ import ru.sportzal.app.data.files.ImportPreview
 import ru.sportzal.app.domain.*
 import ru.sportzal.app.model.*
 import ru.sportzal.app.ui.components.RirSelector
+import ru.sportzal.app.ui.components.AppSafeArea
 import ru.sportzal.app.ui.equipment.*
 import ru.sportzal.app.ui.media.*
 import ru.sportzal.app.ui.theme.SportzalTheme
@@ -195,6 +196,82 @@ class UxClarityTest {
         compose.onNodeWithText("Закрыть").performClick()
         scrollTo("Записать подход")
         compose.onNodeWithTag("save-${exercise.exerciseInstanceId}").assertIsDisplayed()
+    }
+
+    @Test fun longNoteErrorKeepsShareAndEditableNoteReachableWithImeAndLargeFont() {
+        val error = mutableStateOf<String?>(null)
+        val message = "Не удалось сохранить заметку. ".repeat(40) + "Конец сообщения"
+        var sends = 0
+        showWithKeyboard {
+            FinishScreen(FinishSummary(3600, 2, emptyList(), false), error.value,
+                onNote = { _, done -> error.value = message; done(false) },
+                onShare = { sends++ }, onSave = {}, onClose = {})
+        }
+        compose.onNodeWithText("Как прошла тренировка").performScrollTo().performTextInput("Моя заметка")
+        compose.onNodeWithText("Передать отчёт ИИ").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Передать отчёт ИИ").assertIsDisplayed()
+        compose.onNodeWithText("Моя заметка").performScrollTo().assertIsDisplayed()
+        assertEquals(0, sends)
+        compose.onNodeWithText(message).performClick()
+        compose.onNodeWithText("Ошибка").assertIsDisplayed()
+        compose.onNodeWithTag("action-error-detail").assertTextEquals(message)
+        compose.onNodeWithText("Закрыть").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Передать отчёт ИИ").assertIsDisplayed()
+    }
+
+    @Test fun catalogSearchAndAddSurviveNavigationImeAndLargeFontTogether() {
+        val items = (1..60).map { EquipmentCatalogItem("e$it", "Тренажёр $it", null, null, null, null, null) }
+        showWithKeyboard {
+            Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0), bottomBar = {
+                NavigationBar {
+                    listOf("Сегодня", "История", "Тренажёры").forEach { title ->
+                        NavigationBarItem(title == "Тренажёры", {}, icon = { Box(Modifier.size(24.dp)) }, label = { Text(title) })
+                    }
+                }
+            }) { padding -> Box(Modifier.padding(padding)) {
+                EquipmentScreen(EquipmentUiState(items, loading = false),
+                    EquipmentPhotoStore(ApplicationProvider.getApplicationContext<Context>()), {}, { _, done -> done(true) }, { _, _ -> }, {})
+            } }
+        }
+        val query = compose.onNode(hasSetTextAction())
+        query.performScrollTo().assertIsDisplayed()
+        val clipped = query.getBoundsInRoot()
+        val full = query.getUnclippedBoundsInRoot()
+        assertTrue("Search input must not collapse behind the fixed header",
+            clipped.bottom - clipped.top + 1.dp >= full.bottom - full.top)
+        query.performTextInput("60")
+        scrollTo("Тренажёр 60")
+        compose.onNodeWithText("Тренажёр 60").assertIsDisplayed()
+        compose.onNodeWithText("Добавить тренажёр").assertIsDisplayed()
+    }
+
+    @Test fun longExerciseTitleDoesNotCollapseTheFormWithImeAndLargeFont() {
+        val title = "Тяга верхнего блока широким нейтральным хватом к верхней части груди"
+        val exercise = longPlan().blocks.first().exercises.single().copy(title = title, rirCapture = "none")
+        val context = ActualContext("row", null, "Сиденье 4", "machine_display", "bilateral")
+        val slot = PlannedSlot(1, "work", 35.0, 10, 12, 2, 90, context)
+        val state = WorkoutUiState("active", "План", listOf(BlockUiState("block", "Блок", "straight",
+            listOf(ExerciseUiState(exercise, slot, SetDraft(35.0, 10, null, context), emptyList())))))
+        var saves = 0
+        showWithKeyboard {
+            WorkoutScreen(state, { "" }, { _, _, _, _, _ -> }, { _, _, weight, _, _, _ ->
+                assertEquals(37.5, weight!!, 0.0); saves++
+            }, { _, _, _ -> }, {}, focusedExerciseId = exercise.exerciseInstanceId)
+        }
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
+            .performScrollToNode(hasTestTag("weight-${exercise.exerciseInstanceId}"))
+        compose.onNodeWithTag("weight-${exercise.exerciseInstanceId}")
+            .performScrollTo().assertIsDisplayed().performTextReplacement("37,5")
+        compose.onNodeWithTag("save-${exercise.exerciseInstanceId}").performScrollTo().assertIsDisplayed().performClick()
+        assertEquals(1, saves)
+        compose.onNodeWithText("Схема").assertIsDisplayed()
+        scrollTo(title)
+        compose.onNodeWithText(title).assertIsDisplayed()
+    }
+
+    private fun showWithKeyboard(content: @Composable () -> Unit) = show(2f) {
+        AppSafeArea(safeDrawingInsets = WindowInsets(top = 24.dp, bottom = 24.dp),
+            imeInsets = WindowInsets(bottom = 280.dp), content = content)
     }
 
     private fun scrollTo(label: String) {
