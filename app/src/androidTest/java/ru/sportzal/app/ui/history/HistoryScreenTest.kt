@@ -1,5 +1,6 @@
 package ru.sportzal.app.ui.history
 
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -115,6 +116,17 @@ class HistoryScreenTest {
         assertEquals("machine_display", capturedContext?.loadBasis)
         assertEquals("bilateral", capturedContext?.side)
         assertTrue(capturedContext != null)
+    }
+
+    @Test fun historyExportActionsShareThePreparingGuard() {
+        compose.setContent { SportzalTheme {
+            HistoryDetailScreen(historyState(), {}, { _, done -> done(true) },
+                { _, _, _, _, _, done -> done(true) }, { _, done -> done(true) }, {},
+                preparing = true, onSaveFile = {})
+        } }
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Сохранить файл"))
+        compose.onNodeWithText("Сохранить файл").assertIsNotEnabled()
+        compose.onNodeWithText("Передать отчёт ИИ").assertIsNotEnabled()
     }
 
     private fun assertHistoryText(text: String) {

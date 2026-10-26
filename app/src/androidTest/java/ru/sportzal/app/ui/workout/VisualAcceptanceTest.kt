@@ -24,10 +24,26 @@ class VisualAcceptanceTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
     private val container get() = (compose.activity.application as SportzalApplication).container
 
-    @After fun cleanup() { runBlocking { container.database.clearAllTables() } }
+    @After fun cleanup() {
+        runCatching {
+            capture("99-end")
+            File(compose.activity.filesDir, "review-screens/99-semantics.txt").writeText(compose.onRoot().printToString())
+        }
+        runBlocking { container.database.clearAllTables() }
+    }
 
     @Test fun nativeCycleRetainsActivePlanDuringNewImportAndCapturesReviewScreens() {
         compose.waitForIdle()
+        runBlocking { container.database.clearAllTables() }
+        compose.activityRule.scenario.recreate()
+        await("Ваш план — здесь")
+        capture("00-onboarding")
+        scrollTo("Как получить план от ИИ"); compose.onNodeWithText("Как получить план от ИИ").performClick()
+        await("План с ИИ")
+        capture("00-ai-help")
+        scrollTo("Скопировать запрос для ИИ"); compose.onNodeWithText("Скопировать запрос для ИИ").performClick()
+        compose.onNodeWithText("Запрос скопирован").assertExists()
+        compose.onNodeWithContentDescription("Назад").performClick()
         runBlocking {
             container.database.clearAllTables()
             val initial = program(1)
@@ -47,13 +63,49 @@ class VisualAcceptanceTest {
         val activeId = runBlocking { container.database.dao().activeWorkout()!!.workoutId }
         capture("03-workout")
         scrollTo(hasTestTag("open-row")); compose.onNodeWithTag("open-row").performClick()
-        await("Упражнение")
-        capture("04-setup")
+        awaitTag("exercise-row")
+        // This is the actual first viewport, before any scroll.
+        compose.onNodeWithTag("weight-row").assertIsDisplayed()
+        compose.onNodeWithTag("save-row").assertIsDisplayed()
+        capture("04-entry")
+        compose.onNodeWithTag("save-row").performClick()
+        awaitTag("save-error")
+        scrollTo(hasTestTag("save-row"))
+        compose.onNodeWithTag("save-error").assertIsDisplayed()
+        capture("14-inline-validation")
+        scrollTo("Настройка и техника"); compose.onNodeWithText("Настройка и техника").performClick()
+        scrollTo("Настройка")
+        capture("05-setup")
         scrollTo("Техника"); compose.onNodeWithText("Техника").performClick()
-        capture("05-technique")
+        capture("06-technique")
+        scrollTo(hasTestTag("secondary-row")); compose.onNodeWithTag("secondary-row").performClick()
+        compose.onNodeWithText("Заменить упражнение / оборудование").performClick()
+        compose.onNodeWithTag("choose-actual-equipment").performClick()
+        // This machine is in the gym catalog, outside the planned workout.
+        compose.onNodeWithTag("equipment-eq-lat_pulldown").performClick()
+        compose.onNodeWithTag("choose-actual-exercise").performClick()
+        compose.onNodeWithTag("other-exercise").performClick()
+        compose.onNodeWithTag("actual-title").performTextInput("Тяга узким хватом")
+        capture("12-replacement")
+        compose.onNodeWithTag("save-context").performClick()
+        await("Тяга узким хватом")
+        compose.onNodeWithTag("weight-row").assertTextEquals("Вес", "")
+        compose.onNodeWithTag("reps-row").assertTextEquals("Повторы", "")
+        scrollTo(hasTestTag("weight-row")); compose.onNodeWithTag("weight-row").performTextReplacement("20,5")
+        compose.onNodeWithTag("reps-row").performTextReplacement("12")
         scrollTo("Не оценил"); compose.onNodeWithText("Не оценил").performClick()
         scrollTo(hasTestTag("save-row")); compose.onNodeWithTag("save-row").performClick()
         compose.waitUntil(10_000) { runBlocking { container.database.dao().setCount(activeId) == 1 } }
+        scrollTo(hasTestTag("secondary-row")); compose.onNodeWithTag("secondary-row").performClick()
+        compose.onNodeWithText("Пропустить оставшиеся подходы").performClick()
+        compose.onNodeWithTag("skip-reason-equipment_busy").performClick()
+        capture("13-skip-remaining")
+        compose.onNodeWithTag("confirm-skip").performClick()
+        compose.waitUntil(10_000) { runBlocking { container.database.dao().skipCount(activeId) == 1 } }
+        val fact = runBlocking { container.database.dao().sets(activeId).single() }
+        assertEquals("Тяга узким хватом",fact.titleActual)
+        assertEquals("eq-lat_pulldown",fact.equipmentIdActual)
+        assertEquals(20.5,fact.weightKg,0.0)
         scrollTo("К упражнениям"); compose.onNodeWithText("К упражнениям").performClick()
         awaitTag("workout-overview")
 
@@ -68,7 +120,7 @@ class VisualAcceptanceTest {
             })
         }
         await("План готов к принятию")
-        capture("06-import")
+        capture("07-import")
         assertEquals(1, runBlocking { container.database.dao().workout(activeId)!!.programVersion })
         scrollTo("Принять план"); compose.onNodeWithText("Принять план").performClick()
         awaitTag("workout-overview")
@@ -78,20 +130,20 @@ class VisualAcceptanceTest {
         scrollTo("Завершить тренировку"); compose.onNodeWithText("Завершить тренировку").performClick()
         compose.onNodeWithText("Завершить").performClick()
         await("Тренировка завершена")
-        capture("07-finish")
+        capture("08-finish")
         scrollTo("На главный экран"); compose.onNodeWithText("На главный экран").performClick()
         compose.onNodeWithText("История").performClick()
         await("Тренировка A")
-        capture("08-history")
+        capture("09-history")
         compose.onNodeWithText("Тренажёры").performClick()
         await("Оборудование моего зала")
         await("Жим от груди")
-        capture("09-catalog")
+        capture("10-catalog")
         scrollTo("Горизонтальная тяга")
         compose.onNodeWithText("Горизонтальная тяга").performClick()
         await("Тренажёр")
         scrollTo("Моя настройка")
-        capture("10-equipment")
+        capture("11-equipment")
         assertEquals(1, runBlocking { container.database.dao().setCount(activeId) })
         assertEquals("ended_early", runBlocking { container.database.dao().workout(activeId)!!.completionStatus })
     }

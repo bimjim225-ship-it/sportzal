@@ -33,7 +33,12 @@ fun ProgramImportScreen(preview: ImportPreview?, reading: Boolean, busy: Boolean
         if (reading) item { LoadingState("Читаем файл плана") }
         when (preview) {
             is ImportPreview.Valid -> {
-                item { Text("План готов к принятию", style = MaterialTheme.typography.headlineSmall)
+                item { Text(when (preview.status) {
+                    ProgramImportStatus.NEW -> "План готов к принятию"
+                    ProgramImportStatus.ALREADY_ACTIVE -> "План уже используется"
+                    ProgramImportStatus.STORED_INACTIVE -> "Сохранённый план"
+                    ProgramImportStatus.CONFLICT -> "Конфликт версии плана"
+                }, style = MaterialTheme.typography.headlineSmall)
                     Text("Версия ${preview.program.programVersion} · Тренировок: ${preview.program.workouts.size}") }
                 preview.program.coachNotes?.let { item { StatusNotice("Заметка ИИ", it) } }
                 preview.program.workouts.forEach { plan ->

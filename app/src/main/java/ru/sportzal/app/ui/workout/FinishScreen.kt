@@ -17,7 +17,7 @@ import java.util.Locale
 
 @Composable fun FinishScreen(summary: FinishSummary, error: String?, preparing: Boolean = false,
     notes: String? = null, onNote: (String, (Boolean) -> Unit) -> Unit = { _, done -> done(true) },
-    onShare: () -> Unit, onSave: () -> Unit, onClose: () -> Unit) {
+    onShare: () -> Unit, onSave: () -> Unit, onClose: () -> Unit, onAiHelp: (() -> Unit)? = null) {
     var noteValue by rememberSaveable(notes) { mutableStateOf(notes.orEmpty()) }
     var noteSaving by remember { mutableStateOf(false) }
     var closeRequested by remember { mutableStateOf(false) }
@@ -66,6 +66,7 @@ import java.util.Locale
         Text("Отчёт содержит последние 24 завершённые тренировки и текущее занятие. Открытие меню отправки не подтверждает доставку.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         SportzalButton("Сохранить файл", { commitThen(onSave) }, enabled = !busy, secondary = true)
+        onAiHelp?.let { help -> TextButton({ commitThen(help) }, enabled = !busy) { Text("Как получить следующий план") } }
         TextButton(::requestClose, enabled = !busy) { Text("На главный экран") }
     }
     if (closeRequested) AlertDialog(onDismissRequest = { closeRequested = false }, title = { Text("Сохранить заметку?") },

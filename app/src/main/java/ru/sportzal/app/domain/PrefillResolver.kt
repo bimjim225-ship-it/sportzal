@@ -10,6 +10,7 @@ import kotlinx.serialization.Serializable
     val loadBasis: String,
     val side: String,
     val equipmentName: String? = null,
+    val title: String? = null,
 )
 
 data class PlannedSlot(
@@ -60,7 +61,8 @@ object PrefillResolver {
             contextChangedFromPlan -> null
             else -> slot.targetWeightKg
         }
-        val defaults = SetDraft(defaultWeight, slot.repsMin, null, actualContext)
+        val defaults = SetDraft(defaultWeight,
+            slot.repsMin.takeIf { actualContext.exerciseId == slot.plannedContext.exerciseId }, null, actualContext)
         if (previousPlannedSlot == null || previousFact == null) return defaults
 
         val adjacent = previousPlannedSlot.plannedSetNo + 1 == slot.plannedSetNo &&

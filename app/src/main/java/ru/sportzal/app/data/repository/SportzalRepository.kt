@@ -54,6 +54,7 @@ interface SportzalRepository {
     suspend fun editSet(command: EditSetCommand)
     suspend fun deleteSet(setResultId: String)
     suspend fun skipSet(command: SkipSetCommand)
+    suspend fun skipRemainingSets(workoutId: String, exerciseInstanceId: String, recordedAt: String, reason: String?, note: String?)
     suspend fun restoreSkippedSet(workoutId: String, exerciseInstanceId: String, plannedSetNo: Int)
     suspend fun finishWorkout(workoutId: String): CompletionStatus
     fun observeActiveWorkout(): Flow<WorkoutRuntime?>
@@ -226,6 +227,8 @@ class RoomSportzalRepository(
             return@withTransaction SaveSetResult.Conflict("Planned slot already contains a fact")
         }
         val sequence = (dao.maxSequence(command.workoutId) ?: 0) + 1
+        require(command.exerciseIdActual.isNotBlank() && command.titleActual.isNotBlank())
+        ensureEquipment(command.equipmentIdActual, command.equipmentNameActual, command.setupActual)
         dao.insertSet(
             SetResultEntity(
                 command.setResultId,
@@ -276,6 +279,9 @@ class RoomSportzalRepository(
         require(command.reps >= 0) { "Reps must be non-negative" }
         require(command.rir == null || command.rir in 0..4) { "RIR must be between 0 and 4" }
         require(command.loadBasisActual != "bodyweight" || command.weightKg == 0.0) { "Bodyweight load must remain zero" }
+        require(command.exerciseIdActual == null || command.exerciseIdActual.isNotBlank())
+        require(command.titleActual == null || command.titleActual.isNotBlank())
+        ensureEquipment(command.equipmentIdActual, command.equipmentNameActual, command.setupActual)
         val deviations = command.deviations.distinct()
         require(deviations.size == command.deviations.size && deviations.all { it in DEVIATIONS }) {
             "Unknown or duplicate deviation"
@@ -293,6 +299,8 @@ class RoomSportzalRepository(
                 setupActual = command.setupActual,
                 loadBasisActual = command.loadBasisActual,
                 sideActual = command.sideActual,
+                exerciseIdActual = command.exerciseIdActual ?: old.exerciseIdActual,
+                titleActual = command.titleActual ?: old.titleActual,
             ),
         )
     }
@@ -327,6 +335,20 @@ class RoomSportzalRepository(
             ),
         )
         dao.deleteDraft(command.workoutId, command.exerciseInstanceId, command.plannedSetNo)
+    }
+
+    override suspend fun skipRemainingSets(workoutId: String, exerciseInstanceId: String,
+        recordedAt: String, reason: String?, note: String?) = db.withTransaction {
+        val exercise = plannedExercise(requireActive(workoutId), exerciseInstanceId)
+        require(reason == null || reason in SKIP_REASONS)
+        exercise.plannedSets.forEach { slot ->
+            if (dao.setInSlot(workoutId, exerciseInstanceId, slot.setNo) == null &&
+                dao.skipped(workoutId, exerciseInstanceId, slot.setNo) == null) {
+                dao.insertSkip(SkippedSetEntity(workoutId, exerciseInstanceId, slot.setNo,
+                    recordedAt, reason, note?.trim()?.ifEmpty { null }))
+                dao.deleteDraft(workoutId, exerciseInstanceId, slot.setNo)
+            }
+        }
     }
 
     override suspend fun restoreSkippedSet(workoutId: String, exerciseInstanceId: String, plannedSetNo: Int) =
@@ -375,6 +397,7 @@ class RoomSportzalRepository(
     }
 
     override suspend fun snapshotSource(focusWorkoutId: String?) = db.withTransaction {
+        repairEquipmentReferences()
         val all = dao.workouts()
         val finished = all.filter { it.completionStatus == "completed" || it.completionStatus == "ended_early" }
             .take(24)
@@ -424,8 +447,22 @@ class RoomSportzalRepository(
     }
 
     override suspend fun equipmentCatalog(): List<EquipmentCatalogItem> = db.withTransaction {
+        repairEquipmentReferences()
         val visuals = db.visualDao().equipment().associate { it.equipmentId to it.illustrationKey }
         dao.equipment().map { it.catalogItem().copy(illustrationKey = visuals[it.equipmentId]) }
+    }
+
+    private suspend fun ensureEquipment(id: String?, name: String?, setup: String?) {
+        if (id == null || dao.equipment(id) != null) return
+        require(!name.isNullOrBlank()) { "Укажите название нового тренажёра" }
+        dao.insertEquipment(EquipmentEntity(id, name.trim(), setup, null, null, null, null, now()))
+    }
+
+    private suspend fun repairEquipmentReferences() {
+        dao.missingEquipmentFacts().forEach {
+            ensureEquipment(it.equipmentIdActual, it.equipmentNameActual?.takeIf(String::isNotBlank)
+                ?: "Тренажёр без названия", it.setupActual)
+        }
     }
 
     override suspend fun saveEquipment(command: SaveEquipmentCommand): String = db.withTransaction {

@@ -53,6 +53,7 @@ fun SportzalApp(container: AppContainer, incomingUri: Uri?, consumeIncoming: () 
     var activeId by rememberSaveable { mutableStateOf<String?>(null) }
     var focusedId by rememberSaveable { mutableStateOf<String?>(null) }
     var finishId by rememberSaveable { mutableStateOf<String?>(null) }
+    var aiHelp by rememberSaveable { mutableStateOf(false) }
     var planOverview by rememberSaveable { mutableStateOf(false) }
     var cancelEmpty by remember { mutableStateOf(false) }
     var leavingFailed by remember { mutableStateOf(false) }
@@ -112,8 +113,9 @@ fun SportzalApp(container: AppContainer, incomingUri: Uri?, consumeIncoming: () 
             } else if (!workoutState.saving) leavingFailed = true
         }
     }
-    BackHandler(activeId != null || finishId != null || planOverview || todayState.preview != null || todayState.readingFile || historyState.details != null) {
+    BackHandler(aiHelp || activeId != null || finishId != null || planOverview || todayState.preview != null || todayState.readingFile || historyState.details != null) {
         when {
+            aiHelp -> aiHelp = false
             todayState.preview != null || todayState.readingFile -> today.dismissPreview()
             finishId != null -> closeFinish()
             activeId != null -> workoutBack()
@@ -148,10 +150,14 @@ fun SportzalApp(container: AppContainer, incomingUri: Uri?, consumeIncoming: () 
                         { picker.launch(arrayOf("application/json", "text/json", "text/plain")) },
                         { valid -> scope.launch { today.confirmImport(valid) } },
                         onActivate = { valid -> scope.launch { today.activate(valid) } })
+                    aiHelp -> ru.sportzal.app.ui.help.AiHelpScreen({ aiHelp = false },
+                        { exchange.share(finishId ?: historyState.details?.runtime?.workoutId) },
+                        { exchange.save(finishId ?: historyState.details?.runtime?.workoutId) },
+                        { picker.launch(arrayOf("application/json", "text/json", "text/plain")) }, exchange.preparing)
                     finishId != null && workoutState.finishSummary != null -> FinishScreen(workoutState.finishSummary!!,
                         workoutState.error, exchange.preparing, workoutState.notes,
                         { text, done -> scope.launch { done(workout.updateNotes(text)) } },
-                        { exchange.share(finishId) }, { exchange.save(finishId) }, ::closeFinish)
+                        { exchange.share(finishId) }, { exchange.save(finishId) }, ::closeFinish, onAiHelp = { aiHelp = true })
                     finishId != null -> if (opening || workoutState.error == null) LoadingState("Загрузка итогов")
                         else OpenFailure(workoutState.error!!, { openAttempt++ }, ::closeFinish)
                     activeId != null -> if (workoutState.workoutId != activeId) {
@@ -182,8 +188,10 @@ fun SportzalApp(container: AppContainer, incomingUri: Uri?, consumeIncoming: () 
                             plannedWorkout = todayState.plannedWorkout, equipment = todayState.equipment,
                             loading = todayState.loading, busy = todayState.busy, onSaveFile = { exchange.save(null) },
                             error = todayState.error, onRetry = { scope.launch { today.refresh() } },
-                            onEquipment = { destinationName = InactiveDestination.EQUIPMENT.name })
-                        InactiveDestination.HISTORY -> HistoryRoute(history, historyState) { exchange.share(historyState.details?.runtime?.workoutId) }
+                            onEquipment = { destinationName = InactiveDestination.EQUIPMENT.name }, onAiHelp = { aiHelp = true })
+                        InactiveDestination.HISTORY -> HistoryRoute(history, historyState,
+                            { exchange.share(historyState.details?.runtime?.workoutId) }, exchange.preparing,
+                            { exchange.save(historyState.details?.runtime?.workoutId) }, { aiHelp = true })
                         InactiveDestination.EQUIPMENT -> EquipmentScreen(equipmentState, container.equipmentPhotoStore,
                             { scope.launch { equipment.load() } },
                             { command, done -> scope.launch { done(equipment.save(command) != null) } },

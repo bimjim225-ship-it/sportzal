@@ -26,7 +26,7 @@ fun TodayScreen(selection: TodaySelection, manualChoices: List<PlannedWorkout>, 
     onShare: () -> Unit = {}, preparing: Boolean = false,
     plannedWorkout: PlannedWorkoutDocument? = null, equipment: List<EquipmentDocument> = emptyList(),
     loading: Boolean = false, busy: Boolean = false, onSaveFile: (() -> Unit)? = null,
-    error: String? = null, onRetry: () -> Unit = {}, onEquipment: (() -> Unit)? = null) {
+    error: String? = null, onRetry: () -> Unit = {}, onEquipment: (() -> Unit)? = null, onAiHelp: (() -> Unit)? = null) {
     if (preview != null) {
         ProgramImportScreen(preview, false, busy, message, {}, onPickProgram, onConfirmImport)
         return
@@ -42,6 +42,7 @@ fun TodayScreen(selection: TodaySelection, manualChoices: List<PlannedWorkout>, 
                     Text("Ваш план — здесь", style = MaterialTheme.typography.headlineSmall)
                     Text("Добавьте оборудование зала, передайте данные ИИ и загрузите полученный план.")
                     SportzalButton("Загрузить план от ИИ", onPickProgram)
+                    onAiHelp?.let { TextButton(it) { Text("Как получить план от ИИ") } }
                     onEquipment?.let { TextButton(it) { Text("Добавить тренажёры") } }
                 } }
                 TodaySelection.Exhausted -> StatusNotice("План выполнен", "Передайте результаты ИИ, чтобы получить следующий план.",
@@ -87,6 +88,7 @@ fun TodayScreen(selection: TodaySelection, manualChoices: List<PlannedWorkout>, 
         }
         item { Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Обмен с ИИ", style = MaterialTheme.typography.titleMedium)
+            if (selection != TodaySelection.NoProgram) onAiHelp?.let { TextButton(it) { Text("Как получить план от ИИ") } }
             Text("Каталог, план и последние 24 завершённые тренировки. Отправьте файл в свой чат с ИИ.", style = MaterialTheme.typography.bodyMedium)
             SportzalButton("Передать отчёт ИИ", onShare, busy = preparing, secondary = true)
             onSaveFile?.let { TextButton(it, enabled = !preparing) { Text("Сохранить файл") } }

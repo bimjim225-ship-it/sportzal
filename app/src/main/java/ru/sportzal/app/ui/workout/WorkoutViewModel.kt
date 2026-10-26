@@ -40,6 +40,7 @@ data class ExerciseUiState(
     val skipped: List<SkippedSetEntity> = emptyList(),
     val equipmentChoices: List<EquipmentDocument> = emptyList(),
     val equipmentPhotoPath: String? = null,
+    val exerciseChoices: List<ExerciseDocument> = emptyList(),
 )
 data class BlockUiState(
     val blockId: String,
@@ -93,6 +94,7 @@ class WorkoutViewModel(
     private var startedAt: Instant = Instant.EPOCH
     private var equipmentAtStart = emptyMap<String, EquipmentDocument>()
     private var equipmentPhotos = emptyMap<String, String?>()
+    private var replacementEquipment = emptyList<EquipmentDocument>()
     private val drafts = linkedMapOf<Pair<String, Int>, SetDraft>()
     private val sets = mutableListOf<SetResultEntity>()
     private val skips = mutableListOf<SkippedSetEntity>()
@@ -108,8 +110,10 @@ class WorkoutViewModel(
         equipmentAtStart = StrictJson.decodeFromString<List<EquipmentDocument>>(details.runtime.equipmentAtStartJson)
             .associateBy { it.equipmentId }
         // Photos are a current-catalog convenience only; a catalog read failure must not block the workout.
-        equipmentPhotos = runCatching { repository.equipmentCatalog() }.getOrDefault(emptyList())
-            .associate { it.equipmentId to it.photoPath }
+        val catalog = runCatching { repository.equipmentCatalog() }.getOrDefault(emptyList())
+        equipmentPhotos = catalog.associate { it.equipmentId to it.photoPath }
+        replacementEquipment = (catalog.map { EquipmentDocument(it.equipmentId, it.name, it.setupHint,
+            it.weightStepKg, it.availableWeightsKg, it.notes) } + equipmentAtStart.values).distinctBy { it.equipmentId }
         sets.clear(); sets += details.sets
         skips.clear(); skips += details.skippedSets
         drafts.clear()
@@ -155,6 +159,7 @@ class WorkoutViewModel(
             value.weightKg?.toString().orEmpty(), value.reps?.toString().orEmpty(), value.rir,
             StrictJson.encodeToString(value.context),
             clock.wallNow().toString(), value.rirAnswered)) }
+            .onSuccess { mutableState.value = state.value.copy(error = null) }
             .onFailure { fail("Не удалось сохранить ввод. Повторите изменение перед выходом.") }
         publish()
     }
@@ -193,7 +198,7 @@ class WorkoutViewModel(
         val reading = if (previous == null) readClock() else null
         val context = draft.context
         val candidate = SaveSetCommand(previous?.setResultId ?: newId(), state.value.workoutId,
-            exerciseId, slot.plannedSetNo, slot.setType, context.exerciseId, exercise.title,
+            exerciseId, slot.plannedSetNo, slot.setType, context.exerciseId, context.title ?: exercise.title,
             context.equipmentId, context.equipmentName, context.setup, context.loadBasis, context.side,
             weight, reps, draft.rir, previous?.completedAt ?: reading!!.wall.toString(),
             previous?.bootId ?: reading?.bootId, previous?.elapsedRealtimeMs ?: reading?.elapsedRealtimeMs)
@@ -215,7 +220,7 @@ class WorkoutViewModel(
                 repository.editSet(EditSetCommand(command.setResultId, command.weightKg, command.reps,
                     command.rir, clock.wallNow().toString(), command.deviations, command.note,
                     command.equipmentIdActual, command.equipmentNameActual, command.setupActual,
-                    command.loadBasisActual, command.sideActual))
+                    command.loadBasisActual, command.sideActual, command.exerciseIdActual, command.titleActual))
             } else {
                 val result = repository.saveSet(command)
                 check(result is SaveSetResult.Saved) { (result as SaveSetResult.Conflict).message }
@@ -230,6 +235,9 @@ class WorkoutViewModel(
         val details = repository.workoutDetails(state.value.workoutId)
         sets.clear(); sets += details.sets
         skips.clear(); skips += details.skippedSets
+        replacementEquipment = (replacementEquipment + sets.mapNotNull { fact -> fact.equipmentIdActual?.let { id ->
+            fact.equipmentNameActual?.let { EquipmentDocument(id, it, fact.setupActual) }
+        } }).distinctBy { it.equipmentId }
         // Keep unrelated in-memory input; remove only drafts for slots closed by committed data.
         drafts.keys.removeAll { key ->
             sets.any { it.exerciseInstanceId == key.first && it.plannedSetNo == key.second } ||
@@ -261,12 +269,17 @@ class WorkoutViewModel(
         val exercise = exercises().firstOrNull { it.exerciseInstanceId == exerciseId } ?: return false
         val slot = currentSlot(exercise) ?: return false
         val old = resolvedDraft(exercise, slot)
-        val incompatible = old.context.equipmentId != context.equipmentId || old.context.loadBasis != context.loadBasis
-        drafts[exerciseId to slot.plannedSetNo] = old.copy(weightKg = if (incompatible) null else old.weightKg, context = context)
-        val value = drafts.getValue(exerciseId to slot.plannedSetNo)
+        val movementChanged = old.context.exerciseId != context.exerciseId
+        if (movementChanged && context.title.isNullOrBlank()) return false
+        val incompatible = movementChanged || old.context.equipmentId != context.equipmentId || old.context.loadBasis != context.loadBasis
+        val value = old.copy(
+            weightKg = if (context.loadBasis == "bodyweight") 0.0 else if (incompatible) null else old.weightKg,
+            reps = if (movementChanged) null else old.reps,
+            rir = if (incompatible) null else old.rir,
+            rirAnswered = if (incompatible) false else old.rirAnswered, context = context)
         return runCatching { repository.saveDraft(DraftEntity(state.value.workoutId, exerciseId, slot.plannedSetNo,
             value.weightKg?.toString().orEmpty(), value.reps?.toString().orEmpty(), value.rir,
-            StrictJson.encodeToString(value.context), clock.wallNow().toString(), value.rirAnswered)) }.onSuccess { publish() }
+            StrictJson.encodeToString(value.context), clock.wallNow().toString(), value.rirAnswered)) }.onSuccess { drafts[exerciseId to slot.plannedSetNo] = value; mutableState.value = state.value.copy(error = null); publish() }
             .onFailure { fail(it.message ?: "Не удалось сохранить контекст") }.isSuccess
     }
 
@@ -281,13 +294,24 @@ class WorkoutViewModel(
         val previous = pending[key]
         val reading = if (previous == null) readClock() else null
         val candidate = SaveSetCommand(previous?.setResultId ?: newId(), state.value.workoutId, exerciseId,
-            null, setType, context.exerciseId, exercise.title, context.equipmentId, context.equipmentName,
+            null, setType, context.exerciseId, context.title ?: exercise.title, context.equipmentId, context.equipmentName,
             context.setup, context.loadBasis, context.side, weight, reps, rir,
             previous?.completedAt ?: reading!!.wall.toString(), previous?.bootId ?: reading?.bootId,
             previous?.elapsedRealtimeMs ?: reading?.elapsedRealtimeMs, note = note?.trim()?.ifEmpty { null })
         val command = previous?.takeIf { it == candidate } ?: candidate
         pending[key] = command
         return commitAttempt(key, command, previous)
+    }
+
+    suspend fun cancelExtraAttempt(exerciseId: String): Boolean {
+        if (state.value.saving) return false
+        val key = exerciseId to null
+        val attempt = pending[key] ?: return true
+        return runCatching {
+            if (repository.workoutDetails(state.value.workoutId).sets.any { it.setResultId == attempt.setResultId })
+                refreshCommittedFacts()
+            pending.remove(key)
+        }.fold({ true }, { mutationFailed(it, false); false })
     }
 
     fun tick() { publish() }
@@ -377,12 +401,12 @@ class WorkoutViewModel(
         if (mutableState.value.saving || mutableState.value.reloadRequired) return false
         val old = sets.firstOrNull { it.setResultId == setResultId } ?: return false
         val actual = context ?: ActualContext(old.exerciseIdActual, old.equipmentIdActual, old.setupActual,
-            old.loadBasisActual, old.sideActual, old.equipmentNameActual)
+            old.loadBasisActual, old.sideActual, old.equipmentNameActual, old.titleActual)
         if (!weight.isFinite() || weight < 0 || reps < 0 || (rir != null && rir !in 0..4) ||
             (actual.loadBasis == "bodyweight" && weight != 0.0)) { fail("Проверьте введённые значения"); return false }
         return mutate { repository.editSet(EditSetCommand(setResultId, weight, reps, rir, clock.wallNow().toString(),
             deviations.distinct(), note?.trim()?.ifEmpty { null }, actual.equipmentId, actual.equipmentName,
-            actual.setup, actual.loadBasis, actual.side)) }
+            actual.setup, actual.loadBasis, actual.side, actual.exerciseId, actual.title ?: old.titleActual)) }
     }
 
     suspend fun deleteSet(setResultId: String): Boolean {
@@ -396,6 +420,12 @@ class WorkoutViewModel(
         if (currentSlot(exercise)?.plannedSetNo != plannedSetNo) return false
         return mutate { repository.skipSet(SkipSetCommand(state.value.workoutId, exerciseId, plannedSetNo,
             clock.wallNow().toString(), reason, note?.trim()?.ifEmpty { null })) }
+    }
+
+    suspend fun skipRemainingSets(exerciseId: String, reason: String?, note: String?): Boolean {
+        if (state.value.saving || state.value.reloadRequired || exercises().none { it.exerciseInstanceId == exerciseId }) return false
+        return mutate { repository.skipRemainingSets(state.value.workoutId, exerciseId,
+            clock.wallNow().toString(), reason, note) }
     }
 
     suspend fun restoreSkippedSet(exerciseId: String, plannedSetNo: Int) {
@@ -433,8 +463,8 @@ class WorkoutViewModel(
                 val lastPlanned = saved.filter { it.plannedSetNo != null }.maxByOrNull { it.sequenceNo }
                 val rest = lastPlanned?.plannedSetNo?.let { no -> ex.plannedSets.firstOrNull { it.setNo == no }?.restTargetSec }
                 ExerciseUiState(ex, slot, slot?.let { resolvedDraft(ex, it) }, saved, rest,
-                    skips.filter { it.exerciseInstanceId == id }, equipmentAtStart.values.toList(),
-                    ex.equipmentId?.let(equipmentPhotos::get))
+                    skips.filter { it.exerciseInstanceId == id }, replacementEquipment,
+                    ex.equipmentId?.let(equipmentPhotos::get), exercises())
             } }, block.notes) },
         )
     }
@@ -457,12 +487,14 @@ class WorkoutViewModel(
         val fact = previous?.let { prior -> sets.lastOrNull { it.exerciseInstanceId == exercise.exerciseInstanceId && it.plannedSetNo == prior.plannedSetNo } }
         val actual = latestContext(exercise) ?: exercise.resolvedContext()
         return PrefillResolver.resolve(slot, previous, fact?.let { PreviousSetFact(priorNo(it), it.weightKg, it.reps, it.rir,
-            ActualContext(it.exerciseIdActual, it.equipmentIdActual, it.setupActual, it.loadBasisActual, it.sideActual, it.equipmentNameActual)) },
+            it.context(exercise)) },
             drafts[exercise.exerciseInstanceId to slot.plannedSetNo], actual)
     }
     private fun latestContext(exercise: ExerciseDocument) = sets.filter { it.exerciseInstanceId == exercise.exerciseInstanceId }
-        .maxByOrNull { it.sequenceNo }?.let { ActualContext(it.exerciseIdActual, it.equipmentIdActual, it.setupActual,
-            it.loadBasisActual, it.sideActual, it.equipmentNameActual) }
+        .maxByOrNull { it.sequenceNo }?.context(exercise)
+    private fun SetResultEntity.context(exercise: ExerciseDocument) = ActualContext(exerciseIdActual,
+        equipmentIdActual, setupActual, loadBasisActual, sideActual, equipmentNameActual,
+        titleActual.takeIf { exerciseIdActual != exercise.exerciseId || it != exercise.title })
     private fun priorNo(set: SetResultEntity) = requireNotNull(set.plannedSetNo)
     private fun runtimeCards(exercises: List<ExerciseDocument>) = exercises.map { exercise ->
         val own = sets.filter { it.exerciseInstanceId == exercise.exerciseInstanceId }
@@ -474,8 +506,11 @@ class WorkoutViewModel(
 
     fun elapsedText(set: SetResultEntity?, now: ClockReading = state.value.now): String {
         if (set == null) return ""
-        val seconds = elapsedBetween(ClockAnchor(Instant.parse(set.completedAt), set.bootId, set.elapsedRealtimeMs), now.anchor()).duration.seconds
-        return "%d:%02d".format(seconds / 60, seconds % 60)
+        val elapsed = elapsedBetween(ClockAnchor(Instant.parse(set.completedAt), set.bootId, set.elapsedRealtimeMs), now.anchor())
+        val seconds = elapsed.duration.seconds
+        val formatted = if (seconds >= 3600) "%d:%02d:%02d".format(seconds / 3600, seconds / 60 % 60, seconds % 60)
+            else "%d:%02d".format(seconds / 60, seconds % 60)
+        return (if (elapsed.approximate) "≈ " else "") + formatted
     }
 
     private fun requiresRir(exercise: ExerciseDocument, slot: PlannedSlot): Boolean = when (exercise.rirCapture) {

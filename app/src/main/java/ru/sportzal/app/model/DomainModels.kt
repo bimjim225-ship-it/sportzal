@@ -131,6 +131,8 @@ data class EditSetCommand(
     val setupActual: String?,
     val loadBasisActual: String,
     val sideActual: String,
+    val exerciseIdActual: String? = null,
+    val titleActual: String? = null,
 )
 
 data class SkipSetCommand(

@@ -33,6 +33,9 @@ fun HistoryDetailScreen(
     onDelete: (String, (Boolean) -> Unit) -> Unit,
     onShare: () -> Unit,
     onEditActual: ((SetResultEntity, Double, Int, Int?, List<String>, String?, ActualContext, (Boolean) -> Unit) -> Unit)? = null,
+    preparing: Boolean = false,
+    onSaveFile: (() -> Unit)? = null,
+    onAiHelp: (() -> Unit)? = null,
 ) {
     val details = state.details ?: return
     var noteDialog by remember { mutableStateOf(false) }
@@ -116,7 +119,11 @@ fun HistoryDetailScreen(
                 }
             }
         }
-        item { ru.sportzal.app.ui.components.SportzalButton("Передать отчёт ИИ", onShare, enabled = !state.saving) }
+        item { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ru.sportzal.app.ui.components.SportzalButton("Передать отчёт ИИ", onShare, enabled = !state.saving, busy = preparing)
+            onSaveFile?.let { ru.sportzal.app.ui.components.SportzalButton("Сохранить файл", it, enabled = !state.saving && !preparing, secondary = true) }
+            onAiHelp?.let { TextButton(it, enabled = !state.saving && !preparing) { Text("Как получить следующий план") } }
+        } }
     }
 
     if (noteDialog) {
@@ -128,7 +135,7 @@ fun HistoryDetailScreen(
         val exercise = details.plan.blocks.flatMap { it.exercises }
             .firstOrNull { it.exerciseInstanceId == fact.exerciseInstanceId }
         val showRir = fact.setType == "work" && (exercise?.rirCapture != "none" || fact.rir != null)
-        EditSetDialog(fact, showRir, state.saving, { editing = null }, details.equipmentAtStart) { weight, reps, rir, deviations, note, context ->
+        EditSetDialog(fact, showRir, state.saving, { editing = null }, state.equipmentChoices.ifEmpty { details.equipmentAtStart }, details.plan.blocks.flatMap { it.exercises }, error = state.error) { weight, reps, rir, deviations, note, context ->
             val fullEditor = onEditActual
             if (fullEditor != null) {
                 fullEditor(fact, weight, reps, rir, deviations, note, context) { committed ->

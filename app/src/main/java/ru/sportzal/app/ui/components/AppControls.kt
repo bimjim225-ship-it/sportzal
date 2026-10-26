@@ -14,11 +14,11 @@ import ru.sportzal.app.R
 
 @Composable
 fun AppHeader(title: String, subtitle: String? = null, onBack: (() -> Unit)? = null,
-    action: @Composable RowScope.() -> Unit = {}) {
+    compact: Boolean = false, action: @Composable RowScope.() -> Unit = {}) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (onBack != null) IconButton(onBack) { Icon(painterResource(R.drawable.sz_ic_back), "Назад") }
-            Text(title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+            Text(title, style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
             action()
         }
         subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }

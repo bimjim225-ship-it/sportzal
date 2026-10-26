@@ -54,6 +54,47 @@ class SportzalDatabaseTest {
         assertNull(repository.equipmentCatalog().single { it.equipmentId == id }.illustrationKey)
     }
 
+    @Test fun localEquipmentFromFactBecomesPersistentCatalogAndExportEntry() = runBlocking {
+        import(program())
+        val id = repository.startWorkout("program",1,"session")
+        repository.saveSet(setCommand("actual",id,1).copy(equipmentIdActual="local:new", equipmentNameActual="Мой тренажёр",setupActual="Сиденье 5"))
+        assertEquals("Мой тренажёр",repository.equipmentCatalog().single { it.equipmentId=="local:new" }.name)
+        assertTrue(repository.snapshotSource(id).equipment.any { it.equipmentId=="local:new" })
+        assertEquals("Мой тренажёр",database.dao().sets(id).single().equipmentNameActual)
+    }
+
+    @Test fun skippingRemainingIsAtomicIdempotentAndKeepsFacts() = runBlocking {
+        import(program(sets=2))
+        val id=repository.startWorkout("program",1,"session")
+        repository.saveSet(setCommand("done",id,1))
+        repository.skipRemainingSets(id,"exercise","2026-10-26T10:00:00Z","equipment_busy","Занят")
+        repository.skipRemainingSets(id,"exercise","2026-10-26T10:00:01Z","equipment_busy",null)
+        assertEquals(1,database.dao().setCount(id))
+        assertEquals(1,database.dao().skipCount(id))
+        assertEquals(2,database.dao().skips(id).single().plannedSetNo)
+        assertEquals("Занят",database.dao().skips(id).single().note)
+    }
+
+    @Test fun historyCanCorrectActualMovementWithoutChangingPlanOrTimestamp() = runBlocking {
+        import(program()); val id=repository.startWorkout("program",1,"session")
+        repository.saveSet(setCommand("fact",id,1)); val old=database.dao().set("fact")!!
+        repository.editSet(EditSetCommand("fact",20.0,8,2,"edited",listOf("exercise_changed"),null,
+            null,null,null,"total_external","bilateral",exerciseIdActual="local-exercise:new",titleActual="Другое движение"))
+        val actual=database.dao().set("fact")!!
+        assertEquals("local-exercise:new",actual.exerciseIdActual); assertEquals("Другое движение",actual.titleActual)
+        assertEquals(old.completedAt,actual.completedAt); assertEquals(old.sequenceNo,actual.sequenceNo)
+        assertTrue(database.dao().workout(id)!!.planSnapshotJson.contains("exercise-id"))
+    }
+
+    @Test fun existingOrphanEquipmentReferencesAreRepairedForTheNextExport() = runBlocking {
+        import(program()); val id=repository.startWorkout("program",1,"session")
+        database.dao().insertSet(entity("old-fact",id,1,1).copy(equipmentIdActual="local:legacy",
+            equipmentNameActual="Старый тренажёр",setupActual="Сиденье 6"))
+        assertNull(database.dao().equipment("local:legacy"))
+        assertTrue(repository.snapshotSource(id).equipment.any { it.equipmentId=="local:legacy" })
+        assertEquals("Старый тренажёр",repository.equipmentCatalog().single { it.equipmentId=="local:legacy" }.name)
+    }
+
     private lateinit var database: SportzalDatabase
     private lateinit var repository: RoomSportzalRepository
     private var clock = 0
