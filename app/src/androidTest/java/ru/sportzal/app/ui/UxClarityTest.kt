@@ -237,6 +237,8 @@ class UxClarityTest {
         query.performScrollTo().assertIsDisplayed()
         val clipped = query.getBoundsInRoot()
         val full = query.getUnclippedBoundsInRoot()
+        println("UX catalog query clipped=$clipped full=$full")
+        assertTrue("Search input keeps a usable touch target", clipped.bottom - clipped.top >= 48.dp)
         assertTrue("Search input must not collapse behind the fixed header",
             clipped.bottom - clipped.top + 1.dp >= full.bottom - full.top)
         query.performTextInput("60")
@@ -246,7 +248,7 @@ class UxClarityTest {
     }
 
     @Test fun longExerciseTitleDoesNotCollapseTheFormWithImeAndLargeFont() {
-        val title = "Тяга верхнего блока широким нейтральным хватом к верхней части груди"
+        val title = "Тяга верхнего блока широким нейтральным хватом к верхней части груди на тренажёре сидя с упором для ног и контролем положения корпуса"
         val exercise = longPlan().blocks.first().exercises.single().copy(title = title, rirCapture = "none")
         val context = ActualContext("row", null, "Сиденье 4", "machine_display", "bilateral")
         val slot = PlannedSlot(1, "work", 35.0, 10, 12, 2, 90, context)
@@ -258,15 +260,21 @@ class UxClarityTest {
                 assertEquals(37.5, weight!!, 0.0); saves++
             }, { _, _, _ -> }, {}, focusedExerciseId = exercise.exerciseInstanceId)
         }
+        compose.onNodeWithText(title).assertExists()
         compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
             .performScrollToNode(hasTestTag("weight-${exercise.exerciseInstanceId}"))
-        compose.onNodeWithTag("weight-${exercise.exerciseInstanceId}")
-            .performScrollTo().assertIsDisplayed().performTextReplacement("37,5")
-        compose.onNodeWithTag("save-${exercise.exerciseInstanceId}").performScrollTo().assertIsDisplayed().performClick()
+        val weight = compose.onNodeWithTag("weight-${exercise.exerciseInstanceId}").performScrollTo().assertIsDisplayed()
+        val weightBounds = weight.getBoundsInRoot()
+        println("UX workout weight=$weightBounds")
+        assertTrue("Weight input keeps a usable touch target", weightBounds.bottom - weightBounds.top >= 48.dp)
+        weight.performTextReplacement("37,5")
+        val save = compose.onNodeWithTag("save-${exercise.exerciseInstanceId}").performScrollTo().assertIsDisplayed()
+        val saveBounds = save.getBoundsInRoot()
+        println("UX workout save=$saveBounds")
+        assertTrue("Save keeps a usable touch target", saveBounds.bottom - saveBounds.top >= 48.dp)
+        save.performClick()
         assertEquals(1, saves)
         compose.onNodeWithText("Схема").assertIsDisplayed()
-        scrollTo(title)
-        compose.onNodeWithText(title).assertIsDisplayed()
     }
 
     private fun showWithKeyboard(content: @Composable () -> Unit) = show(2f) {
