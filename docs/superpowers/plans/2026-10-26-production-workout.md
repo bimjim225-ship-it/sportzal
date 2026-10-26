@@ -28,10 +28,10 @@
 
 **Interfaces:** DraftEntity.rirAnswered:Boolean (default from existing numeric RIR); MIGRATION_1_2. WorkoutViewModel.updateDraft/open/updateActualContext preserve explicit null answer.
 
-- [ ] Экспортировать schema v1 исходной сборкой; запустить baseline suite.
-- [ ] Добавить регрессию explicit null → repository → новый VM, false и 0..4; увидеть падение.
-- [ ] Добавить колонку default 0, SQL backfill для числового RIR, оба writer/read, обработку ошибок draft.
-- [ ] Экспортировать schema v2, проверить migration и unit suite; commit.
+- [x] Экспортировать schema v1 исходной сборкой; запустить baseline suite.
+- [x] Добавить регрессию explicit null → repository → новый VM, false и 0..4; увидеть падение.
+- [x] Добавить колонку default 0, SQL backfill для числового RIR, оба writer/read, обработку ошибок draft.
+- [x] Экспортировать schema v2, проверить migration и unit suite; commit.
 
 ### Task 2: Графика и каталог
 
@@ -39,10 +39,10 @@
 
 **Interfaces:** explicit equipment illustration key and exercise guide key, nullable fallback; SaveEquipmentCommand carries editable weight metadata. Media assets remain bundled and offline.
 
-- [ ] Тесты неизвестного ключа/fallback, ручного выбора, сохранения веса/настроек.
-- [ ] Добавить локальные media tables с migration 2→3 и 25 WebP/24 vectors из подготовленного пакета.
-- [ ] Реализовать поиск, просмотр, отдельный editor с выбором схемы, шагом и доступными весами.
-- [ ] Проверить unit/Room/ресурсы, commit.
+- [x] Тесты неизвестного ключа/fallback, ручного выбора, сохранения веса/настроек.
+- [x] Добавить локальные media tables с migration 2→3 и 25 WebP/24 vectors из подготовленного пакета.
+- [x] Реализовать поиск, просмотр, отдельный editor с выбором схемы, шагом и доступными весами.
+- [x] Проверить unit/Room/ресурсы, commit.
 
 ### Task 3: Обзор и выполнение
 
@@ -50,10 +50,10 @@
 
 **Interfaces:** focused exercise ID, overview/back callbacks, WorkoutProgress pure computation, state restore via rememberSaveable and Room draft.
 
-- [ ] Тест прогресса с warmup/extra/skips и UI тест обзор→упражнение→Back; увидеть падение.
-- [ ] Реализовать обзор активной тренировки, компактные строки статуса, выбранное упражнение и панель Настройка/Техника.
-- [ ] Уточнить target/rest labels, сброс ответов между слотами, убрать null из дополнительных строк; явная отмена пустой попытки.
-- [ ] Проверить unit и Compose регрессии видимых значений/rotation/corrections; commit.
+- [x] Тест прогресса с warmup/extra/skips и UI тест обзор→упражнение→Back; увидеть падение.
+- [x] Реализовать обзор активной тренировки, компактные строки статуса, выбранное упражнение и панель Настройка/Техника.
+- [x] Уточнить target/rest labels, сброс ответов между слотами, убрать null из дополнительных строк; явная отмена пустой попытки.
+- [x] Проверить unit и Compose регрессии видимых значений/rotation/corrections; commit.
 
 ### Task 4: Сегодня и новый план
 
@@ -61,9 +61,9 @@
 
 **Interfaces:** TodayUiState planned detail/equipment/loading/busy; dismissPreview, showOverview before start, explicit resume; program preview consumes existing ImportPreview.Valid.
 
-- [ ] Тест просмотра без старта, отмены preview и ошибки confirm; увидеть падение.
-- [ ] Реализовать содержательный Today, обзор ещё не начатого плана, полноэкранный preview состава и инструкции ИИ, loading/error/retry.
-- [ ] Объединить отправку/сохранение отчёта, сохранить focus и активный snapshot; commit после проверок.
+- [x] Тест просмотра без старта, отмены preview и ошибки confirm; увидеть падение.
+- [x] Реализовать содержательный Today, обзор ещё не начатого плана, полноэкранный preview состава и инструкции ИИ, loading/error/retry.
+- [x] Объединить отправку/сохранение отчёта, сохранить focus и активный snapshot; commit после проверок.
 
 ### Task 5: Нативное оформление, итог и история
 
@@ -71,9 +71,9 @@
 
 **Interfaces:** one Compose theme mapping, shared headers/buttons/statuses, finish counters from committed facts; two-stage scheme/technique panel without baked text.
 
-- [ ] Тесты summary warmup/extra/skip и no-ID/locale labels.
-- [ ] Применить типографику/формы/иконки/фон, отделить основные/вторичные действия, оформить итог и историю.
-- [ ] Обновить канонические владельцы и описание схем вместо фото; unit/Compose/build/lint/docs; commit.
+- [x] Тесты summary warmup/extra/skip и no-ID/locale labels.
+- [x] Применить типографику/формы/иконки/фон, отделить основные/вторичные действия, оформить итог и историю.
+- [x] Обновить канонические владельцы и описание схем вместо фото; unit/Compose/build/lint/docs; commit.
 
 ### Task 6: Проверка и поставка
 

@@ -29,6 +29,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.focusGroup
@@ -48,6 +50,7 @@ import ru.sportzal.app.ui.text.*
 import ru.sportzal.app.ui.workout.progress
 import ru.sportzal.app.ui.workout.actualContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import ru.sportzal.app.ui.theme.NumericTextStyle
 import ru.sportzal.app.ui.theme.SportzalColors
 import androidx.compose.ui.res.painterResource
@@ -73,6 +76,14 @@ fun ExerciseCard(
     val slot = state.currentSlot
     val draft = state.draft
     val actualContext = state.actualContext()
+    val focusManager = LocalFocusManager.current
+    val committedSequence = state.saved.maxOfOrNull { it.sequenceNo } ?: 0
+    var observedSequence by remember(state.exercise.exerciseInstanceId) { mutableIntStateOf(committedSequence) }
+    LaunchedEffect(committedSequence) {
+        // A committed fact ends this input interaction. A failed write leaves focus and input intact.
+        if (committedSequence > observedSequence) focusManager.clearFocus(force = true)
+        observedSequence = committedSequence
+    }
     var weightText by remember(state.exercise.exerciseInstanceId, slot?.plannedSetNo, draft?.weightKg) {
         mutableStateOf(draft?.weightKg?.display().orEmpty())
     }
