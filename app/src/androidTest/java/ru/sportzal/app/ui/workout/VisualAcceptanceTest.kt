@@ -100,7 +100,10 @@ class VisualAcceptanceTest {
     private fun awaitTag(tag: String) = compose.waitUntil(15_000) { compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
     private fun scrollTo(text: String) = scrollTo(hasText(text))
     private fun scrollTo(matcher: SemanticsMatcher) {
-        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex)).performScrollToNode(matcher)
+        val lazy = SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex)
+        if (compose.onAllNodes(lazy).fetchSemanticsNodes().isNotEmpty()) {
+            compose.onNode(lazy).performScrollToNode(matcher)
+        }
         // Lazy scrolling places the containing item; a tall card still needs its child revealed.
         compose.onNode(matcher).performScrollTo().assertIsDisplayed()
     }
