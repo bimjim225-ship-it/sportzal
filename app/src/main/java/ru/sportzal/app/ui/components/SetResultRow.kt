@@ -47,13 +47,14 @@ fun SetResultRow(
     onEdit: (Double, Int, Int?, List<String>, String?, (Boolean) -> Unit) -> Unit,
     onDelete: ((Boolean) -> Unit) -> Unit,
     onEditContext: (Double, Int, Int?, List<String>, String?, ActualContext, (Boolean) -> Unit) -> Unit = { _, _, _, _, _, _, _ -> },
+    equipmentChoices: List<ru.sportzal.app.model.EquipmentDocument> = emptyList(),
 ) {
     var menu by remember { mutableStateOf(false) }
     var edit by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     fun closeAll() { menu = false; edit = false; confirmDelete = false; onInteraction(InteractionSource.SET_ACTIONS, false) }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("${result.plannedSetNo}. ${result.weightKg.g} кг × ${result.reps}" + (result.rir?.let { " · ${compactRirLabel(it)}" } ?: ""))
+        Text("${result.plannedSetNo?.let { "$it." } ?: "Доп."} ${result.weightKg.g} кг × ${result.reps}" + (result.rir?.let { " · ${compactRirLabel(it)}" } ?: ""), modifier = Modifier.weight(1f))
         IconButton({ menu = true; onInteraction(InteractionSource.SET_ACTIONS, true) }, enabled = !saving,
             modifier = Modifier.semantics { contentDescription = "Меню записанного подхода" }
                 .testTag("set-actions-${result.setResultId}")) { Text("⋮") }
@@ -62,11 +63,11 @@ fun SetResultRow(
             DropdownMenuItem({ Text("Удалить") }, { menu = false; confirmDelete = true })
         }
     }
-    if (edit) EditSetDialog(result, showRir, saving, ::closeAll) { weight, reps, rir, deviations, note, context ->
+    if (edit) EditSetDialog(result, showRir, saving, ::closeAll, equipmentChoices) { weight, reps, rir, deviations, note, context ->
         onEditContext(weight, reps, rir, deviations, note, context) { committed -> if (committed) closeAll() }
     }
     if (confirmDelete) AlertDialog(onDismissRequest = { if (!saving) closeAll() }, title = { Text("Удалить этот подход?") },
-        text = { Text("Подход снова станет незаполненным.") },
+        text = { Text(if (result.plannedSetNo != null) "Плановый подход снова станет незаполненным." else "Дополнительный подход будет удалён из истории.") },
         dismissButton = { TextButton(::closeAll, enabled = !saving) { Text("Отмена") } },
         confirmButton = { TextButton({ onDelete { committed -> if (committed) closeAll() } }, enabled = !saving,
             modifier = Modifier.testTag("confirm-delete")) { Text("Удалить") } })
@@ -75,6 +76,7 @@ fun SetResultRow(
 @Composable
 internal fun EditSetDialog(
     result: SetResultEntity, showRir: Boolean, saving: Boolean, onDismiss: () -> Unit,
+    equipmentChoices: List<ru.sportzal.app.model.EquipmentDocument> = emptyList(),
     onSave: (Double, Int, Int?, List<String>, String?, ActualContext) -> Unit,
 ) {
     var weight by remember { mutableStateOf(result.weightKg.g) }
@@ -84,6 +86,7 @@ internal fun EditSetDialog(
     var note by remember { mutableStateOf(result.note.orEmpty()) }
     var equipmentId by remember { mutableStateOf(result.equipmentIdActual.orEmpty()) }
     var equipmentName by remember { mutableStateOf(result.equipmentNameActual.orEmpty()) }
+    var manualEquipment by remember { mutableStateOf(equipmentChoices.none { it.equipmentId == result.equipmentIdActual }) }
     var setup by remember { mutableStateOf(result.setupActual.orEmpty()) }
     var loadBasis by remember { mutableStateOf(result.loadBasisActual) }
     var side by remember { mutableStateOf(result.sideActual) }
@@ -98,9 +101,15 @@ internal fun EditSetDialog(
         ) {
             OutlinedTextField(weight, { weight = it }, label = { Text("Вес") }, enabled = loadBasis != "bodyweight")
             OutlinedTextField(reps, { reps = it }, label = { Text("Повторы") }, modifier = Modifier.testTag("edit-reps"))
-            OutlinedTextField(equipmentId, { value -> if (value != equipmentId) { equipmentId = value; weight = "" } },
-                label = { Text("ID оборудования") }, modifier = Modifier.testTag("edit-equipment-id"))
-            OutlinedTextField(equipmentName, { equipmentName = it }, label = { Text("Название оборудования") })
+            Text("Оборудование", style = androidx.compose.material3.MaterialTheme.typography.titleSmall)
+            equipmentChoices.forEach { item -> FilterChip(!manualEquipment && equipmentId == item.equipmentId, {
+                if (equipmentId != item.equipmentId) { weight = ""; equipmentId = item.equipmentId }
+                manualEquipment = false; equipmentName = item.name; setup = item.setupHint.orEmpty()
+            }, { Text(item.name) }) }
+            TextButton({
+                manualEquipment = true; equipmentId = "local:${java.util.UUID.randomUUID()}"; equipmentName = ""; weight = ""
+            }) { Text("Указать другое оборудование") }
+            if (manualEquipment) OutlinedTextField(equipmentName, { equipmentName = it }, label = { Text("Название оборудования") })
             OutlinedTextField(setup, { setup = it }, label = { Text("Настройка тренажёра") }, modifier = Modifier.testTag("edit-setup"))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 loadBases.forEach { value -> FilterChip(loadBasis == value, { if (loadBasis != value) {
@@ -112,10 +121,7 @@ internal fun EditSetDialog(
             }
             if (showRir) {
                 Text("Запас повторов")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    (0..4).forEach { value -> FilterChip(rir == value, { rir = value }, { Text(ru.sportzal.app.ui.text.rirLabel(value)) }) }
-                    FilterChip(rir == null, { rir = null }, { Text("Не оценил") })
-                }
+                RirSelector(rir, answered = true, enabled = !saving) { rir = it }
             }
             Text("Отклонения")
             deviationCodes.forEach { value -> FilterChip(value in deviations, {
@@ -132,4 +138,4 @@ internal fun EditSetDialog(
 
 private val loadBases = listOf("machine_display", "total_external", "per_hand", "assistance", "bodyweight")
 
-private val Double.g: String get() = if (this % 1.0 == 0.0) toInt().toString() else toString()
+private val Double.g: String get() = (if (this % 1.0 == 0.0) toLong().toString() else toString()).replace('.', ',')

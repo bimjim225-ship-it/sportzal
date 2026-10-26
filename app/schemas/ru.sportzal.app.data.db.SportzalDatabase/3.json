@@ -1,0 +1,767 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 3,
+    "identityHash": "8456ad0ee727eaf1dfb0f98f0d11fa1f",
+    "entities": [
+      {
+        "tableName": "app_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `active_program_id` TEXT, `active_program_version` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activeProgramId",
+            "columnName": "active_program_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "activeProgramVersion",
+            "columnName": "active_program_version",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "equipment",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`equipment_id` TEXT NOT NULL, `name` TEXT NOT NULL, `setup_hint` TEXT, `weight_step_kg` REAL, `available_weights_json` TEXT, `notes` TEXT, `photo_path` TEXT, `updated_at` TEXT NOT NULL, PRIMARY KEY(`equipment_id`))",
+        "fields": [
+          {
+            "fieldPath": "equipmentId",
+            "columnName": "equipment_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "setupHint",
+            "columnName": "setup_hint",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "weightStepKg",
+            "columnName": "weight_step_kg",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "availableWeightsJson",
+            "columnName": "available_weights_json",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "photoPath",
+            "columnName": "photo_path",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "equipment_id"
+          ]
+        }
+      },
+      {
+        "tableName": "programs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`program_id` TEXT NOT NULL, `program_version` INTEGER NOT NULL, `schema_version` INTEGER NOT NULL, `canonical_json` TEXT NOT NULL, `canonical_hash` TEXT NOT NULL, `generated_at` TEXT NOT NULL, `imported_at` TEXT NOT NULL, PRIMARY KEY(`program_id`, `program_version`))",
+        "fields": [
+          {
+            "fieldPath": "programId",
+            "columnName": "program_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "programVersion",
+            "columnName": "program_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "schemaVersion",
+            "columnName": "schema_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "canonicalJson",
+            "columnName": "canonical_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "canonicalHash",
+            "columnName": "canonical_hash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generatedAt",
+            "columnName": "generated_at",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importedAt",
+            "columnName": "imported_at",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "program_id",
+            "program_version"
+          ]
+        }
+      },
+      {
+        "tableName": "program_workout_index",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`program_id` TEXT NOT NULL, `program_version` INTEGER NOT NULL, `workout_instance_id` TEXT NOT NULL, `template_id` TEXT NOT NULL, `title` TEXT NOT NULL, `planned_date` TEXT NOT NULL, `planned_order` INTEGER NOT NULL, PRIMARY KEY(`program_id`, `program_version`, `workout_instance_id`), FOREIGN KEY(`program_id`, `program_version`) REFERENCES `programs`(`program_id`, `program_version`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "programId",
+            "columnName": "program_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "programVersion",
+            "columnName": "program_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "workoutInstanceId",
+            "columnName": "workout_instance_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "templateId",
+            "columnName": "template_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plannedDate",
+            "columnName": "planned_date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plannedOrder",
+            "columnName": "planned_order",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "program_id",
+            "program_version",
+            "workout_instance_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_program_workout_index_program_id_program_version",
+            "unique": false,
+            "columnNames": [
+              "program_id",
+              "program_version"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_program_workout_index_program_id_program_version` ON `${TABLE_NAME}` (`program_id`, `program_version`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "programs",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "program_id",
+              "program_version"
+            ],
+            "referencedColumns": [
+              "program_id",
+              "program_version"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "workouts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`workout_id` TEXT NOT NULL, `program_id` TEXT NOT NULL, `program_version` INTEGER NOT NULL, `workout_instance_id` TEXT NOT NULL, `template_id` TEXT NOT NULL, `started_at` TEXT NOT NULL, `finished_at` TEXT, `completion_status` TEXT NOT NULL, `plan_snapshot_json` TEXT NOT NULL, `equipment_at_start_json` TEXT NOT NULL, `notes` TEXT, PRIMARY KEY(`workout_id`), FOREIGN KEY(`program_id`, `program_version`) REFERENCES `programs`(`program_id`, `program_version`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "fields": [
+          {
+            "fieldPath": "workoutId",
+            "columnName": "workout_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "programId",
+            "columnName": "program_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "programVersion",
+            "columnName": "program_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "workoutInstanceId",
+            "columnName": "workout_instance_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "templateId",
+            "columnName": "template_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "started_at",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finishedAt",
+            "columnName": "finished_at",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "completionStatus",
+            "columnName": "completion_status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "planSnapshotJson",
+            "columnName": "plan_snapshot_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipmentAtStartJson",
+            "columnName": "equipment_at_start_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "workout_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_workouts_completion_status",
+            "unique": false,
+            "columnNames": [
+              "completion_status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workouts_completion_status` ON `${TABLE_NAME}` (`completion_status`)"
+          },
+          {
+            "name": "index_workouts_program_id_workout_instance_id",
+            "unique": true,
+            "columnNames": [
+              "program_id",
+              "workout_instance_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_workouts_program_id_workout_instance_id` ON `${TABLE_NAME}` (`program_id`, `workout_instance_id`)"
+          },
+          {
+            "name": "index_workouts_program_id_program_version",
+            "unique": false,
+            "columnNames": [
+              "program_id",
+              "program_version"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workouts_program_id_program_version` ON `${TABLE_NAME}` (`program_id`, `program_version`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "programs",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "program_id",
+              "program_version"
+            ],
+            "referencedColumns": [
+              "program_id",
+              "program_version"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "set_results",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`set_result_id` TEXT NOT NULL, `workout_id` TEXT NOT NULL, `sequence_no` INTEGER NOT NULL, `exercise_instance_id` TEXT NOT NULL, `planned_set_no` INTEGER, `set_type` TEXT NOT NULL, `exercise_id_actual` TEXT NOT NULL, `title_actual` TEXT NOT NULL, `equipment_id_actual` TEXT, `equipment_name_actual` TEXT, `setup_actual` TEXT, `load_basis_actual` TEXT NOT NULL, `side_actual` TEXT NOT NULL, `weight_kg` REAL NOT NULL, `reps` INTEGER NOT NULL, `rir` INTEGER, `completed_at` TEXT NOT NULL, `boot_id` TEXT, `elapsed_realtime_ms` INTEGER, `edited_at` TEXT, `deviations_json` TEXT NOT NULL, `note` TEXT, PRIMARY KEY(`set_result_id`), FOREIGN KEY(`workout_id`) REFERENCES `workouts`(`workout_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "setResultId",
+            "columnName": "set_result_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "workoutId",
+            "columnName": "workout_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sequenceNo",
+            "columnName": "sequence_no",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exerciseInstanceId",
+            "columnName": "exercise_instance_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plannedSetNo",
+            "columnName": "planned_set_no",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "setType",
+            "columnName": "set_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exerciseIdActual",
+            "columnName": "exercise_id_actual",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "titleActual",
+            "columnName": "title_actual",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipmentIdActual",
+            "columnName": "equipment_id_actual",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "equipmentNameActual",
+            "columnName": "equipment_name_actual",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "setupActual",
+            "columnName": "setup_actual",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "loadBasisActual",
+            "columnName": "load_basis_actual",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sideActual",
+            "columnName": "side_actual",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weightKg",
+            "columnName": "weight_kg",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reps",
+            "columnName": "reps",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rir",
+            "columnName": "rir",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completed_at",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bootId",
+            "columnName": "boot_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "elapsedRealtimeMs",
+            "columnName": "elapsed_realtime_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "editedAt",
+            "columnName": "edited_at",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "deviationsJson",
+            "columnName": "deviations_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "set_result_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_set_results_workout_id",
+            "unique": false,
+            "columnNames": [
+              "workout_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_set_results_workout_id` ON `${TABLE_NAME}` (`workout_id`)"
+          },
+          {
+            "name": "index_set_results_workout_id_sequence_no",
+            "unique": true,
+            "columnNames": [
+              "workout_id",
+              "sequence_no"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_set_results_workout_id_sequence_no` ON `${TABLE_NAME}` (`workout_id`, `sequence_no`)"
+          },
+          {
+            "name": "index_set_results_workout_id_exercise_instance_id_planned_set_no",
+            "unique": true,
+            "columnNames": [
+              "workout_id",
+              "exercise_instance_id",
+              "planned_set_no"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_set_results_workout_id_exercise_instance_id_planned_set_no` ON `${TABLE_NAME}` (`workout_id`, `exercise_instance_id`, `planned_set_no`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "workouts",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "workout_id"
+            ],
+            "referencedColumns": [
+              "workout_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "skipped_sets",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`workout_id` TEXT NOT NULL, `exercise_instance_id` TEXT NOT NULL, `planned_set_no` INTEGER NOT NULL, `recorded_at` TEXT NOT NULL, `reason` TEXT, `note` TEXT, PRIMARY KEY(`workout_id`, `exercise_instance_id`, `planned_set_no`), FOREIGN KEY(`workout_id`) REFERENCES `workouts`(`workout_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "workoutId",
+            "columnName": "workout_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exerciseInstanceId",
+            "columnName": "exercise_instance_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plannedSetNo",
+            "columnName": "planned_set_no",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordedAt",
+            "columnName": "recorded_at",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "workout_id",
+            "exercise_instance_id",
+            "planned_set_no"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_skipped_sets_workout_id",
+            "unique": false,
+            "columnNames": [
+              "workout_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_skipped_sets_workout_id` ON `${TABLE_NAME}` (`workout_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "workouts",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "workout_id"
+            ],
+            "referencedColumns": [
+              "workout_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "drafts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`workout_id` TEXT NOT NULL, `exercise_instance_id` TEXT NOT NULL, `planned_set_no` INTEGER NOT NULL, `weight_text` TEXT NOT NULL, `reps_text` TEXT NOT NULL, `rir` INTEGER, `actual_context_json` TEXT, `updated_at` TEXT NOT NULL, `rir_answered` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`workout_id`, `exercise_instance_id`, `planned_set_no`), FOREIGN KEY(`workout_id`) REFERENCES `workouts`(`workout_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "workoutId",
+            "columnName": "workout_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exerciseInstanceId",
+            "columnName": "exercise_instance_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plannedSetNo",
+            "columnName": "planned_set_no",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weightText",
+            "columnName": "weight_text",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repsText",
+            "columnName": "reps_text",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rir",
+            "columnName": "rir",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "actualContextJson",
+            "columnName": "actual_context_json",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rirAnswered",
+            "columnName": "rir_answered",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "workout_id",
+            "exercise_instance_id",
+            "planned_set_no"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_drafts_workout_id",
+            "unique": false,
+            "columnNames": [
+              "workout_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_drafts_workout_id` ON `${TABLE_NAME}` (`workout_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "workouts",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "workout_id"
+            ],
+            "referencedColumns": [
+              "workout_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "equipment_visuals",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`equipment_id` TEXT NOT NULL, `illustration_key` TEXT NOT NULL, PRIMARY KEY(`equipment_id`), FOREIGN KEY(`equipment_id`) REFERENCES `equipment`(`equipment_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "equipmentId",
+            "columnName": "equipment_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "illustrationKey",
+            "columnName": "illustration_key",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "equipment_id"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "equipment",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "equipment_id"
+            ],
+            "referencedColumns": [
+              "equipment_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "exercise_visuals",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`exercise_id` TEXT NOT NULL, `equipment_id` TEXT NOT NULL, `illustration_key` TEXT NOT NULL, PRIMARY KEY(`exercise_id`, `equipment_id`))",
+        "fields": [
+          {
+            "fieldPath": "exerciseId",
+            "columnName": "exercise_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipmentId",
+            "columnName": "equipment_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "illustrationKey",
+            "columnName": "illustration_key",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "exercise_id",
+            "equipment_id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8456ad0ee727eaf1dfb0f98f0d11fa1f')"
+    ]
+  }
+}

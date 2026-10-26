@@ -23,7 +23,7 @@
 ## Visual contract
 
 - **Project `DESIGN.md`:** `DESIGN.md`.
-- **Token ownership model:** до реализации `DESIGN.md` нормативен; после появления Compose theme точное сопоставление фиксируется в том же changeset.
+- **Token ownership model:** `DESIGN.md` → `ui/theme/SportzalTheme.kt` → MaterialTheme → общие Compose controls.
 - **Supported themes:** light only в MVP.
 - **Design review policy:** новые экраны не должны добавлять отдельную визуальную грамматику без обновления `DESIGN.md`.
 
@@ -37,7 +37,7 @@
 | Workout card | shared `ExerciseCard` | this contract | straight / rotation / completed | UI test |
 | Set row | shared `SetResultRow` | this contract | normal / edited / warmup | UI test |
 | Overflow deviations | shared app-owned menu/bottom sheet | this contract | exercise / set | keyboard/touch test |
-| File import | `ProgramImportCoordinator` | `docs/data-contracts.md` | picker / Open with | integration test |
+| File import | `ProgramImporter` + `ProgramImportScreen` | `docs/data-contracts.md` | picker / Open with | integration test |
 | JSON share | `SnapshotShareCoordinator` | `docs/data-contracts.md` | Android Share Sheet | device test |
 
 ## Navigation
@@ -256,7 +256,7 @@ Prefill — удобство ввода, а не рекомендация.
 
 Primary action:
 
-> **Отправить JSON**
+> **Передать отчёт ИИ**
 
 Secondary:
 
@@ -264,7 +264,7 @@ Secondary:
 
 ## Share JSON
 
-`Отправить JSON`:
+`Передать отчёт ИИ`:
 
 1. формирует snapshot по `docs/data-contracts.md`;
 2. сохраняет временный `.json` в app cache;
@@ -348,7 +348,7 @@ Equipment list показывает:
 - **Timer resilience:** монотонное время в пределах одной загрузки устройства; после перезагрузки wall-clock fallback с пометкой приблизительности. См. docs/data-contracts.md.
 - **Duplicate submit:** кнопка `Записать подход` блокируется на время локальной транзакции.
 - **Program import:** атомарная транзакция; partial import запрещён.
-- **Share failure:** snapshot остаётся регенерируемым из Room; пользователь может повторить `Отправить JSON`.
+- **Share failure:** snapshot остаётся регенерируемым из Room; пользователь может повторить `Передать отчёт ИИ`.
 
 ## Validation
 
@@ -383,3 +383,24 @@ Equipment list показывает:
 - narrow-phone screenshot review;
 - TalkBack smoke test;
 - font scale 200% smoke test на ключевых экранах.
+
+## Реализованный сценарий — 26 октября 2026
+
+Просмотр будущей тренировки не создаёт попытку. Только «Начать тренировку» создаёт snapshot. После начала открывается обзор. Выбор упражнения открывает отдельный экран; Back → обзор → Сегодня. Холодный запуск предлагает «Продолжить тренировку»; пересоздание уже открытого экрана восстанавливает маршрут. Выбор упражнения хранится как UI position, отдельно от подтверждённых фактов. Перед выходом выполняется flush draft; при ошибке — «Остаться» / «Уйти без изменений». Пустую попытку можно явно отменить; попытка с фактами этим действием не удаляется.
+
+В каталоге строка открывает read-only detail; «Изменить настройки» открывает editor. Поиск локальный, без сети/debounce, с явной очисткой и возвратом фокуса. LazyColumn виртуализирует каталог/историю; ограничение 24 относится только к AI export. Схема выбирается из встроенных типов; фото не является главным изображением.
+
+Подтверждённый прогресс считает только действительные плановые слоты. Разминка, дополнительные и пропуски показываются отдельно. Пропуски закрывают очередь, но не считаются выполненными. «С записи» — интервал от completed_at, а «Пауза по плану» — назначение; ни один из них не объявляется измеренным чистым отдыхом.
+
+Новый импорт имеет отдельный экран с полным составом/назначениями/заметками и явным принятием. Конфликт и ошибка оставляют preview доступным для повторного действия. Новый план не заменяет snapshot активной тренировки.
+
+| Capability | Canonical owner | Source of truth | Allowed variants | Verification |
+|---|---|---|---|---|
+| Form | NumericField / EquipmentEditSheet / RirSelector, Material3 fields | PRODUCT.md + this contract | numeric / equipment / notes | unit + Compose |
+| Select/Listbox | Material3 FilterChip / RadioButton + VisualPicker | this contract | RIR / visual asset | Compose selection |
+| Date | java.time formatters, read-only | docs/data-contracts.md | local date / event timestamp | unit + UI |
+| Scrollbar | Android LazyColumn / platform scrolling | DESIGN.md | feature content scroller | native review |
+| Toast | StatusNotice, feature persistent error | this contract | info / error | Compose |
+| CRUD | SportzalRepository + feature routes | PRODUCT.md | catalog editor / historical correction | Room + UI |
+
+Общие видимые CTA принадлежат SportzalButton, IconButton с VectorDrawable и AppHeader. Dialog — Material3 AlertDialog с прокручиваемым телом; системные document picker/share sheet остаются платформенными. Последовательность сохранения: busy → Room commit → обновление UI; ошибка сохраняет ввод и остаётся доступной.

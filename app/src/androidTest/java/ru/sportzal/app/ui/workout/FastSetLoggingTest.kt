@@ -56,7 +56,7 @@ class FastSetLoggingTest {
         }, { _, _, _ -> }, {}) } }
 
         compose.onNodeWithText("Цель: 100 кг · 5–8 · Запас: 2").assertIsDisplayed()
-        compose.onNode(hasContentDescription("Таймер отдыха")).performScrollTo().assertIsDisplayed()
+        compose.onNode(hasContentDescription("Время с записи подхода")).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("rir-2").assertIsNotSelected()
         compose.onNodeWithTag("weight-instance").performTextClearance()
         compose.onNodeWithTag("weight-instance").performTextInput("30")
@@ -66,7 +66,7 @@ class FastSetLoggingTest {
         compose.onNodeWithTag("save-instance").performScrollTo().assertIsDisplayed().performClick()
         compose.onNodeWithText("1. 30 кг × 7 · Запас: 2").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Подход 2 · Рабочий").performScrollTo().assertIsDisplayed()
-        compose.onNode(hasContentDescription("Таймер отдыха")).performScrollTo().assertIsDisplayed()
+        compose.onNode(hasContentDescription("Время с записи подхода")).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("save-instance").performScrollTo().assertIsDisplayed().performClick()
         assertEquals("UI exposes only one fact for the planned slot", 1, ui.blocks.single().cards.single().saved.size)
     }

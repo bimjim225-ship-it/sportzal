@@ -76,7 +76,7 @@ class AccessibilitySmokeTest {
 
         compose.onNode(hasContentDescription("Меню упражнения")).assertExists()
         compose.onNode(hasContentDescription("Меню записанного подхода")).assertExists()
-        compose.onNode(hasContentDescription("Таймер отдыха")).assertExists()
+        compose.onNode(hasContentDescription("Время с записи подхода")).assertExists()
     }
 
     private fun setWorkoutContent() {

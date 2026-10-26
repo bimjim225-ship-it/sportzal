@@ -45,6 +45,13 @@ import ru.sportzal.app.domain.ActualContext
 import java.util.UUID
 import ru.sportzal.app.data.files.EquipmentPhotoStore
 import ru.sportzal.app.ui.text.*
+import ru.sportzal.app.ui.workout.progress
+import ru.sportzal.app.ui.workout.actualContext
+import androidx.compose.ui.platform.LocalDensity
+import ru.sportzal.app.ui.theme.NumericTextStyle
+import ru.sportzal.app.ui.theme.SportzalColors
+import androidx.compose.ui.res.painterResource
+import ru.sportzal.app.R
 
 @Composable
 fun ExerciseCard(
@@ -65,6 +72,7 @@ fun ExerciseCard(
 ) {
     val slot = state.currentSlot
     val draft = state.draft
+    val actualContext = state.actualContext()
     var weightText by remember(state.exercise.exerciseInstanceId, slot?.plannedSetNo, draft?.weightKg) {
         mutableStateOf(draft?.weightKg?.display().orEmpty())
     }
@@ -79,25 +87,29 @@ fun ExerciseCard(
     var secondaryMenu by remember { mutableStateOf(false) }
     var contextDialog by remember { mutableStateOf(false) }
     var extraDialog by remember { mutableStateOf(false) }
+    var resultsExpanded by remember(state.exercise.exerciseInstanceId) { mutableStateOf(true) }
     Card(Modifier.fillMaxWidth().onFocusChanged { onInteraction(InteractionSource.FOCUS, it.hasFocus) }.focusGroup()
         .testTag("exercise-${state.exercise.exerciseInstanceId}")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (photoStore != null) LocalEquipmentPhoto(state.equipmentPhotoPath, photoStore, Modifier.fillMaxWidth())
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(state.exercise.title, style = MaterialTheme.typography.headlineSmall)
+                Text(state.exercise.title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                 IconButton({ secondaryMenu = true }, enabled = !saving, modifier = Modifier
                     .semantics { contentDescription = "Меню упражнения" }
-                    .testTag("secondary-${state.exercise.exerciseInstanceId}")) { Text("⋮") }
+                    .testTag("secondary-${state.exercise.exerciseInstanceId}")) { androidx.compose.material3.Icon(painterResource(R.drawable.sz_ic_more), null) }
                 DropdownMenu(secondaryMenu, onDismissRequest = { secondaryMenu = false }) {
                     DropdownMenuItem({ Text("Изменить оборудование / настройку") }, { secondaryMenu = false; contextDialog = true; onInteraction(InteractionSource.CONTEXT_DIALOG, true) })
                     DropdownMenuItem({ Text("Дополнительный подход") }, { secondaryMenu = false; extraDialog = true; onInteraction(InteractionSource.EXTRA_SET_DIALOG, true) })
                 }
             }
-            Text(listOfNotNull(draft?.context?.equipmentName ?: draft?.context?.equipmentId,
-                draft?.context?.setup, draft?.context?.loadBasis?.let(::loadBasisLabel),
-                draft?.context?.side?.let(::sideLabel)).joinToString(" · "))
-            Text("Подходы: ${state.saved.size}/${state.exercise.plannedSets.size}")
-            state.saved.forEach { result -> SetResultRow(result, saving, requiresRir(state, result.plannedSetNo), onInteraction,
+            Text(listOfNotNull(actualContext.equipmentName,
+                actualContext.setup, loadBasisLabel(actualContext.loadBasis),
+                sideLabel(actualContext.side)).joinToString(" · "))
+            val progress = state.progress()
+            Text("Рабочие: ${progress.completedWork}/${progress.plannedWork}", style = MaterialTheme.typography.titleMedium)
+            if (progress.plannedWarmup > 0) Text("Разминка: ${progress.completedWarmup}/${progress.plannedWarmup}", style = MaterialTheme.typography.bodySmall)
+            if (progress.extra > 0) Text("Дополнительные: ${progress.extra}", style = MaterialTheme.typography.bodySmall)
+            if (state.saved.isNotEmpty()) TextButton({ resultsExpanded = !resultsExpanded }) { Text("Записанные подходы (${state.saved.size})") }
+            if (resultsExpanded) state.saved.forEach { result -> SetResultRow(result, saving, requiresRir(state, result.plannedSetNo), onInteraction,
                 { weight, reps, rir, deviations, note, completed ->
                     onEdit(result.setResultId, weight, reps, rir, deviations, note, completed)
                 },
@@ -105,7 +117,7 @@ fun ExerciseCard(
                 { weight, reps, rir, deviations, note, context, completed ->
                     if (onEditActual != null) onEditActual(result.setResultId, weight, reps, rir, deviations, note, context, completed)
                     else onEdit(result.setResultId, weight, reps, rir, deviations, note, completed)
-                }) }
+                }, equipmentChoices = state.equipmentChoices) }
             state.skipped.sortedBy { it.plannedSetNo }.forEach { skipped ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("${skipped.plannedSetNo}. Пропущено" + (skipped.reason?.let { " · ${skipReasonLabel(it)}" } ?: ""),
@@ -118,27 +130,29 @@ fun ExerciseCard(
                 Text("Подход ${slot.plannedSetNo} · ${setTypeLabel(slot.setType)}")
                 Text("Цель: ${slot.targetWeightKg.display()} кг · ${slot.repsMin}–${slot.repsMax}" + (slot.targetRir?.let { " · ${compactRirLabel(it)}" } ?: ""))
                 val rest = state.restReferenceSec ?: slot.restTargetSec
-                Text("Ориентир до следующего подхода: ${rest / 60}:${(rest % 60).toString().padStart(2, '0')}")
+                Text("Пауза по плану: ${rest / 60}:${(rest % 60).toString().padStart(2, '0')}", style = MaterialTheme.typography.bodyMedium)
                 Text(if (state.saved.isEmpty()) "Ещё не записывали" else "С записи: $elapsed",
                     // Exclude the changing value from accessibility events to avoid an announcement every tick.
-                    modifier = Modifier.clearAndSetSemantics { contentDescription = "Таймер отдыха" }
+                    style = NumericTextStyle.copy(color = SportzalColors.Timer),
+                    modifier = Modifier.clearAndSetSemantics { contentDescription = "Время с записи подхода" }
                         .testTag("elapsed-${state.exercise.exerciseInstanceId}"))
                 BoxWithConstraints(Modifier.fillMaxWidth()) {
-                    val fields = if (maxWidth < 360.dp) Modifier.fillMaxWidth() else Modifier
-                    if (maxWidth < 360.dp) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val stacked = maxWidth < 280.dp || LocalDensity.current.fontScale > 1.3f
+                    val fields = if (stacked) Modifier.fillMaxWidth() else Modifier
+                    if (stacked) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         NumericField(weightText, "Вес", NumericKind.WEIGHT, {
-                            weightText = it; onDraft(parseNumeric(it, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), draft.rir, draft.rirAnswered)
+                            weightText = it; onDraft(parseNumeric(it, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), visibleRir, visibleRirAnswered)
                         }, fields.testTag("weight-${state.exercise.exerciseInstanceId}"), enabled = !saving && draft.context.loadBasis != "bodyweight")
                         NumericField(repsText, "Повторы", NumericKind.REPS, {
-                            repsText = it; onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(it, NumericKind.REPS)?.toInt(), draft.rir, draft.rirAnswered)
+                            repsText = it; onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(it, NumericKind.REPS)?.toInt(), visibleRir, visibleRirAnswered)
                         }, fields.testTag("reps-${state.exercise.exerciseInstanceId}"), enabled = !saving)
                     } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NumericField(weightText, "Вес", NumericKind.WEIGHT, {
-                        weightText = it; onDraft(parseNumeric(it, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), draft.rir, draft.rirAnswered)
-                    }, Modifier.testTag("weight-${state.exercise.exerciseInstanceId}"), enabled = !saving && draft.context.loadBasis != "bodyweight")
+                        weightText = it; onDraft(parseNumeric(it, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), visibleRir, visibleRirAnswered)
+                    }, Modifier.weight(1f).testTag("weight-${state.exercise.exerciseInstanceId}"), enabled = !saving && draft.context.loadBasis != "bodyweight")
                     NumericField(repsText, "Повторы", NumericKind.REPS, {
-                        repsText = it; onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(it, NumericKind.REPS)?.toInt(), draft.rir, draft.rirAnswered)
-                    }, Modifier.testTag("reps-${state.exercise.exerciseInstanceId}"), enabled = !saving)
+                        repsText = it; onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(it, NumericKind.REPS)?.toInt(), visibleRir, visibleRirAnswered)
+                    }, Modifier.weight(1f).testTag("reps-${state.exercise.exerciseInstanceId}"), enabled = !saving)
                     }
                 }
                 if (requiresRir(state)) {
@@ -150,7 +164,8 @@ fun ExerciseCard(
                 }
                 Button(onClick = { onSave(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(),
                     parseNumeric(repsText, NumericKind.REPS)?.toInt(), visibleRir, visibleRirAnswered) },
-                    enabled = !saving, modifier = Modifier.testTag("save-${state.exercise.exerciseInstanceId}")) {
+                    enabled = !saving, shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("save-${state.exercise.exerciseInstanceId}")) {
                     Text("Записать подход")
                 }
                 TextButton({ skipDialog = true; onInteraction(InteractionSource.SKIP_DIALOG, true) }, enabled = !saving,
@@ -173,7 +188,7 @@ fun ExerciseCard(
     }) { context -> onContext(context) { committed -> if (committed) {
         contextDialog = false; onInteraction(InteractionSource.CONTEXT_DIALOG, false)
     } } }
-    if (extraDialog && draft != null) ExtraSetDialog(draft.context, saving, {
+    if (extraDialog) ExtraSetDialog(actualContext, saving, {
         extraDialog = false; onInteraction(InteractionSource.EXTRA_SET_DIALOG, false)
     }) { type, weight, reps, rir, note -> onExtra(type, weight, reps, rir, note) { committed -> if (committed) {
         extraDialog = false; onInteraction(InteractionSource.EXTRA_SET_DIALOG, false)
@@ -213,24 +228,23 @@ private val loadBases = listOf("machine_display", "total_external", "per_hand", 
     onSave: (String, Double, Int, Int?, String?) -> Unit) {
     var weight by remember { mutableStateOf(if (context.loadBasis == "bodyweight") "0" else "") }
     var reps by remember { mutableStateOf("") }; var rir by remember { mutableStateOf<Int?>(null) }
+    var rirAnswered by remember { mutableStateOf(false) }
     var type by remember { mutableStateOf("work") }; var note by remember { mutableStateOf("") }
     val w = weight.replace(',', '.').toDoubleOrNull(); val r = reps.toIntOrNull()
     AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text("Дополнительный подход") }, text = {
         Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(listOfNotNull(context.equipmentName ?: context.equipmentId, context.setup).joinToString(" · "))
+            Text(listOfNotNull(context.equipmentName, context.setup).joinToString(" · "))
             OutlinedTextField(weight, { weight = it }, label = { Text("Вес") }, enabled = context.loadBasis != "bodyweight", modifier = Modifier.testTag("extra-weight"))
             OutlinedTextField(reps, { reps = it }, label = { Text("Повторы") }, modifier = Modifier.testTag("extra-reps"))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("work", "warmup").forEach { value -> FilterChip(type == value, { type = value }, { Text(setTypeLabel(value)) }) }
             }
             Text("Запас повторов")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                (0..4).forEach { value -> FilterChip(rir == value, { rir = value }, { Text(if (value == 4) "4+" else "$value") }) }
-                FilterChip(rir == null, { rir = null }, { Text("Не оценил") }) }
+            RirSelector(rir, rirAnswered, enabled = !saving) { rir = it; rirAnswered = true }
             OutlinedTextField(note, { note = it }, label = { Text("Комментарий") })
         }
     }, dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } }, confirmButton = {
-        TextButton({ onSave(type, w!!, r!!, rir, note.trim().ifEmpty { null }) }, enabled = !saving && w != null && w >= 0 && r != null && r >= 0,
+        TextButton({ onSave(type, w!!, r!!, rir, note.trim().ifEmpty { null }) }, enabled = !saving && w != null && w.isFinite() && w >= 0 && r != null && r >= 0,
             modifier = Modifier.testTag("save-extra")) { Text("Записать") }
     })
 }
@@ -283,5 +297,5 @@ private val skipReasons = listOf<String?>(null, "equipment_busy", "time_limit", 
         }
     }
 }
-private fun Double.display() = if (this % 1.0 == 0.0) toInt().toString() else toString()
+private fun Double.display() = (if (this % 1.0 == 0.0) toLong().toString() else toString()).replace('.', ',')
 internal fun Int.rirText() = if (this == 4) "4+" else toString()

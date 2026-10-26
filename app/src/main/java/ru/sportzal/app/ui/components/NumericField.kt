@@ -39,7 +39,7 @@ fun NumericField(
         modifier = modifier.heightIn(min = 48.dp).widthIn(min = 96.dp),
         enabled = enabled,
         label = { Text(label) },
-        textStyle = androidx.compose.material3.LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace),
+        textStyle = ru.sportzal.app.ui.theme.NumericTextStyle,
         keyboardOptions = KeyboardOptions(keyboardType = if (kind == NumericKind.WEIGHT) KeyboardType.Decimal else KeyboardType.Number),
         singleLine = true,
     )

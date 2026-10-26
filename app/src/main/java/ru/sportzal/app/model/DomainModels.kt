@@ -62,6 +62,7 @@ data class EquipmentCatalogItem(
     val availableWeightsKg: List<Double>?,
     val notes: String?,
     val photoPath: String?,
+    val illustrationKey: String? = null,
 )
 
 data class SaveEquipmentCommand(
@@ -69,6 +70,7 @@ data class SaveEquipmentCommand(
     val name: String,
     val setupHint: String?,
     val notes: String?,
+    val configuration: EquipmentConfiguration? = null,
 )
 
 enum class CompletionStatus { ACTIVE, COMPLETED, ENDED_EARLY }

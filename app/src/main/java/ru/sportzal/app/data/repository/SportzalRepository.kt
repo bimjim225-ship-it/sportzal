@@ -405,16 +405,31 @@ class RoomSportzalRepository(
     }
 
     override suspend fun equipmentCatalog(): List<EquipmentCatalogItem> = db.withTransaction {
-        dao.equipment().map { it.catalogItem() }
+        val visuals = db.visualDao().equipment().associate { it.equipmentId to it.illustrationKey }
+        dao.equipment().map { it.catalogItem().copy(illustrationKey = visuals[it.equipmentId]) }
     }
 
     override suspend fun saveEquipment(command: SaveEquipmentCommand): String = db.withTransaction {
         val name = command.name.trim().also { require(it.isNotEmpty()) { "Equipment name is required" } }
         val id = command.equipmentId ?: "local-equipment-${newId()}"
         val old = dao.equipment(id)
-        val value = EquipmentEntity(id, name, command.setupHint.normalized(), old?.weightStepKg,
-            old?.availableWeightsJson, command.notes.normalized(), old?.photoPath, now())
+        val config = command.configuration
+        if (config != null) {
+            require(config.weightStepKg == null || (config.weightStepKg.isFinite() && config.weightStepKg > 0)) { "Шаг веса должен быть больше нуля" }
+            require(config.availableWeightsKg == null || (config.availableWeightsKg.isNotEmpty() &&
+                config.availableWeightsKg.all { it.isFinite() && it >= 0 } && config.availableWeightsKg.distinct().size == config.availableWeightsKg.size)) { "Проверьте доступные веса" }
+            require(config.illustrationKey == null || ru.sportzal.app.model.VisualType.fromKey(config.illustrationKey) != null)
+        }
+        val value = EquipmentEntity(id, name, command.setupHint.normalized(),
+            if (config != null) config.weightStepKg else old?.weightStepKg,
+            if (config != null) config.availableWeightsKg?.let { StrictJson.encodeToString(it.sorted()) } else old?.availableWeightsJson,
+            command.notes.normalized(), old?.photoPath, now())
         if (old == null) dao.insertEquipment(value) else dao.updateEquipment(value)
+        if (config != null) {
+            val key = config.illustrationKey
+            if (key == null) db.visualDao().removeEquipment(id)
+            else db.visualDao().saveEquipment(ru.sportzal.app.data.db.EquipmentVisualEntity(id, key))
+        }
         id
     }
 

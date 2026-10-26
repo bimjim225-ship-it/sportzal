@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -37,6 +38,24 @@ import java.time.Instant
 class WorkoutCorrectionsTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun extraSetRemainsAvailableAfterFinalPlannedSlot() {
+        val original = workout(current = null, saved = listOf(result()))
+        val complete = original.withCard(original.card().copy(
+            exercise = original.card().exercise.copy(plannedSets = listOf(original.card().exercise.plannedSets.first()))))
+        var recorded = 0
+        compose.setContent { SportzalTheme { WorkoutScreen(complete, { "00:00" }, { _, _, _, _, _ -> },
+            { _, _, _, _, _, _ -> }, { _, _, _ -> }, {},
+            onExtra = { _, _, weight, reps, _, _, done ->
+                assertEquals(25.0, weight, 0.0); assertEquals(8, reps); recorded++; done(true)
+            }) } }
+        compose.onNodeWithTag("secondary-instance").performClick()
+        compose.onNodeWithText("Дополнительный подход").performClick()
+        compose.onNodeWithTag("extra-weight").assertExists().performTextInput("25")
+        compose.onNodeWithTag("extra-reps").performTextInput("8")
+        compose.onNodeWithTag("save-extra").performClick()
+        compose.runOnIdle { assertEquals(1, recorded) }
+    }
+
     @Test fun editClosesOnlyAfterCommitAndDisplaysCommittedValues() {
         var ui by mutableStateOf(workout(saved = listOf(result())))
         val interactions = mutableListOf<Pair<InteractionSource, Boolean>>()
@@ -49,7 +68,7 @@ class WorkoutCorrectionsTest {
         compose.onNodeWithText("Изменить").performClick()
         compose.onNodeWithTag("edit-reps").performTextClearance()
         compose.onNodeWithTag("edit-reps").performTextInput("8")
-        compose.onNodeWithText("3 повтора в запасе").performScrollTo().assertIsDisplayed().performClick().assertIsSelected()
+        compose.onNodeWithContentDescription("3 повтора в запасе").performScrollTo().assertIsDisplayed().performClick().assertIsSelected()
         compose.onNodeWithTag("deviation-technique_changed").performScrollTo().assertIsDisplayed().performClick().assertIsSelected()
         compose.onNodeWithTag("save-edit").assertIsDisplayed().assertIsEnabled().performClick()
 

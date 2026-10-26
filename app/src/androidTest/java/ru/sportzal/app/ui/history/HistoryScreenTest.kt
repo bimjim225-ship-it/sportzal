@@ -3,6 +3,7 @@ package ru.sportzal.app.ui.history
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -99,7 +100,7 @@ class HistoryScreenTest {
         compose.onNodeWithText("ID оборудования").assertExists()
         compose.onNodeWithText("Настройка тренажёра").assertExists()
         compose.onNodeWithText("Отклонения").assertExists()
-        compose.onNodeWithText("4+ повтора в запасе").assertExists()
+        compose.onNodeWithContentDescription("4+ повтора в запасе").assertExists()
         compose.onNodeWithText("Сохранить").performClick()
 
         assertEquals(listOf("discomfort"), capturedDeviations)

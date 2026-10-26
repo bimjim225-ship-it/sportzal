@@ -148,4 +148,5 @@ data class DraftEntity(
     val rir: Int?,
     @ColumnInfo(name = "actual_context_json") val actualContextJson: String?,
     @ColumnInfo(name = "updated_at") val updatedAt: String,
+    @ColumnInfo(name = "rir_answered", defaultValue = "0") val rirAnswered: Boolean = rir != null,
 )

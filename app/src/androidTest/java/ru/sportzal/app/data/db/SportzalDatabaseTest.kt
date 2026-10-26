@@ -40,6 +40,20 @@ import ru.sportzal.app.model.SaveEquipmentCommand
 
 @RunWith(AndroidJUnit4::class)
 class SportzalDatabaseTest {
+    @Test fun equipmentConfigurationAndIllustrationAreSavedAtomically() = runBlocking {
+        val id = repository.saveEquipment(SaveEquipmentCommand(name = "Тяга", setupHint = "Сиденье 4", notes = null,
+            configuration = ru.sportzal.app.model.EquipmentConfiguration(2.5, listOf(5.0, 12.5), "row")))
+        val saved = repository.equipmentCatalog().single { it.equipmentId == id }
+        assertEquals(2.5, saved.weightStepKg!!, 0.0)
+        assertEquals(listOf(5.0, 12.5), saved.availableWeightsKg)
+        assertEquals("row", saved.illustrationKey)
+        repository.saveEquipment(SaveEquipmentCommand(id, "Тяга 2", "Сиденье 5", null))
+        assertEquals("row", repository.equipmentCatalog().single { it.equipmentId == id }.illustrationKey)
+        repository.saveEquipment(SaveEquipmentCommand(id, "Тяга 2", "Сиденье 5", null,
+            ru.sportzal.app.model.EquipmentConfiguration(null, null, null)))
+        assertNull(repository.equipmentCatalog().single { it.equipmentId == id }.illustrationKey)
+    }
+
     private lateinit var database: SportzalDatabase
     private lateinit var repository: RoomSportzalRepository
     private var clock = 0

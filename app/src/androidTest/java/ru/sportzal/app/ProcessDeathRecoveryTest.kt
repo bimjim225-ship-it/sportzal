@@ -4,6 +4,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -58,7 +59,7 @@ class ProcessDeathRecoveryTest {
     @Test fun committedSetSurvivesActivityRecreation() {
         val fixture = seedActive()
         runBlocking { fixture.container.repository.saveSet(setCommand(fixture.workoutId)) }
-        recreateAndAwaitWorkout(fixture.title)
+        recreateAndAwaitWorkout(fixture.title, openExercise = true)
         compose.onNodeWithText("1. 100 кг × 6 · Запас: 2").performScrollTo().assertExists()
         assertEquals(1, runBlocking { fixture.container.database.dao().sets(fixture.workoutId).size })
         assertNull(runBlocking { fixture.container.database.dao().setInSlot(fixture.workoutId, "exercise", 2) })
@@ -72,8 +73,8 @@ class ProcessDeathRecoveryTest {
                 null, "2026-09-11T10:01:00Z",
             ))
         }
-        recreateAndAwaitWorkout(fixture.title)
-        compose.onNodeWithTag("weight-exercise").assertTextContains("102.5")
+        recreateAndAwaitWorkout(fixture.title, openExercise = true)
+        compose.onNodeWithTag("weight-exercise").assertTextContains("102,5")
         compose.onNodeWithTag("reps-exercise").assertTextContains("7")
         assertEquals(1, runBlocking { fixture.container.database.dao().draftCount(fixture.workoutId) })
         assertEquals(0, runBlocking { fixture.container.database.dao().setCount(fixture.workoutId) })
@@ -117,10 +118,8 @@ class ProcessDeathRecoveryTest {
             fixture.container.repository.updateWorkoutNotes(fixture.workoutId, "Заметка сохраняется")
         }
         recreateAndAwaitWorkout(fixture.title)
-        // A rendered second fact proves open() reloaded the state needed by requestFinish().
-        compose.waitUntil(5_000) {
-            compose.onAllNodesWithText("2. 100 кг × 6 · Запас: 2").fetchSemanticsNodes().isNotEmpty()
-        }
+        // The overview is loaded from committed facts before finishing.
+        compose.onNodeWithText("2 из 2 рабочих подходов").assertExists()
         compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
             .performScrollToNode(hasText("Завершить тренировку"))
         compose.onNodeWithText("Завершить тренировку").performClick()
@@ -169,12 +168,15 @@ class ProcessDeathRecoveryTest {
         }
     }
 
-    private fun recreateAndAwaitWorkout(title: String) {
+    private fun recreateAndAwaitWorkout(title: String, openExercise: Boolean = false) {
         compose.activityRule.scenario.recreate()
         compose.waitUntil(5_000) {
             compose.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText(title).assertExists()
+        compose.onNodeWithText("Продолжить тренировку").performScrollTo().performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("workout-overview").fetchSemanticsNodes().isNotEmpty() }
+        if (openExercise) compose.onNodeWithTag("open-exercise").performScrollTo().performClick()
     }
 
     private fun program(id: String, version: Int, title: String): ProgramDocument {

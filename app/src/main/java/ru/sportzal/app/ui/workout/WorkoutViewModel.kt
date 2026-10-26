@@ -46,6 +46,7 @@ data class BlockUiState(
     val title: String,
     val mode: String,
     val cards: List<ExerciseUiState>,
+    val notes: String? = null,
 )
 data class WorkoutUiState(
     val workoutId: String = "",
@@ -57,10 +58,14 @@ data class WorkoutUiState(
     val finishConfirmation: Boolean = false,
     val finishSummary: FinishSummary? = null,
     val notes: String? = null,
+    val planNotes: String? = null,
 )
 data class ExerciseFinishSummary(val title: String, val workSetCount: Int)
 data class FinishSummary(val durationSeconds: Long, val workSetCount: Int,
-    val exercises: List<ExerciseFinishSummary>, val endedEarly: Boolean)
+    val exercises: List<ExerciseFinishSummary>, val endedEarly: Boolean,
+    val plannedWorkCount: Int = workSetCount, val completedPlannedWork: Int = workSetCount,
+    val warmupSetCount: Int = 0, val extraSetCount: Int = 0, val skippedSetCount: Int = 0,
+    val title: String = "")
 
 enum class InteractionSource {
     FOCUS,
@@ -113,10 +118,12 @@ class WorkoutViewModel(
             drafts[entity.exerciseInstanceId to entity.plannedSetNo] = SetDraft(
                 entity.weightText.replace(',', '.').toDoubleOrNull(), entity.repsText.toIntOrNull(), entity.rir,
                 entity.actualContextJson?.let { StrictJson.decodeFromString<ActualContext>(it) }
-                    ?: exercise.resolvedContext(), rirAnswered = entity.rir != null,
+                    ?: exercise.resolvedContext(), rirAnswered = entity.rirAnswered,
             )
         }
-        mutableState.value = mutableState.value.copy(workoutId = workoutId, notes = details.runtime.notes)
+        mutableState.value = WorkoutUiState(workoutId = workoutId, notes = details.runtime.notes)
+        pending.clear()
+        committedFinishWorkoutId = null
         rotations.clear()
         interactionOwners.clear()
         plan!!.blocks.filter { it.mode == "rotation" }.forEach { block ->
@@ -143,11 +150,26 @@ class WorkoutViewModel(
         val value = SetDraft(if (existing.context.loadBasis == "bodyweight") 0.0 else weight, reps, rir,
             existing.context, rirAnswered)
         drafts[exerciseId to slot.plannedSetNo] = value
-        repository.saveDraft(DraftEntity(mutableState.value.workoutId, exerciseId, slot.plannedSetNo,
+        runCatching { repository.saveDraft(DraftEntity(mutableState.value.workoutId, exerciseId, slot.plannedSetNo,
             value.weightKg?.toString().orEmpty(), value.reps?.toString().orEmpty(), value.rir,
             StrictJson.encodeToString(value.context),
-            clock.wallNow().toString()))
+            clock.wallNow().toString(), value.rirAnswered)) }
+            .onFailure { fail("Не удалось сохранить ввод. Повторите изменение перед выходом.") }
         publish()
+    }
+
+    /** Failed writes keep the user in the workout at navigation boundaries. */
+    suspend fun flushDrafts(): Boolean {
+        if (state.value.saving) return false
+        return runCatching {
+            drafts.toMap().forEach { (key, value) ->
+                val exercise = exercises().firstOrNull { it.exerciseInstanceId == key.first } ?: return@forEach
+                if (currentSlot(exercise)?.plannedSetNo != key.second) return@forEach
+                repository.saveDraft(DraftEntity(state.value.workoutId, key.first, key.second,
+                    value.weightKg?.toString().orEmpty(), value.reps?.toString().orEmpty(), value.rir,
+                    StrictJson.encodeToString(value.context), clock.wallNow().toString(), value.rirAnswered))
+            }
+        }.onFailure { fail("Не удалось сохранить ввод. Повторите попытку или останьтесь в тренировке.") }.isSuccess
     }
 
     suspend fun saveSet(exerciseId: String, plannedSetNo: Int, weight: Double? = null, reps: Int? = null,
@@ -204,7 +226,7 @@ class WorkoutViewModel(
         val value = drafts.getValue(exerciseId to slot.plannedSetNo)
         return runCatching { repository.saveDraft(DraftEntity(state.value.workoutId, exerciseId, slot.plannedSetNo,
             value.weightKg?.toString().orEmpty(), value.reps?.toString().orEmpty(), value.rir,
-            StrictJson.encodeToString(value.context), clock.wallNow().toString())) }.onSuccess { publish() }
+            StrictJson.encodeToString(value.context), clock.wallNow().toString(), value.rirAnswered)) }.onSuccess { publish() }
             .onFailure { fail(it.message ?: "Не удалось сохранить контекст") }.isSuccess
     }
 
@@ -288,6 +310,12 @@ class WorkoutViewModel(
                 work.size,
                 counts,
                 details.runtime.completionStatus == "ended_early",
+                plannedWorkCount = restoredPlan.blocks.flatMap { it.exercises }.sumOf { ex -> ex.plannedSets.count { it.setType == "work" } },
+                completedPlannedWork = work.count { it.plannedSetNo != null },
+                warmupSetCount = details.sets.count { it.setType == "warmup" },
+                extraSetCount = details.sets.count { it.plannedSetNo == null },
+                skippedSetCount = details.skippedSets.size,
+                title = restoredPlan.title,
             ),
         )
     }.onFailure { fail(it.message ?: "Не удалось загрузить итоги тренировки") }.isSuccess
@@ -363,7 +391,7 @@ class WorkoutViewModel(
         val p = plan ?: return
         val now = readClock()
         mutableState.value = mutableState.value.copy(
-            title = p.title, now = now,
+            title = p.title, now = now, planNotes = p.notes,
             blocks = p.blocks.map { block ->
                 val byId = block.exercises.associateBy { it.exerciseInstanceId }
                 val order = rotations[block.blockId]?.cards?.map { it.exerciseInstanceId }
@@ -376,7 +404,7 @@ class WorkoutViewModel(
                 ExerciseUiState(ex, slot, slot?.let { resolvedDraft(ex, it) }, saved, rest,
                     skips.filter { it.exerciseInstanceId == id }, equipmentAtStart.values.toList(),
                     ex.equipmentId?.let(equipmentPhotos::get))
-            } }) },
+            } }, block.notes) },
         )
     }
 

@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
@@ -29,13 +30,13 @@ class TodayScreenTest {
 
     @Test fun noProgramShowsImport() {
         show(TodaySelection.NoProgram)
-        compose.onNodeWithText("Импортировать программу").assertIsDisplayed()
+        compose.onNodeWithText("Загрузить план от ИИ").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun exhaustedShowsImport() {
         show(TodaySelection.Exhausted)
         compose.onNodeWithText("План выполнен").assertIsDisplayed()
-        compose.onNodeWithText("Импортировать программу").assertIsDisplayed()
+        compose.onNodeWithText("Загрузить план от ИИ").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun readyShowsCorrectPrimaryWorkout() {
@@ -46,7 +47,7 @@ class TodayScreenTest {
     @Test fun resumeShowsContinue() {
         show(TodaySelection.Resume(WorkoutRuntime("active", "{}", "[]")))
         compose.onNodeWithText("Продолжить тренировку").assertIsDisplayed()
-        compose.onNodeWithText("Импортировать программу").assertIsDisplayed()
+        compose.onNodeWithText("Загрузить план от ИИ").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun manualAvailableWorkoutIsDisplayedAndClickedExactly() {

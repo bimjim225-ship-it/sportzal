@@ -22,6 +22,8 @@ import kotlinx.coroutines.delay
 import ru.sportzal.app.ui.components.ExerciseCard
 import ru.sportzal.app.domain.ActualContext
 import ru.sportzal.app.data.files.EquipmentPhotoStore
+import ru.sportzal.app.ui.components.AppHeader
+import ru.sportzal.app.ui.media.ExerciseMediaPanel
 
 @Composable
 fun WorkoutScreen(
@@ -43,6 +45,12 @@ fun WorkoutScreen(
     onCancelFinish: () -> Unit = {},
     onNote: (String, (Boolean) -> Unit) -> Unit = { _, done -> done(true) },
     photoStore: EquipmentPhotoStore? = null,
+    overview: Boolean = false,
+    focusedExerciseId: String? = null,
+    onBack: () -> Unit = {},
+    onSelectExercise: (String) -> Unit = {},
+    onCancelEmpty: () -> Unit = {},
+    onSelectTechnique: (String, String?, String?, (Boolean) -> Unit) -> Unit = { _, _, _, done -> done(false) },
 ) {
     var noteDialog by remember { mutableStateOf(false) }
     if (state.finishConfirmation) AlertDialog(onDismissRequest = onCancelFinish,
@@ -50,13 +58,28 @@ fun WorkoutScreen(
         confirmButton = { TextButton(onClick = onConfirmFinish) { Text("Завершить") } },
         dismissButton = { TextButton(onClick = onCancelFinish) { Text("Отмена") } })
     LaunchedEffect(Unit) { while (true) { delay(1_000); onTick() } }
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text(state.title, style = MaterialTheme.typography.headlineLarge) }
+    if (overview) WorkoutOverview(state, onBack, onSelectExercise, onFinish, onCancelEmpty)
+    else LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            if (focusedExerciseId != null) AppHeader("Упражнение", onBack = onBack)
+            else Text(state.title, style = MaterialTheme.typography.headlineLarge)
+        }
         item { TextButton({ noteDialog = true }) { Text("Заметка к тренировке") }; state.notes?.let { Text(it) } }
         state.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
         state.blocks.forEach { block ->
-            item(key = "block-${block.blockId}") { Text(block.title, style = MaterialTheme.typography.titleMedium) }
-            items(block.cards, key = { it.exercise.exerciseInstanceId }) { card ->
+            val cards = block.cards.filter { focusedExerciseId == null || it.exercise.exerciseInstanceId == focusedExerciseId }
+            if (cards.isNotEmpty()) item(key = "block-${block.blockId}") {
+                Text(block.title, style = MaterialTheme.typography.titleMedium)
+                block.notes?.let { Text(it) }
+            }
+            if (focusedExerciseId != null) cards.forEach { card -> item(key = "media-${card.exercise.exerciseInstanceId}") {
+                val context = card.actualContext()
+                val actualExercise = context.exerciseId
+                val equipment = context.equipmentId
+                ExerciseMediaPanel(actualExercise, equipment, context.setup,
+                    card.exercise.notes, state.saving) { key, done -> onSelectTechnique(actualExercise, equipment, key, done) }
+            } }
+            items(cards, key = { it.exercise.exerciseInstanceId }) { card ->
                 ExerciseCard(card, elapsedFor(card.saved.maxByOrNull { it.sequenceNo }), state.saving,
                     { weight, reps, rir, answered -> onDraft(card.exercise.exerciseInstanceId, weight, reps, rir, answered) },
                     { weight, reps, rir, answered -> card.currentSlot?.let {
@@ -71,7 +94,10 @@ fun WorkoutScreen(
                     onEditActual, photoStore)
             }
         }
-        item { Button(onClick = onFinish, enabled = !state.saving) { Text("Завершить тренировку") } }
+        item {
+            if (focusedExerciseId != null) ru.sportzal.app.ui.components.SportzalButton("К упражнениям", onBack, secondary = true, enabled = !state.saving)
+            else Button(onClick = onFinish, enabled = !state.saving) { Text("Завершить тренировку") }
+        }
     }
     if (noteDialog) WorkoutNoteDialog(state.notes.orEmpty(), state.saving, { noteDialog = false }) { value ->
         onNote(value) { if (it) noteDialog = false }
