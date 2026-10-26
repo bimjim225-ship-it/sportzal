@@ -1,0 +1,158 @@
+{
+  "app_version": "0.2.2",
+  "ci_run": 40359927966,
+  "ci_url": "https://github.com/bimjim225-ship-it/sportzal/actions/runs/40359927966",
+  "source_commit": "91d2eb636af4c69f12f26fe6c4dc019da5f1fd86",
+  "local_equivalent_commit": "697ad6d8424ac2e20a47b3bf85a318488d2b8e75",
+  "device": {
+    "api": 30,
+    "android": "11",
+    "viewport_px": [
+      360,
+      800
+    ],
+    "density_dpi": 160,
+    "font_scale": 1.0
+  },
+  "description": "Нативные неотретушированные снимки UIAutomation из CI106; демонстрационные данные. overview.png — только монтаж оригиналов с внешними подписями.",
+  "native_screens": {
+    "00-ai-help.png": {
+      "sha256": "bec95d6fbc0fa93e404a8cfabe01bce8a8c4bc353baf8907b6e4798e2ceddc8d",
+      "width": 360,
+      "height": 800
+    },
+    "00-onboarding.png": {
+      "sha256": "1bfa3faf7c4ab70a82c6e33d2c8963dfba03369837443f2c5dd3d684b336ccc1",
+      "width": 360,
+      "height": 800
+    },
+    "01-today.png": {
+      "sha256": "cc7a8b8796fa436dc7b3e6f634bc3691b192fbe91f95a32f5500f42481568693",
+      "width": 360,
+      "height": 800
+    },
+    "02-plan.png": {
+      "sha256": "b2fbad5fa4e403eb5580d1b965d8cd55ce3c94e7cdf2d8ae001ff769a29dc2d9",
+      "width": 360,
+      "height": 800
+    },
+    "03-workout.png": {
+      "sha256": "39110396cc99c387a57bec070e63c6fff0af6ccc13b1ac4f0d9708614532818c",
+      "width": 360,
+      "height": 800
+    },
+    "04-entry.png": {
+      "sha256": "f414c1c14beeeee3c704a8aab06e7c34ad5f5f3fb7f82d8cd50b844ea02df940",
+      "width": 360,
+      "height": 800
+    },
+    "05-setup.png": {
+      "sha256": "01218ea2e671f2506e654ed606ff609a31ecf4acb8cd63729c495c12a448daf7",
+      "width": 360,
+      "height": 800
+    },
+    "06-technique.png": {
+      "sha256": "4bbe6f9421920e19aa85aabda5881a3fdd925d6a11ef25829167bbc578d7d008",
+      "width": 360,
+      "height": 800
+    },
+    "07-import.png": {
+      "sha256": "201611a773b436e073978fc790f6db7b58e00f39c7c6c744be44fb17075a2cc3",
+      "width": 360,
+      "height": 800
+    },
+    "08-finish.png": {
+      "sha256": "3ffca6f5ad744c8eb0989366747093c32f3992daebace7bece2353821b139a3d",
+      "width": 360,
+      "height": 800
+    },
+    "09-history.png": {
+      "sha256": "eae9953c4ac865fc515cda86b976acb012720aa57161bc9ec9b7d25fb51cf438",
+      "width": 360,
+      "height": 800
+    },
+    "10-catalog.png": {
+      "sha256": "3143d0f1b4a9f5c58cf78403122732f8f8e71a00aa9ce2253e8fbc473dce646c",
+      "width": 360,
+      "height": 800
+    },
+    "11-equipment.png": {
+      "sha256": "028f6c23164459bdc72551d1e69f3dceeb6c6c306f3578464e13f2ac8be8bcc7",
+      "width": 360,
+      "height": 800
+    },
+    "12-replacement.png": {
+      "sha256": "78d429aac98c2bf5620a818be28383c1cbe06d38d5fd835ba369b9f6fd32e798",
+      "width": 360,
+      "height": 800
+    },
+    "13-skip-remaining.png": {
+      "sha256": "96d518ae98861a7a4d626b06233cd490231461ac3b1d4c25c720f6db0634a373",
+      "width": 360,
+      "height": 800
+    },
+    "14-inline-validation.png": {
+      "sha256": "8f3c893af7dea8ab176871db2d176d3a2d0f60e1747947257f8b58f058858e44",
+      "width": 360,
+      "height": 800
+    },
+    "15-ai-ready.png": {
+      "sha256": "daa2ce4061d33b3638ca8b132033b6fc9ade590a6346dc40614242833c04f133",
+      "width": 360,
+      "height": 800
+    },
+    "16-rir-help.png": {
+      "sha256": "8a0a4be60d880babf17449c6b56854278b538d55834d2be506a10191f748dc8a",
+      "width": 360,
+      "height": 800
+    },
+    "17-quick-guide.png": {
+      "sha256": "a4f0526dc071d83198a6e1fd7bc616cf2126b868bf0235e27c7f753c16b104a8",
+      "width": 360,
+      "height": 800
+    },
+    "18-quick-technique.png": {
+      "sha256": "4068d47a4a76a745429fcecdaada8e773f4397a6d01e5c89115538c21f98aeeb",
+      "width": 360,
+      "height": 800
+    },
+    "19-personal-settings.png": {
+      "sha256": "89cc3be0e78af1d567b8c82c1568e8a15e0293717edb3ab16d4bdc999365abc7",
+      "width": 360,
+      "height": 800
+    },
+    "guide-chest_press.png": {
+      "sha256": "af2c174f6aa5a9d8a074bcc599ba84ed9d502ddae8ff7a4d235ab850ea259d73",
+      "width": 360,
+      "height": 800
+    },
+    "guide-lat_pulldown.png": {
+      "sha256": "d51e2d8bb649ff8b59cb05cae68214f75eb1fb1b5ad90c399a7ce58890438cfe",
+      "width": 360,
+      "height": 800
+    },
+    "guide-leg_curl.png": {
+      "sha256": "220fb8879526224fe4b4dd38ffa0d1526ef3c7d57c164d3ea0432b444230b066",
+      "width": 360,
+      "height": 800
+    },
+    "guide-leg_press.png": {
+      "sha256": "8b42b8668086a2b03fefcd01bb88f09238eca4e00c312823573ce1ed968ef7f7",
+      "width": 360,
+      "height": 800
+    }
+  },
+  "composites": {
+    "overview.png": {
+      "sha256": "29c51f2b45259c01c93615a29398aaa20569f1f7537ba551fcbcca4fa512b29a",
+      "source_images": [
+        "00-onboarding.png",
+        "02-plan.png",
+        "04-entry.png",
+        "17-quick-guide.png",
+        "10-catalog.png",
+        "08-finish.png"
+      ]
+    }
+  }
+}
