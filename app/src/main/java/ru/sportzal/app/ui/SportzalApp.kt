@@ -146,7 +146,8 @@ fun SportzalApp(container: AppContainer, incomingUri: Uri?, consumeIncoming: () 
                     todayState.preview != null || todayState.readingFile -> ProgramImportScreen(todayState.preview, todayState.readingFile,
                         todayState.busy, todayState.message, today::dismissPreview,
                         { picker.launch(arrayOf("application/json", "text/json", "text/plain")) },
-                        { valid -> scope.launch { today.confirmImport(valid) } })
+                        { valid -> scope.launch { today.confirmImport(valid) } },
+                        onActivate = { valid -> scope.launch { today.activate(valid) } })
                     finishId != null && workoutState.finishSummary != null -> FinishScreen(workoutState.finishSummary!!,
                         workoutState.error, exchange.preparing, workoutState.notes,
                         { text, done -> scope.launch { done(workout.updateNotes(text)) } },

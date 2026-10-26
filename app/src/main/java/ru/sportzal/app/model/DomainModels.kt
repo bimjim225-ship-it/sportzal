@@ -75,6 +75,8 @@ data class SaveEquipmentCommand(
 
 enum class CompletionStatus { ACTIVE, COMPLETED, ENDED_EARLY }
 
+enum class ProgramImportStatus { NEW, ALREADY_ACTIVE, STORED_INACTIVE, CONFLICT }
+
 sealed interface ImportResult {
     data object Imported : ImportResult
     data object NoOp : ImportResult

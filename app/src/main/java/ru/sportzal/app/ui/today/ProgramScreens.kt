@@ -26,7 +26,8 @@ fun PlannedWorkoutScreen(plan: PlannedWorkoutDocument, equipment: List<Equipment
 
 @Composable
 fun ProgramImportScreen(preview: ImportPreview?, reading: Boolean, busy: Boolean, message: String?,
-    onBack: () -> Unit, onChoose: () -> Unit, onAccept: (ImportPreview.Valid) -> Unit) {
+    onBack: () -> Unit, onChoose: () -> Unit, onAccept: (ImportPreview.Valid) -> Unit,
+    onActivate: (ImportPreview.Valid) -> Unit = {}) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { AppHeader("Новый план", onBack = onBack) }
         if (reading) item { LoadingState("Читаем файл плана") }
@@ -37,11 +38,19 @@ fun ProgramImportScreen(preview: ImportPreview?, reading: Boolean, busy: Boolean
                 preview.program.coachNotes?.let { item { StatusNotice("Заметка ИИ", it) } }
                 preview.program.workouts.forEach { plan ->
                     item { Text(plan.title, style = MaterialTheme.typography.titleLarge); Text(formatPlanDate(plan.plannedDate), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    planItems(plan, preview.program.equipmentUpserts)
+                    planItems(plan, preview.equipment)
                 }
                 message?.let { item { StatusNotice(it, error = true) } }
                 item { StatusNotice("Файл прочитан", "Новый план применяется к будущим занятиям. Активная тренировка и история сохраняются.") }
-                item { SportzalButton("Принять план", { onAccept(preview) }, busy = busy) }
+                when (preview.status) {
+                    ProgramImportStatus.NEW -> item { SportzalButton("Принять план", { onAccept(preview) }, busy = busy) }
+                    ProgramImportStatus.STORED_INACTIVE -> item {
+                        StatusNotice("Этот план уже сохранён", "Можно снова выбрать его для будущих занятий. Начатая тренировка останется прежней.")
+                        SportzalButton("Использовать этот план", { onActivate(preview) }, busy = busy)
+                    }
+                    ProgramImportStatus.ALREADY_ACTIVE -> item { StatusNotice("Этот план уже используется") }
+                    ProgramImportStatus.CONFLICT -> item { StatusNotice("Конфликт версии", "Под этим номером сохранён другой состав. Попросите ИИ увеличить номер версии.", error = true) }
+                }
             }
             is ImportPreview.Error -> item { StatusNotice("План не принят", preview.message, error = true) }
             null -> Unit
@@ -64,6 +73,7 @@ private fun LazyListScope.planItems(plan: PlannedWorkoutDocument, equipment: Lis
                     EquipmentIllustration(LocalVisualBindings.current.equipment(exercise.equipmentId), Modifier.size(76.dp), thumbnail = true)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(exercise.title, style = MaterialTheme.typography.titleMedium)
+                        equipment.firstOrNull { it.equipmentId == exercise.equipmentId }?.let { Text(it.name, style = MaterialTheme.typography.bodySmall) }
                         plannedSetLines(exercise).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
                     }
                 }

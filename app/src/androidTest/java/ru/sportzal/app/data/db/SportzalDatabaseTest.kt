@@ -93,6 +93,23 @@ class SportzalDatabaseTest {
         }
     }
 
+    @Test fun explicitActivationPreservesActiveWorkoutAndHistory() = runBlocking {
+        val first = program()
+        repository.importProgram(first, StrictJson.encodeToString(first), "v1")
+        val workoutId = repository.startWorkout("program", 1, "session")
+        val snapshot = database.dao().workout(workoutId)!!.planSnapshotJson
+        val second = program(version = 2)
+        repository.importProgram(second, StrictJson.encodeToString(second), "v2")
+        assertEquals(ru.sportzal.app.model.ProgramImportStatus.STORED_INACTIVE,
+            repository.programImportStatus("program", 1, "v1"))
+        repository.activateProgram("program", 1, "v1")
+        assertEquals(1, database.dao().state()!!.activeProgramVersion)
+        assertEquals(snapshot, database.dao().workout(workoutId)!!.planSnapshotJson)
+        assertEquals(1, database.dao().workout(workoutId)!!.programVersion)
+        assertThrows(IllegalStateException::class.java) { runBlocking { repository.activateProgram("program", 1, "wrong") } }
+        assertEquals(1, database.dao().state()!!.activeProgramVersion)
+    }
+
     @Test
     fun maximumOneActiveWorkout() {
         runBlocking {

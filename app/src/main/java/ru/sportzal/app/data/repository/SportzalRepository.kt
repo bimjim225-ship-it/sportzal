@@ -43,6 +43,8 @@ import ru.sportzal.app.model.SaveEquipmentCommand
 
 interface SportzalRepository {
     suspend fun importProgram(validated: ProgramDocument, canonicalJson: String, canonicalHash: String): ImportResult
+    suspend fun programImportStatus(programId: String, version: Int, hash: String): ru.sportzal.app.model.ProgramImportStatus
+    suspend fun activateProgram(programId: String, version: Int, hash: String)
     fun observeTodayState(): Flow<TodayData>
     suspend fun startWorkout(programId: String, programVersion: Int, workoutInstanceId: String): String
     suspend fun cancelEmptyWorkout(workoutId: String): CancelEmptyResult
@@ -126,6 +128,23 @@ class RoomSportzalRepository(
         })
         dao.setAppState(AppStateEntity(activeProgramId = validated.programId, activeProgramVersion = validated.programVersion))
         ImportResult.Imported
+    }
+
+    override suspend fun programImportStatus(programId: String, version: Int, hash: String) = db.withTransaction {
+        val program = dao.program(programId, version)
+        val state = dao.state()
+        when {
+            program == null -> ru.sportzal.app.model.ProgramImportStatus.NEW
+            program.canonicalHash != hash -> ru.sportzal.app.model.ProgramImportStatus.CONFLICT
+            state?.activeProgramId == programId && state.activeProgramVersion == version -> ru.sportzal.app.model.ProgramImportStatus.ALREADY_ACTIVE
+            else -> ru.sportzal.app.model.ProgramImportStatus.STORED_INACTIVE
+        }
+    }
+
+    override suspend fun activateProgram(programId: String, version: Int, hash: String) = db.withTransaction {
+        val program = checkNotNull(dao.program(programId, version)) { "Сначала импортируйте план" }
+        check(program.canonicalHash == hash) { "Версия содержит другие данные" }
+        dao.setAppState(AppStateEntity(activeProgramId = programId, activeProgramVersion = version))
     }
 
     override fun observeTodayState() = dao.observeState().map {

@@ -138,6 +138,16 @@ class TodayViewModel(
         refresh()
     }
 
+    suspend fun activate(valid: ImportPreview.Valid) {
+        if (state.value.busy) return
+        mutableState.value = state.value.copy(busy = true, message = null)
+        runCatching { importer.activate(valid) }.fold({
+            manualWorkoutInstanceId = null
+            mutableState.value = state.value.copy(preview = null, busy = false, message = "План выбран для следующих тренировок")
+            refresh()
+        }, { mutableState.value = state.value.copy(busy = false, message = "Не удалось выбрать план. Повторите попытку.") })
+    }
+
     suspend fun chooseWorkout(workoutInstanceId: String) {
         manualWorkoutInstanceId = workoutInstanceId
         refresh()

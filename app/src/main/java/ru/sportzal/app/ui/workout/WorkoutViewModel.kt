@@ -59,6 +59,7 @@ data class WorkoutUiState(
     val finishSummary: FinishSummary? = null,
     val notes: String? = null,
     val planNotes: String? = null,
+    val reloadRequired: Boolean = false,
 )
 data class ExerciseFinishSummary(val title: String, val workSetCount: Int)
 data class FinishSummary(val durationSeconds: Long, val workSetCount: Int,
@@ -95,7 +96,7 @@ class WorkoutViewModel(
     private val drafts = linkedMapOf<Pair<String, Int>, SetDraft>()
     private val sets = mutableListOf<SetResultEntity>()
     private val skips = mutableListOf<SkippedSetEntity>()
-    private val pending = mutableMapOf<Pair<String, Int>, SaveSetCommand>()
+    private val pending = mutableMapOf<Pair<String, Int?>, SaveSetCommand>()
     private val rotations = mutableMapOf<String, RotationCoordinator>()
     private val interactionOwners = mutableMapOf<String, MutableSet<InteractionOwner>>()
     private var committedFinishWorkoutId: String? = null
@@ -143,7 +144,7 @@ class WorkoutViewModel(
     }
 
     suspend fun updateDraft(exerciseId: String, weight: Double?, reps: Int?, rir: Int?, rirAnswered: Boolean) {
-        if (mutableState.value.saving) return
+        if (mutableState.value.saving || mutableState.value.reloadRequired) return
         val exercise = exercises().first { it.exerciseInstanceId == exerciseId }
         val slot = currentSlot(exercise) ?: return
         val existing = resolvedDraft(exercise, slot)
@@ -161,6 +162,7 @@ class WorkoutViewModel(
     /** Failed writes keep the user in the workout at navigation boundaries. */
     suspend fun flushDrafts(): Boolean {
         if (state.value.saving) return false
+        if (state.value.reloadRequired && !reloadCommittedState()) return false
         return runCatching {
             drafts.toMap().forEach { (key, value) ->
                 val exercise = exercises().firstOrNull { it.exerciseInstanceId == key.first } ?: return@forEach
@@ -174,7 +176,7 @@ class WorkoutViewModel(
 
     suspend fun saveSet(exerciseId: String, plannedSetNo: Int, weight: Double? = null, reps: Int? = null,
         rir: Int? = null, rirAnswered: Boolean? = null) {
-        if (mutableState.value.saving) return
+        if (mutableState.value.saving || mutableState.value.reloadRequired) return
         val exercise = exercises().first { it.exerciseInstanceId == exerciseId }
         val slot = currentSlot(exercise)?.takeIf { it.plannedSetNo == plannedSetNo } ?: return
         if (sets.any { it.exerciseInstanceId == exerciseId && it.plannedSetNo == plannedSetNo }) return
@@ -187,37 +189,75 @@ class WorkoutViewModel(
         val weight = draft.weightKg ?: return fail("Введите вес")
         val reps = draft.reps ?: return fail("Введите повторы")
         if (requiresRir(exercise, slot) && !draft.rirAnswered) return fail("Выберите запас повторов или «Не оценил»")
-        // Created before entering repository/Room transaction, and retained on every retry.
-        val command = pending.getOrPut(key) {
-            val reading = readClock()
-            val context = draft.context
-            SaveSetCommand(newId(), mutableState.value.workoutId, exerciseId, slot.plannedSetNo, slot.setType,
-                context.exerciseId, exercise.title, context.equipmentId, context.equipmentName, context.setup,
-                context.loadBasis, context.side, weight, reps, draft.rir, reading.wall.toString(),
-                reading.bootId, reading.elapsedRealtimeMs)
-        }
-        mutableState.value = mutableState.value.copy(saving = true, error = null)
-        runCatching { repository.saveSet(command) }.onSuccess { result ->
-            when (result) {
-                is SaveSetResult.Saved -> {
-                    pending.remove(key); drafts.remove(key)
-                    // Re-read committed state: the row is not presented before commit.
-                    val details = repository.workoutDetails(command.workoutId)
-                    sets.clear(); sets += details.sets
-                    rotations.forEach { (blockId, coordinator) ->
-                        val block = plan!!.blocks.first { it.blockId == blockId }
-                        coordinator.update(runtimeCards(block.exercises), readClock(), committed = true)
-                    }
-                    mutableState.value = mutableState.value.copy(saving = false)
-                    publish()
-                }
-                is SaveSetResult.Conflict -> fail(result.message)
+        val previous = pending[key]
+        val reading = if (previous == null) readClock() else null
+        val context = draft.context
+        val candidate = SaveSetCommand(previous?.setResultId ?: newId(), state.value.workoutId,
+            exerciseId, slot.plannedSetNo, slot.setType, context.exerciseId, exercise.title,
+            context.equipmentId, context.equipmentName, context.setup, context.loadBasis, context.side,
+            weight, reps, draft.rir, previous?.completedAt ?: reading!!.wall.toString(),
+            previous?.bootId ?: reading?.bootId, previous?.elapsedRealtimeMs ?: reading?.elapsedRealtimeMs)
+        val command = previous?.takeIf { it == candidate } ?: candidate
+        pending[key] = command
+        commitAttempt(key, command, previous)
+    }
+
+    /** Reconcile an unknown acknowledgement before changing its payload; never create a second fact. */
+    private suspend fun commitAttempt(key: Pair<String, Int?>, command: SaveSetCommand,
+        previous: SaveSetCommand?): Boolean {
+        mutableState.value = state.value.copy(saving = true, error = null)
+        var committed = false
+        return runCatching {
+            val existing = if (previous != null && previous != command)
+                repository.workoutDetails(command.workoutId).sets.firstOrNull { it.setResultId == command.setResultId }
+                else null
+            if (existing != null) {
+                repository.editSet(EditSetCommand(command.setResultId, command.weightKg, command.reps,
+                    command.rir, clock.wallNow().toString(), command.deviations, command.note,
+                    command.equipmentIdActual, command.equipmentNameActual, command.setupActual,
+                    command.loadBasisActual, command.sideActual))
+            } else {
+                val result = repository.saveSet(command)
+                check(result is SaveSetResult.Saved) { (result as SaveSetResult.Conflict).message }
             }
-        }.onFailure { fail(it.message ?: "Не удалось записать подход") }
+            committed = true
+            refreshCommittedFacts()
+            pending.remove(key)
+        }.fold({ true }, { mutationFailed(it, committed); false })
+    }
+
+    private suspend fun refreshCommittedFacts() {
+        val details = repository.workoutDetails(state.value.workoutId)
+        sets.clear(); sets += details.sets
+        skips.clear(); skips += details.skippedSets
+        // Keep unrelated in-memory input; remove only drafts for slots closed by committed data.
+        drafts.keys.removeAll { key ->
+            sets.any { it.exerciseInstanceId == key.first && it.plannedSetNo == key.second } ||
+                skips.any { it.exerciseInstanceId == key.first && it.plannedSetNo == key.second }
+        }
+        updateRotations()
+        mutableState.value = state.value.copy(saving = false, error = null, reloadRequired = false)
+        publish()
+    }
+
+    private fun mutationFailed(error: Throwable, committed: Boolean) {
+        mutableState.value = state.value.copy(saving = false, reloadRequired = committed,
+            error = if (committed) "Изменение сохранено, но экран не обновился. Повторите загрузку данных."
+                else error.message ?: "Не удалось сохранить изменение. Повторите попытку.")
+    }
+
+    suspend fun reloadCommittedState(): Boolean {
+        if (state.value.saving) return false
+        mutableState.value = state.value.copy(saving = true)
+        return runCatching {
+            refreshCommittedFacts()
+            val committedIds = sets.map { it.setResultId }.toSet()
+            pending.entries.removeAll { it.value.setResultId in committedIds }
+        }.fold({ true }, { mutationFailed(it, true); false })
     }
 
     suspend fun updateActualContext(exerciseId: String, context: ActualContext): Boolean {
-        if (mutableState.value.saving) return false
+        if (mutableState.value.saving || mutableState.value.reloadRequired) return false
         val exercise = exercises().firstOrNull { it.exerciseInstanceId == exerciseId } ?: return false
         val slot = currentSlot(exercise) ?: return false
         val old = resolvedDraft(exercise, slot)
@@ -231,33 +271,28 @@ class WorkoutViewModel(
     }
 
     suspend fun saveExtraSet(exerciseId: String, setType: String, weight: Double, reps: Int, rir: Int?, note: String?): Boolean {
-        if (mutableState.value.saving || setType !in setOf("work", "warmup") || !weight.isFinite() || weight < 0 ||
+        if (mutableState.value.saving || mutableState.value.reloadRequired || setType !in setOf("work", "warmup") || !weight.isFinite() || weight < 0 ||
             reps < 0 || (rir != null && rir !in 0..4)) return false
         val exercise = exercises().firstOrNull { it.exerciseInstanceId == exerciseId } ?: return false
         val context = currentSlot(exercise)?.let { resolvedDraft(exercise, it).context }
             ?: latestContext(exercise) ?: exercise.resolvedContext()
         if (context.loadBasis == "bodyweight" && weight != 0.0) return false
-        val reading = readClock()
-        val command = SaveSetCommand(newId(), state.value.workoutId, exerciseId, null, setType,
-            context.exerciseId, exercise.title, context.equipmentId, context.equipmentName, context.setup,
-            context.loadBasis, context.side, weight, reps, rir, reading.wall.toString(), reading.bootId,
-            reading.elapsedRealtimeMs, note = note?.trim()?.ifEmpty { null })
-        return mutateSave(command)
-    }
-
-    private suspend fun mutateSave(command: SaveSetCommand): Boolean {
-        mutableState.value = mutableState.value.copy(saving = true, error = null)
-        return runCatching { repository.saveSet(command) }.mapCatching {
-            check(it is SaveSetResult.Saved) { (it as SaveSetResult.Conflict).message }
-            val details = repository.workoutDetails(state.value.workoutId)
-            sets.clear(); sets += details.sets
-            updateRotations(); mutableState.value = mutableState.value.copy(saving = false); publish()
-        }.onFailure { fail(it.message ?: "Не удалось записать подход") }.isSuccess
+        val key = exerciseId to null
+        val previous = pending[key]
+        val reading = if (previous == null) readClock() else null
+        val candidate = SaveSetCommand(previous?.setResultId ?: newId(), state.value.workoutId, exerciseId,
+            null, setType, context.exerciseId, exercise.title, context.equipmentId, context.equipmentName,
+            context.setup, context.loadBasis, context.side, weight, reps, rir,
+            previous?.completedAt ?: reading!!.wall.toString(), previous?.bootId ?: reading?.bootId,
+            previous?.elapsedRealtimeMs ?: reading?.elapsedRealtimeMs, note = note?.trim()?.ifEmpty { null })
+        val command = previous?.takeIf { it == candidate } ?: candidate
+        pending[key] = command
+        return commitAttempt(key, command, previous)
     }
 
     fun tick() { publish() }
     suspend fun requestFinish() {
-        if (state.value.saving || state.value.finishSummary != null) return
+        if (state.value.saving || state.value.reloadRequired || state.value.finishSummary != null) return
         if (hasUnresolvedSlots()) mutableState.value = state.value.copy(finishConfirmation = true)
         else confirmFinish()
     }
@@ -271,7 +306,7 @@ class WorkoutViewModel(
     }
     fun showError(message: String) { fail(message) }
     suspend fun confirmFinish(): Boolean {
-        if (state.value.saving || state.value.workoutId.isBlank()) return false
+        if (state.value.saving || state.value.reloadRequired || state.value.workoutId.isBlank()) return false
         mutableState.value = state.value.copy(saving = true, finishConfirmation = false, error = null)
         val workoutId = state.value.workoutId
         if (committedFinishWorkoutId != workoutId) {
@@ -339,7 +374,7 @@ class WorkoutViewModel(
     fun onCommittedSkipOrDelete() { updateRotations(); publish() }
 
     suspend fun editSet(setResultId: String, weight: Double, reps: Int, rir: Int?, deviations: List<String>, note: String?, context: ActualContext? = null): Boolean {
-        if (mutableState.value.saving) return false
+        if (mutableState.value.saving || mutableState.value.reloadRequired) return false
         val old = sets.firstOrNull { it.setResultId == setResultId } ?: return false
         val actual = context ?: ActualContext(old.exerciseIdActual, old.equipmentIdActual, old.setupActual,
             old.loadBasisActual, old.sideActual, old.equipmentNameActual)
@@ -351,12 +386,12 @@ class WorkoutViewModel(
     }
 
     suspend fun deleteSet(setResultId: String): Boolean {
-        if (mutableState.value.saving || sets.none { it.setResultId == setResultId }) return false
+        if (mutableState.value.saving || mutableState.value.reloadRequired || sets.none { it.setResultId == setResultId }) return false
         return mutate { repository.deleteSet(setResultId) }
     }
 
     suspend fun skipSet(exerciseId: String, plannedSetNo: Int, reason: String?, note: String?): Boolean {
-        if (mutableState.value.saving) return false
+        if (mutableState.value.saving || mutableState.value.reloadRequired) return false
         val exercise = exercises().firstOrNull { it.exerciseInstanceId == exerciseId } ?: return false
         if (currentSlot(exercise)?.plannedSetNo != plannedSetNo) return false
         return mutate { repository.skipSet(SkipSetCommand(state.value.workoutId, exerciseId, plannedSetNo,
@@ -364,22 +399,18 @@ class WorkoutViewModel(
     }
 
     suspend fun restoreSkippedSet(exerciseId: String, plannedSetNo: Int) {
-        if (mutableState.value.saving || skips.none { it.exerciseInstanceId == exerciseId && it.plannedSetNo == plannedSetNo }) return
+        if (mutableState.value.saving || mutableState.value.reloadRequired || skips.none { it.exerciseInstanceId == exerciseId && it.plannedSetNo == plannedSetNo }) return
         mutate { repository.restoreSkippedSet(state.value.workoutId, exerciseId, plannedSetNo) }
     }
 
     private suspend fun mutate(action: suspend () -> Unit): Boolean {
-        mutableState.value = mutableState.value.copy(saving = true, error = null)
-        return runCatching { action() }.onSuccess {
-            val details = repository.workoutDetails(state.value.workoutId)
-            sets.clear(); sets += details.sets
-            skips.clear(); skips += details.skippedSets
-            val validDrafts = details.drafts.map { it.exerciseInstanceId to it.plannedSetNo }.toSet()
-            drafts.keys.retainAll(validDrafts)
-            updateRotations()
-            mutableState.value = mutableState.value.copy(saving = false)
-            publish()
-        }.onFailure { fail(it.message ?: "Не удалось сохранить изменение") }.isSuccess
+        mutableState.value = state.value.copy(saving = true, error = null)
+        var committed = false
+        return runCatching {
+            action()
+            committed = true
+            refreshCommittedFacts()
+        }.fold({ true }, { mutationFailed(it, committed); false })
     }
 
     private fun updateRotations() = rotations.forEach { (blockId, coordinator) ->
