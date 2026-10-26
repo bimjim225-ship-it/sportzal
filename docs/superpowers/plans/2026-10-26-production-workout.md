@@ -79,8 +79,8 @@
 
 **Files:** `docs/reviews/2026-10-26-production-workout.md`, CI diagnostics/acceptance docs, README.
 
-- [ ] Статический premium audit и поиск дрейфа, ресурсный контроль; unit/build/lint/instrumentation на доступном runtime.
-- [ ] Независимый review всей ветки; исправить существенные замечания с регрессиями.
-- [ ] Сохранить реальные результаты и ограничения; открыть draft PR с APK artifact, main не менять.
+- [x] Статический premium audit и поиск дрейфа, ресурсный контроль; unit/build/lint/instrumentation на доступном runtime.
+- [x] Независимый review всей ветки; исправить существенные замечания с регрессиями.
+- [x] Сохранить реальные результаты и ограничения; открыть draft PR с APK artifact, main не менять.
 
 Полный переносимый backup/restore, установка внешних медиапакетов и генерация по фото сохраняются отдельными этапами исходного roadmap после основного рабочего цикла; JSON snapshot не называется backup.

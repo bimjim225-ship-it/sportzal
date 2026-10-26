@@ -40,19 +40,19 @@ class VisualAcceptanceTest {
         compose.activityRule.scenario.recreate()
         await("Открыть тренировку")
         capture("01-today")
-        compose.onNodeWithText("Открыть тренировку").performScrollTo().performClick()
+        scrollTo("Открыть тренировку"); compose.onNodeWithText("Открыть тренировку").performClick()
         capture("02-plan")
         scrollTo("Начать тренировку"); compose.onNodeWithText("Начать тренировку").performClick()
         awaitTag("workout-overview")
         val activeId = runBlocking { container.database.dao().activeWorkout()!!.workoutId }
         capture("03-workout")
-        compose.onNodeWithTag("open-row").performScrollTo().performClick()
-        awaitTag("exercise-row")
+        scrollTo(hasTestTag("open-row")); compose.onNodeWithTag("open-row").performClick()
+        await("Упражнение")
         capture("04-setup")
         scrollTo("Техника"); compose.onNodeWithText("Техника").performClick()
         capture("05-technique")
         scrollTo("Не оценил"); compose.onNodeWithText("Не оценил").performClick()
-        compose.onNodeWithTag("save-row").performScrollTo().performClick()
+        scrollTo(hasTestTag("save-row")); compose.onNodeWithTag("save-row").performClick()
         compose.waitUntil(10_000) { runBlocking { container.database.dao().setCount(activeId) == 1 } }
         scrollTo("К упражнениям"); compose.onNodeWithText("К упражнениям").performClick()
         awaitTag("workout-overview")
@@ -79,7 +79,7 @@ class VisualAcceptanceTest {
         compose.onNodeWithText("Завершить").performClick()
         await("Тренировка завершена")
         capture("07-finish")
-        compose.onNodeWithText("На главный экран").performScrollTo().performClick()
+        scrollTo("На главный экран"); compose.onNodeWithText("На главный экран").performClick()
         compose.onNodeWithText("История").performClick()
         await("Тренировка A")
         capture("08-history")
@@ -98,9 +98,10 @@ class VisualAcceptanceTest {
 
     private fun await(text: String) = compose.waitUntil(15_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
     private fun awaitTag(tag: String) = compose.waitUntil(15_000) { compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
-    private fun scrollTo(text: String) {
-        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex)).performScrollToNode(hasText(text))
-        compose.onNodeWithText(text).assertIsDisplayed()
+    private fun scrollTo(text: String) = scrollTo(hasText(text))
+    private fun scrollTo(matcher: SemanticsMatcher) {
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex)).performScrollToNode(matcher)
+        compose.onNode(matcher).assertIsDisplayed()
     }
     private fun capture(name: String) {
         compose.waitForIdle()
