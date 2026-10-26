@@ -50,11 +50,14 @@ fun SetResultRow(
     onEditContext: (Double, Int, Int?, List<String>, String?, ActualContext, (Boolean) -> Unit) -> Unit = { _, _, _, _, _, _, _ -> },
     equipmentChoices: List<ru.sportzal.app.model.EquipmentDocument> = emptyList(),
     exerciseChoices: List<ru.sportzal.app.model.ExerciseDocument> = emptyList(),
+    reloadRequired: Boolean = false,
+    error: String? = null,
 ) {
     var menu by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var edit by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var confirmDelete by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     fun closeAll() { menu = false; edit = false; confirmDelete = false; onInteraction(InteractionSource.SET_ACTIONS, false) }
+    androidx.compose.runtime.LaunchedEffect(reloadRequired) { if (reloadRequired) closeAll() }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text("${result.plannedSetNo?.let { "$it." } ?: "Доп."} ${result.weightKg.g} кг × ${result.reps}" + (result.rir?.let { " · ${compactRirLabel(it)}" } ?: ""), modifier = Modifier.weight(1f))
         IconButton({ menu = true; onInteraction(InteractionSource.SET_ACTIONS, true) }, enabled = !saving,
@@ -65,11 +68,11 @@ fun SetResultRow(
             DropdownMenuItem({ Text("Удалить") }, { menu = false; confirmDelete = true })
         }
     }
-    if (edit) EditSetDialog(result, showRir, saving, ::closeAll, equipmentChoices, exerciseChoices) { weight, reps, rir, deviations, note, context ->
+    if (edit) EditSetDialog(result, showRir, saving, ::closeAll, equipmentChoices, exerciseChoices, error = error) { weight, reps, rir, deviations, note, context ->
         onEditContext(weight, reps, rir, deviations, note, context) { committed -> if (committed) closeAll() }
     }
     if (confirmDelete) AlertDialog(onDismissRequest = { if (!saving) closeAll() }, title = { Text("Удалить этот подход?") },
-        text = { Text(if (result.plannedSetNo != null) "Плановый подход снова станет незаполненным." else "Дополнительный подход будет удалён из истории.") },
+        text = { Column { Text(if (result.plannedSetNo != null) "Плановый подход снова станет незаполненным." else "Дополнительный подход будет удалён из истории."); error?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error) } } },
         dismissButton = { TextButton(::closeAll, enabled = !saving) { Text("Отмена") } },
         confirmButton = { TextButton({ onDelete { committed -> if (committed) closeAll() } }, enabled = !saving,
             modifier = Modifier.testTag("confirm-delete")) { Text("Удалить") } })
@@ -120,12 +123,13 @@ internal fun EditSetDialog(
                 deviations = if (value in deviations) deviations - value else deviations + value
             }, { Text(deviationLabel(value)) }, modifier = Modifier.testTag("deviation-$value")) }
             OutlinedTextField(note, { note = it }, label = { Text("Комментарий") })
-            error?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error) }
         } },
         dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } },
-        confirmButton = { TextButton({ onSave(parsedWeight!!, parsedReps!!, rir, deviations.toList(), note,
+        confirmButton = { Column {
+            error?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error) }
+            TextButton({ onSave(parsedWeight!!, parsedReps!!, rir, deviations.toList(), note,
             context.normalized()) },
-            enabled = valid && !saving, modifier = Modifier.testTag("save-edit")) { Text("Сохранить") } })
+            enabled = valid && !saving, modifier = Modifier.testTag("save-edit")) { Text("Сохранить") } } })
 }
 
 private val loadBases = listOf("machine_display", "total_external", "per_hand", "assistance", "bodyweight")

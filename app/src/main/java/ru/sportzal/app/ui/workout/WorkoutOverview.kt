@@ -6,6 +6,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -16,7 +18,8 @@ import ru.sportzal.app.ui.text.setTypeLabel
 
 @Composable
 fun WorkoutOverview(state: WorkoutUiState, onBack: () -> Unit, onExercise: (String) -> Unit,
-    onFinish: () -> Unit, onCancelEmpty: () -> Unit) {
+    onFinish: () -> Unit, onCancelEmpty: () -> Unit,
+    elapsedFor: (ru.sportzal.app.data.db.SetResultEntity?) -> String = { "" }) {
     val cards = state.blocks.flatMap { it.cards }
     val progress = cards.map { it.progress() }
     val completed = progress.sumOf { it.completedWork }
@@ -46,13 +49,25 @@ fun WorkoutOverview(state: WorkoutUiState, onBack: () -> Unit, onExercise: (Stri
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         EquipmentIllustration(bindings.equipment(context.equipmentId), Modifier.size(76.dp), thumbnail = true)
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(card.exercise.title, style = MaterialTheme.typography.titleMedium)
+                            Text(context.title ?: card.exercise.title, style = MaterialTheme.typography.titleMedium)
                             Text("Рабочие: ${p.completedWork}/${p.plannedWork}" + if (p.skipped > 0) " · Пропуски: ${p.skipped}" else "",
                                 style = MaterialTheme.typography.bodySmall)
                             val slot = card.currentSlot
-                            if (slot != null) Text("${setTypeLabel(slot.setType)} · ${slot.targetWeightKg.numberText()} кг · ${slot.repsMin}–${slot.repsMax}",
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            else Text(if (p.fullyPerformed) "Выполнено" else "Есть пропущенные подходы", style = MaterialTheme.typography.labelLarge)
+                            if (slot != null) {
+                                if (card.hasReplacement()) {
+                                    Text(if (card.draft?.weightKg == null || card.draft.reps == null) "Замена · укажите вес и повторы"
+                                        else "Ввод: ${card.draft.weightKg.numberText()} кг · ${card.draft.reps} повт.",
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                    Text("По плану: ${card.exercise.title}", style = MaterialTheme.typography.bodySmall)
+                                } else Text("${setTypeLabel(slot.setType)} · ${slot.targetWeightKg.numberText()} кг · ${slot.repsMin}–${slot.repsMax}",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else Text(if (p.fullyPerformed) "Выполнено" else "Есть пропущенные подходы", style = MaterialTheme.typography.labelLarge)
+                        }
+                        if (block.mode == "rotation") {
+                            val elapsed = elapsedFor(card.saved.maxByOrNull { it.sequenceNo })
+                            Text(elapsed.ifEmpty { "—" }, style = MaterialTheme.typography.titleSmall,
+                                color = ru.sportzal.app.ui.theme.SportzalColors.Timer,
+                                modifier = Modifier.clearAndSetSemantics { contentDescription = "Время с записи подхода" })
                         }
                         Icon(painterResource(if (p.fullyPerformed) R.drawable.sz_ic_check else R.drawable.sz_ic_chevron_right), null, Modifier.size(22.dp))
                     }

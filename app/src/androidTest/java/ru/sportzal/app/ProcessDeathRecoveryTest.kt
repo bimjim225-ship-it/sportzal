@@ -60,6 +60,7 @@ class ProcessDeathRecoveryTest {
         val fixture = seedActive()
         runBlocking { fixture.container.repository.saveSet(setCommand(fixture.workoutId)) }
         recreateAndAwaitWorkout(fixture.title, openExercise = true)
+        compose.onNodeWithText("Записанные подходы (1)").performScrollTo().performClick()
         compose.onNodeWithText("1. 100 кг × 6 · Запас: 2").performScrollTo().assertExists()
         assertEquals(1, runBlocking { fixture.container.database.dao().sets(fixture.workoutId).size })
         assertNull(runBlocking { fixture.container.database.dao().setInSlot(fixture.workoutId, "exercise", 2) })

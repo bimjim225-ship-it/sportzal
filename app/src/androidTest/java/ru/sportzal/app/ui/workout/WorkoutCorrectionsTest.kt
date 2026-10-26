@@ -211,7 +211,7 @@ class WorkoutCorrectionsTest {
         compose.onNodeWithTag("confirm-skip").assertDoesNotExist()
         compose.onNodeWithText("1. 100 кг × 5 · Запас: 2").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("2. Пропущено").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Все подходы записаны").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Подходы закрыты · есть пропуски").performScrollTo().assertIsDisplayed()
         assertEquals(listOf(InteractionSource.SKIP_DIALOG to true, InteractionSource.SKIP_DIALOG to false),
             interactions.filter { it.first == InteractionSource.SKIP_DIALOG })
     }
@@ -269,6 +269,55 @@ class WorkoutCorrectionsTest {
                 update(state.withCard(card.copy(currentSlot = slot(setNo), draft = draft(setNo),
                     skipped = card.skipped.filterNot { it.plannedSetNo == setNo })))
             }) }
+    }
+
+    @Test fun editCommitReadFailureReleasesTheModalForRecovery() = assertModalRecovery(false)
+    @Test fun deleteCommitReadFailureReleasesTheModalForRecovery() = assertModalRecovery(true)
+
+    private fun assertModalRecovery(delete: Boolean) {
+        var ui by mutableStateOf(workout(current=2,saved=listOf(result())))
+        var reloaded=false
+        fun failedRead() { ui=ui.copy(reloadRequired=true,error="Записано; повторите чтение") }
+        compose.setContent { SportzalTheme {
+            WorkoutScreen(ui,{"0:00"},{_,_,_,_,_->},{_,_,_,_,_,_->},{_,_,_->},{},
+                onEdit={_,_,_,_,_,_,done->failedRead();done(false)},
+                onDelete={_,done->failedRead();done(false)},
+                onReload={reloaded=true},focusedExerciseId="instance")
+        } }
+        compose.onNodeWithText("Записанные подходы (1)").performScrollTo().performClick()
+        compose.onNodeWithTag("set-actions-set-1").performScrollTo().performClick()
+        compose.onNodeWithText(if(delete) "Удалить" else "Изменить").performClick()
+        val confirmation=if(delete) "confirm-delete" else "save-edit"
+        compose.onNodeWithTag(confirmation).performClick()
+        compose.onNodeWithTag(confirmation).assertDoesNotExist()
+        compose.onNodeWithTag("reload-workout").performScrollTo().assertIsEnabled().performClick()
+        compose.runOnIdle { assertEquals(true,reloaded) }
+    }
+
+    @Test fun replacementOverviewShowsActualMovementAndNeverAssignsOriginalLoad() {
+        val original=workout(current=1)
+        val actual=ActualContext("local-exercise:row","different",null,"machine_display","bilateral","Другой тренажёр","Другая тяга")
+        val ui=original.withCard(original.card().copy(draft=SetDraft(null,null,null,actual)))
+        compose.setContent { SportzalTheme { WorkoutOverview(ui,{}, {}, {}, {}) } }
+        compose.onNodeWithText("Другая тяга").assertExists()
+        compose.onNodeWithText("Замена · укажите вес и повторы").assertExists()
+        compose.onNodeWithText("Рабочий · 100 кг · 5–8").assertDoesNotExist()
+    }
+
+    @Test fun equipmentReplacementOverviewDoesNotReuseItsOriginalMachineLoad() {
+        val original=workout(current=1)
+        val actual=draft(1).context.copy(equipmentId="different",equipmentName="Другой тренажёр")
+        val ui=original.withCard(original.card().copy(draft=SetDraft(null,5,null,actual)))
+        compose.setContent { SportzalTheme { WorkoutOverview(ui,{}, {}, {}, {}) } }
+        compose.onNodeWithText("Замена · укажите вес и повторы").assertExists()
+        compose.onNodeWithText("Рабочий · 100 кг · 5–8").assertDoesNotExist()
+    }
+
+    @Test fun rotationOverviewRetainsApproximateElapsedTimers() {
+        val original=workout(current=2,saved=listOf(result()))
+        val ui=original.copy(blocks=listOf(original.blocks.single().copy(mode="rotation")))
+        compose.setContent { SportzalTheme { WorkoutOverview(ui,{}, {}, {}, {}, {"≈ 1:23"}) } }
+        compose.onNodeWithText("≈ 1:23",useUnmergedTree=true).assertExists()
     }
 
     private fun workout(current: Int? = null, saved: List<SetResultEntity> = emptyList(), skipped: List<SkippedSetEntity> = emptyList()): WorkoutUiState {

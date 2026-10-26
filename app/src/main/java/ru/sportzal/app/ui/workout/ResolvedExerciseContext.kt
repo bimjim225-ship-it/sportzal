@@ -14,3 +14,8 @@ fun ExerciseUiState.actualContext(): ActualContext {
     return ActualContext(exercise.exerciseId, exercise.equipmentId, exercise.setupHint ?: equipment?.setupHint,
         exercise.loadBasis, exercise.side, equipment?.name)
 }
+
+fun ExerciseUiState.hasReplacement(): Boolean = actualContext().let { actual ->
+    actual.exerciseId != exercise.exerciseId || actual.equipmentId != exercise.equipmentId ||
+        actual.loadBasis != exercise.loadBasis || (actual.title != null && actual.title != exercise.title)
+}

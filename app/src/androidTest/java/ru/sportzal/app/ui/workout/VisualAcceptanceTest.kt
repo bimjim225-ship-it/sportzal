@@ -27,7 +27,7 @@ class VisualAcceptanceTest {
     @After fun cleanup() {
         runCatching {
             capture("99-end")
-            File(compose.activity.filesDir, "review-screens/99-semantics.txt").writeText(compose.onRoot().printToString())
+            File(compose.activity.filesDir, "review-screens/99-semantics.txt").writeText(compose.onAllNodes(isRoot()).fetchSemanticsNodes().indices.joinToString("\n") { compose.onAllNodes(isRoot())[it].printToString() })
         }
         runBlocking { container.database.clearAllTables() }
     }
@@ -162,9 +162,15 @@ class VisualAcceptanceTest {
     private fun capture(name: String) {
         compose.waitForIdle()
         val bytes = ByteArrayOutputStream()
-        compose.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, bytes)
+        requireNotNull(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
+            .compress(Bitmap.CompressFormat.PNG, 100, bytes)
         val dir = File(compose.activity.filesDir, "review-screens").apply { mkdirs() }
         File(dir, "$name.png").writeBytes(bytes.toByteArray())
+        // UTP uninstalls the app after the suite. A shell-owned archive survives that cleanup.
+        val command = "run-as ru.sportzal.app tar -cf - files/review-screens > /sdcard/Download/sportzal-review.tar"
+        android.os.ParcelFileDescriptor.AutoCloseInputStream(
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+        ).use { it.readBytes() }
     }
 
     private val machines = listOf(

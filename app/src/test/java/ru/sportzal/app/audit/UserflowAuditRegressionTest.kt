@@ -134,6 +134,76 @@ class UserflowAuditRegressionTest {
         assertEquals(1, vm.state.value.blocks.single().cards.single().saved.size)
     }
 
+    @Test fun correctedRetrySurvivesAReconciliationReadFailure() = runBlocking { reconciliationFailure(false) }
+    @Test fun correctedRetrySurvivesAReconciliationEditFailure() = runBlocking { reconciliationFailure(true) }
+
+    private suspend fun reconciliationFailure(failEdit: Boolean) {
+        var current = initialDetails()
+        var firstWrite = true
+        var failNextRead = false
+        var failNextEdit = failEdit
+        val repository = repo { method, args -> when(method) {
+            "equipmentCatalog" -> emptyList<EquipmentCatalogItem>()
+            "saveDraft" -> Unit
+            "workoutDetails" -> {
+                if (failNextRead) { failNextRead = false; error("Reconciliation read unavailable") }
+                current
+            }
+            "saveSet" -> {
+                val c=args!![0] as SaveSetCommand
+                if (firstWrite) { firstWrite=false; current=current.copy(sets=listOf(entity(c))); error("Lost acknowledgement") }
+                SaveSetResult.Saved(c.setResultId,1,true)
+            }
+            "editSet" -> {
+                if (failNextEdit) { failNextEdit=false; error("Edit unavailable before commit") }
+                val c=args!![0] as EditSetCommand
+                current=current.copy(sets=listOf(current.sets.single().copy(weightKg=c.weightKg,reps=c.reps,rir=c.rir)))
+                Unit
+            }
+            else -> error("Unexpected $method")
+        } }
+        val vm=WorkoutViewModel(repository,clock()) { "stable-set-id" }; vm.open("workout")
+        vm.saveSet("instance",1,100.0,5,null,true)
+        vm.updateDraft("instance",105.0,7,2,true)
+        failNextRead = !failEdit
+        vm.saveSet("instance",1,105.0,7,2,true)
+        assertNotNull(vm.state.value.error)
+        vm.saveSet("instance",1,105.0,7,2,true)
+        val fact=current.sets.single()
+        assertEquals(105.0,fact.weightKg,0.0); assertEquals(7,fact.reps)
+        assertEquals("stable-set-id",fact.setResultId); assertEquals(1,fact.sequenceNo)
+        assertEquals("2026-10-26T10:00:00Z",fact.completedAt)
+    }
+
+    @Test fun uncertainExtraWorkCanBeCorrectedToWarmup() = runBlocking { correctExtraType("work","warmup") }
+    @Test fun uncertainExtraWarmupCanBeCorrectedToWork() = runBlocking { correctExtraType("warmup","work") }
+
+    private suspend fun correctExtraType(from: String,to: String) {
+        var current=initialDetails()
+        val repository=repo { method,args->when(method) {
+            "equipmentCatalog" -> emptyList<EquipmentCatalogItem>()
+            "workoutDetails" -> current
+            "saveSet" -> {
+                val c=args!![0] as SaveSetCommand
+                current=current.copy(sets=listOf(entity(c)))
+                error("Lost acknowledgement")
+            }
+            "editSet" -> {
+                val c=args!![0] as EditSetCommand
+                current=current.copy(sets=listOf(current.sets.single().copy(setType=c.setType ?: current.sets.single().setType)))
+                Unit
+            }
+            else->error("Unexpected $method")
+        } }
+        val vm=WorkoutViewModel(repository,clock()) { "extra-stable" };vm.open("workout")
+        assertFalse(vm.saveExtraSet("instance",from,20.0,8,null,null))
+        assertTrue(vm.saveExtraSet("instance",to,20.0,8,null,null))
+        val fact=current.sets.single()
+        assertEquals(to,fact.setType);assertNull(fact.plannedSetNo)
+        assertEquals("extra-stable",fact.setResultId);assertEquals(1,fact.sequenceNo)
+        assertEquals("2026-10-26T10:00:00Z",fact.completedAt)
+    }
+
     private fun repo(handler: (String, Array<out Any?>?) -> Any?) = Proxy.newProxyInstance(
         SportzalRepository::class.java.classLoader, arrayOf(SportzalRepository::class.java)
     ) { _, method, args -> handler(method.name, args) } as SportzalRepository

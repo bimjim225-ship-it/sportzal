@@ -95,6 +95,18 @@ class SportzalDatabaseTest {
         assertEquals("Старый тренажёр",repository.equipmentCatalog().single { it.equipmentId=="local:legacy" }.name)
     }
 
+    @Test fun extraTypeCanBeCorrectedWhilePlannedTypeRemainsImmutable() = runBlocking {
+        import(program());val id=repository.startWorkout("program",1,"session")
+        repository.saveSet(setCommand("extra",id,null))
+        fun edit(id: String,type: String)=EditSetCommand(id,1.0,1,null,"edited",emptyList(),null,
+            null,null,null,"machine_display","bilateral",setType=type)
+        repository.editSet(edit("extra","warmup"))
+        assertEquals("warmup",database.dao().set("extra")!!.setType)
+        repository.saveSet(setCommand("planned",id,1))
+        assertTrue(runCatching { repository.editSet(edit("planned","warmup")) }.isFailure)
+        assertEquals("work",database.dao().set("planned")!!.setType)
+    }
+
     private lateinit var database: SportzalDatabase
     private lateinit var repository: RoomSportzalRepository
     private var clock = 0

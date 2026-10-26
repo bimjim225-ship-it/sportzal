@@ -279,6 +279,10 @@ class RoomSportzalRepository(
         require(command.reps >= 0) { "Reps must be non-negative" }
         require(command.rir == null || command.rir in 0..4) { "RIR must be between 0 and 4" }
         require(command.loadBasisActual != "bodyweight" || command.weightKg == 0.0) { "Bodyweight load must remain zero" }
+        require(command.setType == null || command.setType in setOf("work", "warmup"))
+        require(old.plannedSetNo == null || command.setType == null || command.setType == old.setType) {
+            "Нельзя менять тип планового подхода"
+        }
         require(command.exerciseIdActual == null || command.exerciseIdActual.isNotBlank())
         require(command.titleActual == null || command.titleActual.isNotBlank())
         ensureEquipment(command.equipmentIdActual, command.equipmentNameActual, command.setupActual)
@@ -301,6 +305,7 @@ class RoomSportzalRepository(
                 sideActual = command.sideActual,
                 exerciseIdActual = command.exerciseIdActual ?: old.exerciseIdActual,
                 titleActual = command.titleActual ?: old.titleActual,
+                setType = command.setType ?: old.setType,
             ),
         )
     }

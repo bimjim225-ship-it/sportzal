@@ -63,7 +63,7 @@ fun WorkoutScreen(
         confirmButton = { TextButton(onClick = onConfirmFinish) { Text("Завершить") } },
         dismissButton = { TextButton(onClick = onCancelFinish) { Text("Отмена") } })
     LaunchedEffect(Unit) { while (true) { delay(1_000); onTick() } }
-    if (overview) WorkoutOverview(state, onBack, onSelectExercise, onFinish, onCancelEmpty)
+    if (overview) WorkoutOverview(state, onBack, onSelectExercise, onFinish, onCancelEmpty, elapsedFor)
     else Column(Modifier.fillMaxSize()) {
       if (focusedExerciseId != null) {
           val selected = state.blocks.flatMap { it.cards }.firstOrNull { it.exercise.exerciseInstanceId == focusedExerciseId }

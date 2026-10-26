@@ -19,6 +19,6 @@ test_status=0
 
 # Снять logcat до остановки эмулятора android-emulator-runner.
 adb logcat -d -v threadtime > app/build/ci-diagnostics/logcat.txt 2>&1 || true
-adb exec-out run-as ru.sportzal.app tar -cf - files/review-screens \
-  > app/build/ci-diagnostics/review-screens.tar 2> app/build/ci-diagnostics/screens-error.txt || true
+adb pull /sdcard/Download/sportzal-review.tar app/build/ci-diagnostics/review-screens.tar \
+  > app/build/ci-diagnostics/screens-pull.txt 2>&1 || true
 exit "$test_status"

@@ -51,6 +51,7 @@ import ru.sportzal.app.data.files.EquipmentPhotoStore
 import ru.sportzal.app.ui.text.*
 import ru.sportzal.app.ui.workout.progress
 import ru.sportzal.app.ui.workout.actualContext
+import ru.sportzal.app.ui.workout.hasReplacement
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import ru.sportzal.app.ui.theme.NumericTextStyle
@@ -109,6 +110,33 @@ fun ExerciseCard(
     var contextDialog by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var extraDialog by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var resultsExpanded by androidx.compose.runtime.saveable.rememberSaveable(state.exercise.exerciseInstanceId) { mutableStateOf(!focused) }
+    LaunchedEffect(reloadRequired) {
+        if (reloadRequired) {
+            skipDialog = false; contextDialog = false; extraDialog = false; secondaryMenu = false
+            listOf(InteractionSource.SKIP_DIALOG, InteractionSource.CONTEXT_DIALOG, InteractionSource.EXTRA_SET_DIALOG)
+                .forEach { onInteraction(it, false) }
+        }
+    }
+    val recordedSets: @Composable () -> Unit = {
+            if (state.saved.isNotEmpty()) TextButton({ resultsExpanded = !resultsExpanded }) { Text("Записанные подходы (${state.saved.size})") }
+            if (resultsExpanded) state.saved.forEach { result -> SetResultRow(result, saving || reloadRequired, requiresRir(state, result.plannedSetNo), onInteraction,
+                { weight, reps, rir, deviations, note, completed ->
+                    onEdit(result.setResultId, weight, reps, rir, deviations, note, completed)
+                },
+                { completed -> onDelete(result.setResultId, completed) },
+                { weight, reps, rir, deviations, note, context, completed ->
+                    if (onEditActual != null) onEditActual(result.setResultId, weight, reps, rir, deviations, note, context, completed)
+                    else onEdit(result.setResultId, weight, reps, rir, deviations, note, completed)
+                }, equipmentChoices = state.equipmentChoices, exerciseChoices = state.exerciseChoices, reloadRequired = reloadRequired, error = error) }
+            state.skipped.sortedBy { it.plannedSetNo }.forEach { skipped ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("${skipped.plannedSetNo}. Пропущено" + (skipped.reason?.let { " · ${skipReasonLabel(it)}" } ?: ""),
+                        modifier = Modifier.weight(1f))
+                    TextButton({ onRestore(skipped.plannedSetNo) }, enabled = !saving && !reloadRequired,
+                        modifier = Modifier.testTag("restore-${state.exercise.exerciseInstanceId}-${skipped.plannedSetNo}")) { Text("Вернуть подход") }
+                }
+            }
+    }
     Card(Modifier.fillMaxWidth().onFocusChanged { onInteraction(InteractionSource.FOCUS, it.hasFocus) }.focusGroup()
         .testTag("exercise-${state.exercise.exerciseInstanceId}")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -136,9 +164,10 @@ fun ExerciseCard(
             if (!focused) Text("Рабочие: ${progress.completedWork}/${progress.plannedWork}", style = MaterialTheme.typography.titleMedium)
             if (progress.plannedWarmup > 0) Text("Разминка: ${progress.completedWarmup}/${progress.plannedWarmup}", style = MaterialTheme.typography.bodySmall)
             if (progress.extra > 0) Text("Дополнительные: ${progress.extra}", style = MaterialTheme.typography.bodySmall)
+            if (!focused) recordedSets()
             if (slot != null && draft != null) {
                 Text("Подход ${slot.plannedSetNo} · ${setTypeLabel(slot.setType)}")
-                Text("${if (actualContext.exerciseId != state.exercise.exerciseId) "Исходный план" else "Цель"}: ${slot.targetWeightKg.display()} кг · ${slot.repsMin}–${slot.repsMax}" + (slot.targetRir?.let { " · ${compactRirLabel(it)}" } ?: ""))
+                Text("${if (state.hasReplacement()) "Исходный план" else "Цель"}: ${slot.targetWeightKg.display()} кг · ${slot.repsMin}–${slot.repsMax}" + (slot.targetRir?.let { " · ${compactRirLabel(it)}" } ?: ""))
                 val rest = state.restReferenceSec ?: slot.restTargetSec
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Пауза ${rest / 60}:${(rest % 60).toString().padStart(2, '0')}",
@@ -179,12 +208,17 @@ fun ExerciseCard(
                     }
                 }
                 if (submitted && requiresRir(state) && !visibleRirAnswered)
-                    Text("Выберите запас повторов или «Не оценил»", color = MaterialTheme.colorScheme.error)
+                    Text("Выберите запас повторов или «Не оценил»", color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("save-error"))
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("save-error")) }
                 if (reloadRequired) OutlinedButton(onReload, enabled = !saving,
                     modifier = Modifier.fillMaxWidth().testTag("reload-workout")) { Text("Обновить сохранённые данные") }
-                Button(onClick = { submitted = true; onSave(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(),
-                    parseNumeric(repsText, NumericKind.REPS)?.toInt(), visibleRir, visibleRirAnswered) },
+                Button(onClick = {
+                    submitted = true
+                    val weight = parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble()
+                    val reps = parseNumeric(repsText, NumericKind.REPS)?.toInt()
+                    if (weight != null && reps != null && (!requiresRir(state) || visibleRirAnswered))
+                        onSave(weight, reps, visibleRir, visibleRirAnswered)
+                },
                     enabled = !saving && !reloadRequired, shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("save-${state.exercise.exerciseInstanceId}")) {
                     Text("Записать подход")
@@ -196,28 +230,12 @@ fun ExerciseCard(
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 if (reloadRequired) OutlinedButton(onReload) { Text("Обновить сохранённые данные") }
             }
-            if (state.saved.isNotEmpty()) TextButton({ resultsExpanded = !resultsExpanded }) { Text("Записанные подходы (${state.saved.size})") }
-            if (resultsExpanded) state.saved.forEach { result -> SetResultRow(result, saving || reloadRequired, requiresRir(state, result.plannedSetNo), onInteraction,
-                { weight, reps, rir, deviations, note, completed ->
-                    onEdit(result.setResultId, weight, reps, rir, deviations, note, completed)
-                },
-                { completed -> onDelete(result.setResultId, completed) },
-                { weight, reps, rir, deviations, note, context, completed ->
-                    if (onEditActual != null) onEditActual(result.setResultId, weight, reps, rir, deviations, note, context, completed)
-                    else onEdit(result.setResultId, weight, reps, rir, deviations, note, completed)
-                }, equipmentChoices = state.equipmentChoices, exerciseChoices = state.exerciseChoices) }
-            state.skipped.sortedBy { it.plannedSetNo }.forEach { skipped ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("${skipped.plannedSetNo}. Пропущено" + (skipped.reason?.let { " · ${skipReasonLabel(it)}" } ?: ""),
-                        modifier = Modifier.weight(1f))
-                    TextButton({ onRestore(skipped.plannedSetNo) }, enabled = !saving && !reloadRequired,
-                        modifier = Modifier.testTag("restore-${state.exercise.exerciseInstanceId}-${skipped.plannedSetNo}")) { Text("Вернуть подход") }
-                }
-            }
+            if (focused) recordedSets()
+
 
         }
     }
-    if (skipDialog && slot != null) SkipSetDialog(saving, if (skipRemaining) "Пропустить оставшиеся подходы?" else "Пропустить подход", {
+    if (skipDialog && slot != null) SkipSetDialog(saving, error, if (skipRemaining) "Пропустить оставшиеся подходы?" else "Пропустить подход", {
         skipDialog = false; onInteraction(InteractionSource.SKIP_DIALOG, false)
     }) { reason, note ->
         val done: (Boolean) -> Unit = { committed -> if (committed) {
@@ -225,12 +243,12 @@ fun ExerciseCard(
         } }
         if (skipRemaining) onSkipRemaining(reason, note, done) else onSkip(slot.plannedSetNo, reason, note, done)
     }
-    if (contextDialog && draft != null) ActualContextDialog(draft.context, state.equipmentChoices, state.exerciseChoices, saving, {
+    if (contextDialog && draft != null) ActualContextDialog(draft.context, state.equipmentChoices, state.exerciseChoices, saving, error, {
         contextDialog = false; onInteraction(InteractionSource.CONTEXT_DIALOG, false)
     }) { context -> onContext(context) { committed -> if (committed) {
         contextDialog = false; onInteraction(InteractionSource.CONTEXT_DIALOG, false)
     } } }
-    if (extraDialog) ExtraSetDialog(actualContext, saving, {
+    if (extraDialog) ExtraSetDialog(actualContext, saving, error, {
         onCancelExtra { if (it) { extraDialog = false; onInteraction(InteractionSource.EXTRA_SET_DIALOG, false) } }
     }) { type, weight, reps, rir, note -> onExtra(type, weight, reps, rir, note) { committed -> if (committed) {
         extraDialog = false; onInteraction(InteractionSource.EXTRA_SET_DIALOG, false)
@@ -238,7 +256,7 @@ fun ExerciseCard(
 }
 
 @Composable private fun ActualContextDialog(current: ActualContext, equipment: List<ru.sportzal.app.model.EquipmentDocument>,
-    exercises: List<ru.sportzal.app.model.ExerciseDocument>, saving: Boolean, onDismiss: () -> Unit, onSave: (ActualContext) -> Unit) {
+    exercises: List<ru.sportzal.app.model.ExerciseDocument>, saving: Boolean, error: String?, onDismiss: () -> Unit, onSave: (ActualContext) -> Unit) {
     var contextJson by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(ru.sportzal.app.model.StrictJson.encodeToString(current)) }
     val context = ru.sportzal.app.model.StrictJson.decodeFromString<ActualContext>(contextJson)
     AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text("Замена и настройка") }, text = {
@@ -246,13 +264,14 @@ fun ExerciseCard(
             Text("Замена действует на следующие подходы. Уже записанные результаты сохранятся.")
             ActualContextEditor(context, equipment, exercises, !saving) { contextJson = ru.sportzal.app.model.StrictJson.encodeToString(it) }
         }
-    }, dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } }, confirmButton = {
+    }, dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } }, confirmButton = { Column {
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         TextButton({ onSave(context.normalized()) }, enabled = !saving && context.validForSave(),
             modifier = Modifier.testTag("save-context")) { Text("Сохранить") }
-    })
+    } })
 }
 
-@Composable private fun ExtraSetDialog(context: ActualContext, saving: Boolean, onDismiss: () -> Unit,
+@Composable private fun ExtraSetDialog(context: ActualContext, saving: Boolean, error: String?, onDismiss: () -> Unit,
     onSave: (String, Double, Int, Int?, String?) -> Unit) {
     var weight by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(if (context.loadBasis == "bodyweight") "0" else "") }
     var reps by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }; var rir by remember { mutableStateOf<Int?>(null) }
@@ -271,10 +290,11 @@ fun ExerciseCard(
             RirSelector(rir, rirAnswered, enabled = !saving) { rir = it; rirAnswered = true }
             OutlinedTextField(note, { note = it }, label = { Text("Комментарий") })
         }
-    }, dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } }, confirmButton = {
+    }, dismissButton = { TextButton(onDismiss, enabled = !saving) { Text("Отмена") } }, confirmButton = { Column {
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         TextButton({ onSave(type, w!!, r!!, rir, note.trim().ifEmpty { null }) }, enabled = !saving && w != null && w.isFinite() && w >= 0 && r != null && r >= 0,
             modifier = Modifier.testTag("save-extra")) { Text("Записать") }
-    })
+    } })
 }
 
 private fun requiresRir(state: ExerciseUiState, setNo: Int? = state.currentSlot?.plannedSetNo): Boolean = when (state.exercise.rirCapture) {
@@ -284,7 +304,7 @@ private fun requiresRir(state: ExerciseUiState, setNo: Int? = state.currentSlot?
 }
 private val skipReasons = listOf<String?>(null, "equipment_busy", "time_limit", "fatigue", "discomfort", "other")
 
-@Composable private fun SkipSetDialog(saving: Boolean, title: String, onDismiss: () -> Unit, onSkip: (String?, String?) -> Unit) {
+@Composable private fun SkipSetDialog(saving: Boolean, error: String?, title: String, onDismiss: () -> Unit, onSkip: (String?, String?) -> Unit) {
     var reason by remember { mutableStateOf<String?>(null) }
     var note by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     Dialog(onDismissRequest = { if (!saving) onDismiss() }) {
@@ -312,6 +332,7 @@ private val skipReasons = listOf<String?>(null, "equipment_busy", "time_limit", 
                         OutlinedTextField(note, { note = it }, label = { Text("Комментарий") })
                     }
                     Spacer(Modifier.height(8.dp))
+                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onDismiss, enabled = !saving) { Text("Отмена") }
                         TextButton(

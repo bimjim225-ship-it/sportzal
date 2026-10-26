@@ -133,6 +133,7 @@ data class EditSetCommand(
     val sideActual: String,
     val exerciseIdActual: String? = null,
     val titleActual: String? = null,
+    val setType: String? = null,
 )
 
 data class SkipSetCommand(

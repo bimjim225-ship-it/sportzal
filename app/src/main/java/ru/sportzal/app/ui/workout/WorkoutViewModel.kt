@@ -213,14 +213,16 @@ class WorkoutViewModel(
         mutableState.value = state.value.copy(saving = true, error = null)
         var committed = false
         return runCatching {
-            val existing = if (previous != null && previous != command)
+            val existing = if (previous != null)
                 repository.workoutDetails(command.workoutId).sets.firstOrNull { it.setResultId == command.setResultId }
                 else null
             if (existing != null) {
-                repository.editSet(EditSetCommand(command.setResultId, command.weightKg, command.reps,
+                check(existing.workoutId == command.workoutId && existing.exerciseInstanceId == command.exerciseInstanceId &&
+                    existing.plannedSetNo == command.plannedSetNo) { "ID записи относится к другому подходу" }
+                if (!existing.matches(command)) repository.editSet(EditSetCommand(command.setResultId, command.weightKg, command.reps,
                     command.rir, clock.wallNow().toString(), command.deviations, command.note,
                     command.equipmentIdActual, command.equipmentNameActual, command.setupActual,
-                    command.loadBasisActual, command.sideActual, command.exerciseIdActual, command.titleActual))
+                    command.loadBasisActual, command.sideActual, command.exerciseIdActual, command.titleActual, command.setType))
             } else {
                 val result = repository.saveSet(command)
                 check(result is SaveSetResult.Saved) { (result as SaveSetResult.Conflict).message }
@@ -230,6 +232,12 @@ class WorkoutViewModel(
             pending.remove(key)
         }.fold({ true }, { mutationFailed(it, committed); false })
     }
+
+    private fun SetResultEntity.matches(c: SaveSetCommand) = weightKg == c.weightKg && reps == c.reps &&
+        rir == c.rir && setType == c.setType && exerciseIdActual == c.exerciseIdActual && titleActual == c.titleActual &&
+        equipmentIdActual == c.equipmentIdActual && equipmentNameActual == c.equipmentNameActual &&
+        setupActual == c.setupActual && loadBasisActual == c.loadBasisActual && sideActual == c.sideActual &&
+        note == c.note && StrictJson.decodeFromString<List<String>>(deviationsJson) == c.deviations
 
     private suspend fun refreshCommittedFacts() {
         val details = repository.workoutDetails(state.value.workoutId)
@@ -307,10 +315,12 @@ class WorkoutViewModel(
         if (state.value.saving) return false
         val key = exerciseId to null
         val attempt = pending[key] ?: return true
+        mutableState.value = state.value.copy(saving = true, error = null)
         return runCatching {
             if (repository.workoutDetails(state.value.workoutId).sets.any { it.setResultId == attempt.setResultId })
                 refreshCommittedFacts()
             pending.remove(key)
+            mutableState.value = state.value.copy(saving = false)
         }.fold({ true }, { mutationFailed(it, false); false })
     }
 
