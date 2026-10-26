@@ -33,7 +33,11 @@ import java.util.Locale
     }
     fun requestClose() { if (!busy) { if (dirty) closeRequested = true else onClose() } }
     BackHandler { requestClose() }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+    ScreenWithAction(bottomAction = {
+        error?.let { StatusNotice(it, error = true) }
+        SportzalButton("Передать отчёт ИИ", { commitThen(onShare) }, busy = busy)
+    }) {
+      Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Icon(painterResource(R.drawable.sz_ic_check), null, Modifier.size(44.dp), tint = SportzalColors.Success)
         Text("Тренировка завершена", style = MaterialTheme.typography.headlineLarge)
@@ -61,13 +65,12 @@ import java.util.Locale
         OutlinedTextField(noteValue, { noteValue = it }, Modifier.fillMaxWidth(), enabled = !busy,
             label = { Text("Как прошла тренировка") }, supportingText = { Text("Комментарий необязателен") }, minLines = 3)
         if (dirty) TextButton({ commitThen {} }, enabled = !busy) { Text("Сохранить заметку") }
-        error?.let { StatusNotice(it, error = true) }
-        SportzalButton("Передать отчёт ИИ", { commitThen(onShare) }, busy = busy)
         Text("Отчёт содержит последние 24 завершённые тренировки и текущее занятие. Открытие меню отправки не подтверждает доставку.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         SportzalButton("Сохранить файл", { commitThen(onSave) }, enabled = !busy, secondary = true)
         onAiHelp?.let { help -> TextButton({ commitThen(help) }, enabled = !busy) { Text("Как получить следующий план") } }
         TextButton(::requestClose, enabled = !busy) { Text("На главный экран") }
+      }
     }
     if (closeRequested) AlertDialog(onDismissRequest = { closeRequested = false }, title = { Text("Сохранить заметку?") },
         text = { Column {

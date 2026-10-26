@@ -53,7 +53,7 @@ class WorkoutNavigationTest {
         compose.activityRule.scenario.recreate()
         compose.waitUntil(10_000) { compose.onAllNodesWithText("Открыть тренировку").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Открыть тренировку").performScrollTo().performClick()
-        compose.onNodeWithText("Начать тренировку").performScrollTo().assertExists()
+        compose.onNodeWithText("Начать тренировку").assertIsDisplayed()
         assertNull(runBlocking { container.database.dao().activeWorkout() })
         compose.onNodeWithText("Начать тренировку").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("workout-overview").fetchSemanticsNodes().isNotEmpty() }

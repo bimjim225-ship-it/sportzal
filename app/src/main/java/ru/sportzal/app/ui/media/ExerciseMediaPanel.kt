@@ -8,6 +8,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -30,12 +33,16 @@ fun ExerciseMediaPanel(exerciseId: String, equipmentId: String?, setup: String?,
                 FilterChip(tab == 1, { tab = 1 }, { Text("Техника") }, Modifier.weight(1f))
             }
             if (tab == 0) {
-                EquipmentIllustration(equipment, Modifier.fillMaxWidth().height(if (equipment == null) 64.dp else 190.dp))
+                EquipmentGuide(equipment, imageHeight = 190.dp)
+                Text("Ваша настройка", style = MaterialTheme.typography.labelLarge)
                 Text(setup?.takeIf { it.isNotBlank() } ?: "Настройка не указана в плане", style = MaterialTheme.typography.bodyMedium)
             } else {
                 if (technique != null) {
-                    Row(Modifier.fillMaxWidth()) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         TechniqueFrame(technique.start, "Начало", Modifier.weight(1f))
+                        Text("→", style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 4.dp).semantics { contentDescription = "Затем положение в движении" })
                         TechniqueFrame(technique.end, "Движение", Modifier.weight(1f))
                     }
                     TextButton({ expanded = true }) { Text("Увеличить схему движения") }

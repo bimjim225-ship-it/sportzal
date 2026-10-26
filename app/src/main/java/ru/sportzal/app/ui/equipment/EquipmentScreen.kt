@@ -41,8 +41,12 @@ import ru.sportzal.app.ui.media.*
     if (selected != null) {
         EquipmentDetail(selected, state, photoStore, { selectedId = null }, { editing = true },
             { photoTarget = selected; picker.launch(arrayOf("image/*")) }, { onRemovePhoto(selected) })
-    } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { AppHeader("Тренажёры", "Оборудование моего зала") }
+    } else Column(Modifier.fillMaxSize()) {
+      Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        AppHeader("Тренажёры", "Оборудование моего зала")
+        TextButton({ adding = true }, enabled = !state.saving) { Text("Добавить тренажёр") }
+      }
+      LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().focusRequester(focus),
             label = { Text("Найти тренажёр") }, singleLine = true,
             leadingIcon = { Icon(painterResource(R.drawable.sz_ic_search), null) },
@@ -69,7 +73,7 @@ import ru.sportzal.app.ui.media.*
                 }
             }
         }
-        item { SportzalButton("Добавить тренажёр", { adding = true }, secondary = true, enabled = !state.saving) }
+      }
     }
     if (adding || (editing && selected != null)) EquipmentEditSheet(if (adding) null else selected, state.saving,
         { adding = false; editing = false }, error = state.error) { command ->
@@ -83,8 +87,7 @@ import ru.sportzal.app.ui.media.*
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { AppHeader("Тренажёр", onBack = onBack) }
         item { Text(item.name, style = MaterialTheme.typography.headlineLarge) }
-        item { Card { EquipmentIllustration(VisualCatalog.find(item.illustrationKey), Modifier.fillMaxWidth().height(280.dp)) } }
-        item { Text("Типовая схема. Персональная настройка указана ниже.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { Card { EquipmentGuide(VisualCatalog.find(item.illustrationKey), Modifier.padding(12.dp)) } }
         item { Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Моя настройка", style = MaterialTheme.typography.titleMedium)
             Text(item.setupHint ?: "Пока не указана")

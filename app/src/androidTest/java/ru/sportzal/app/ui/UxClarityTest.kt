@@ -114,7 +114,7 @@ class UxClarityTest {
                 onShare = { sent++ }, onSave = {}, onClose = {})
         }
         compose.onNodeWithText("Как прошла тренировка").performScrollTo().performTextInput("Мой комментарий")
-        compose.onNodeWithText("Передать отчёт ИИ").performScrollTo().performClick()
+        compose.onNodeWithText("Передать отчёт ИИ").assertIsDisplayed().performClick()
         compose.onNodeWithText("Не удалось сохранить заметку").assertIsDisplayed()
         assertEquals(0, sent)
         compose.onNodeWithText("Мой комментарий").assertExists()
@@ -193,6 +193,7 @@ class UxClarityTest {
         compose.onNodeWithText("Упор для ног 3").assertExists()
         compose.onNodeWithText("Б — Упор для ног").assertExists()
         compose.onNodeWithText("Закрыть").performClick()
+        scrollTo("Записать подход")
         compose.onNodeWithTag("save-${exercise.exerciseInstanceId}").assertIsDisplayed()
     }
 

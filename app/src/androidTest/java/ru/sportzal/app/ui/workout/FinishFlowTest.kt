@@ -7,6 +7,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
@@ -41,7 +42,8 @@ class FinishFlowTest {
             }
         }
 
-        listOf("Передать отчёт ИИ", "Сохранить файл", "На главный экран").forEach { label ->
+        compose.onNodeWithText("Передать отчёт ИИ").assertIsDisplayed().performClick()
+        listOf("Сохранить файл", "На главный экран").forEach { label ->
             compose.onNodeWithText(label).assertExists().performScrollTo().performClick()
         }
         assertEquals(listOf(1, 1, 1), listOf(share, save, close))

@@ -201,7 +201,6 @@ fun ExerciseCard(
                     }
                 }
                 if (requiresRir(state)) {
-                    Text("Запас повторов")
                     RirSelector(visibleRir, visibleRirAnswered, enabled = !saving && !reloadRequired) {
                         visibleRir = it; visibleRirAnswered = true
                         onDraft(parseNumeric(weightText, NumericKind.WEIGHT)?.toDouble(), parseNumeric(repsText, NumericKind.REPS)?.toInt(), it, true)
@@ -286,7 +285,6 @@ fun ExerciseCard(
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("work", "warmup").forEach { value -> FilterChip(type == value, { type = value }, { Text(setTypeLabel(value)) }) }
             }
-            Text("Запас повторов")
             RirSelector(rir, rirAnswered, enabled = !saving) { rir = it; rirAnswered = true }
             OutlinedTextField(note, { note = it }, label = { Text("Комментарий") })
         }

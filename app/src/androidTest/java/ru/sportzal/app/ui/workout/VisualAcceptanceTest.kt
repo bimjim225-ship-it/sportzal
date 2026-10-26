@@ -38,7 +38,17 @@ class VisualAcceptanceTest {
         compose.activityRule.scenario.recreate()
         await("Ваш план — здесь")
         capture("00-onboarding")
-        scrollTo("Как получить план от ИИ"); compose.onNodeWithText("Как получить план от ИИ").performClick()
+        compose.onNodeWithTag("first-plan-action").assertIsDisplayed().performClick()
+        await("Оборудование моего зала")
+        compose.onNodeWithText("Добавить тренажёр").performClick()
+        compose.onNodeWithText("Название").performTextInput("Тренажёр моего зала")
+        compose.onNodeWithText("Настройка тренажёра").performTextInput("Сиденье 4")
+        compose.onNodeWithText("Сохранить").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Название").fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithText("Сегодня").performClick()
+        await("Получить план с ИИ")
+        capture("15-ai-ready")
+        compose.onNodeWithTag("first-plan-action").assertIsDisplayed().performClick()
         await("План с ИИ")
         capture("00-ai-help")
         scrollTo("Скопировать запрос для ИИ"); compose.onNodeWithText("Скопировать запрос для ИИ").performClick()
@@ -68,6 +78,16 @@ class VisualAcceptanceTest {
         compose.onNodeWithTag("weight-row").assertIsDisplayed()
         compose.onNodeWithTag("save-row").assertIsDisplayed()
         capture("04-entry")
+        compose.onNodeWithText("Что это?").performClick()
+        compose.onNodeWithText("0 — ни одного").assertIsDisplayed()
+        capture("16-rir-help")
+        compose.onNodeWithText("Понятно").performClick()
+        compose.onNodeWithText("Схема").assertIsDisplayed().performClick()
+        compose.onNodeWithText("А — Сиденье").assertExists()
+        capture("17-quick-guide")
+        compose.onNodeWithText("Техника").performClick()
+        capture("18-quick-technique")
+        compose.onNodeWithText("Закрыть").performClick()
         compose.onNodeWithTag("save-row").performClick()
         awaitTag("save-error")
         scrollTo(hasTestTag("save-row"))
@@ -142,8 +162,15 @@ class VisualAcceptanceTest {
         scrollTo("Горизонтальная тяга")
         compose.onNodeWithText("Горизонтальная тяга").performClick()
         await("Тренажёр")
-        scrollTo("Моя настройка")
         capture("11-equipment")
+        scrollTo("Моя настройка")
+        capture("19-personal-settings")
+        machines.filter { it.first != "row" }.forEach { (key, title, _) ->
+            scrollTo(hasContentDescription("Назад")); compose.onNodeWithContentDescription("Назад").performClick()
+            scrollTo(title); compose.onNodeWithText(title).performClick()
+            await("Тренажёр")
+            capture("guide-$key")
+        }
         assertEquals(1, runBlocking { container.database.dao().setCount(activeId) })
         assertEquals("ended_early", runBlocking { container.database.dao().workout(activeId)!!.completionStatus })
     }
@@ -152,6 +179,11 @@ class VisualAcceptanceTest {
     private fun awaitTag(tag: String) = compose.waitUntil(15_000) { compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
     private fun scrollTo(text: String) = scrollTo(hasText(text))
     private fun scrollTo(matcher: SemanticsMatcher) {
+        val fixedAction = matcher and hasAnyAncestor(hasTestTag("screen-action"))
+        if (compose.onAllNodes(fixedAction).fetchSemanticsNodes().isNotEmpty()) {
+            compose.onNode(fixedAction).assertIsDisplayed()
+            return
+        }
         val lazy = SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex)
         if (compose.onAllNodes(lazy).fetchSemanticsNodes().isNotEmpty()) {
             compose.onNode(lazy).performScrollToNode(matcher)

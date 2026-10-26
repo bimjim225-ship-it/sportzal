@@ -17,6 +17,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -58,6 +60,8 @@ fun WorkoutScreen(
     onCancelExtra: (String, (Boolean) -> Unit) -> Unit = { _, done -> done(true) },
 ) {
     var noteDialog by rememberSaveable { mutableStateOf(false) }
+    var quickGuide by rememberSaveable(focusedExerciseId) { mutableStateOf(false) }
+    val selected = state.blocks.flatMap { it.cards }.firstOrNull { it.exercise.exerciseInstanceId == focusedExerciseId }
     if (state.finishConfirmation) AlertDialog(onDismissRequest = onCancelFinish,
         text = { Text("Завершить с невыполненными подходами?") },
         confirmButton = { TextButton(onClick = onConfirmFinish) { Text("Завершить") } },
@@ -66,8 +70,8 @@ fun WorkoutScreen(
     if (overview) WorkoutOverview(state, onBack, onSelectExercise, onFinish, onCancelEmpty, elapsedFor)
     else Column(Modifier.fillMaxSize()) {
       if (focusedExerciseId != null) {
-          val selected = state.blocks.flatMap { it.cards }.firstOrNull { it.exercise.exerciseInstanceId == focusedExerciseId }
-          AppHeader(selected?.actualContext()?.title ?: selected?.exercise?.title ?: "Упражнение", onBack = onBack, compact = true)
+          AppHeader(selected?.actualContext()?.title ?: selected?.exercise?.title ?: "Упражнение", onBack = onBack, compact = true,
+              action = { TextButton({ quickGuide = true }, enabled = selected != null) { Text("Схема") } })
       }
       LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 8.dp),
           verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -106,7 +110,7 @@ fun WorkoutScreen(
                 if (expanded) {
                     val context = card.actualContext()
                     ExerciseMediaPanel(context.exerciseId, context.equipmentId, context.setup,
-                        card.exercise.notes.takeIf { context.exerciseId == card.exercise.exerciseId }, state.saving) { key, done ->
+                        card.exercise.notes.takeIf { context.exerciseId == card.exercise.exerciseId }, state.saving || state.reloadRequired) { key, done ->
                         onSelectTechnique(context.exerciseId, context.equipmentId, key, done)
                     }
                     block.notes?.let { Text(it) }
@@ -122,6 +126,18 @@ fun WorkoutScreen(
     }
     if (noteDialog) WorkoutNoteDialog(state.notes.orEmpty(), state.saving, { noteDialog = false }) { value ->
         onNote(value) { if (it) noteDialog = false }
+    }
+    if (quickGuide && selected != null) {
+        val context = selected.actualContext()
+        AlertDialog(onDismissRequest = { quickGuide = false },
+            title = { Text("Настройка и техника") },
+            text = { Column(Modifier.verticalScroll(rememberScrollState())) {
+                ExerciseMediaPanel(context.exerciseId, context.equipmentId, context.setup,
+                    selected.exercise.notes.takeIf { context.exerciseId == selected.exercise.exerciseId },
+                    state.saving || state.reloadRequired) { key, done ->
+                    onSelectTechnique(context.exerciseId, context.equipmentId, key, done)
+                }
+            } }, confirmButton = { TextButton({ quickGuide = false }) { Text("Закрыть") } })
     }
 }
 

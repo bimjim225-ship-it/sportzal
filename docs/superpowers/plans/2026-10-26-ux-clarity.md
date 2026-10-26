@@ -41,7 +41,7 @@
 
 **Files:** Create `ui/components/ScreenWithAction.kt`, `ui/today/FirstPlanCard.kt`, `ui/today/PlanPrescriptionSummary.kt`; modify TodayScreen, ProgramScreens, FinishScreen, EquipmentScreen, AiHelpScreen, SportzalApp.
 
-**Interfaces:** ScreenWithAction(bottomAction: @Composable () -> Unit, content: LazyListScope.() -> Unit); FirstPlanCard принимает каталог и реальные callbacks; compactPrescriptionLines(ExerciseDocument): List<String>.
+**Interfaces:** ScreenWithAction(bottomAction: (@Composable () -> Unit)?, content: @Composable () -> Unit); FirstPlanCard принимает каталог и реальные callbacks; compactPrescriptionLines(ExerciseDocument): List<String>.
 
 - [ ] Добавить нижнюю панель через общий компонент, вынести добавление в шапку каталога.
 - [ ] Реализовать последовательный первый запуск и прямой переход из помощи в каталог.

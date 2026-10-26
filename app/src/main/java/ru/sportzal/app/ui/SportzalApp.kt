@@ -153,7 +153,13 @@ fun SportzalApp(container: AppContainer, incomingUri: Uri?, consumeIncoming: () 
                     aiHelp -> ru.sportzal.app.ui.help.AiHelpScreen({ aiHelp = false },
                         { exchange.share(finishId ?: historyState.details?.runtime?.workoutId) },
                         { exchange.save(finishId ?: historyState.details?.runtime?.workoutId) },
-                        { picker.launch(arrayOf("application/json", "text/json", "text/plain")) }, exchange.preparing)
+                        { picker.launch(arrayOf("application/json", "text/json", "text/plain")) }, exchange.preparing,
+                        onEquipment = {
+                            aiHelp = false
+                            if (finishId != null) closeFinish()
+                            planOverview = false
+                            destinationName = InactiveDestination.EQUIPMENT.name
+                        })
                     finishId != null && workoutState.finishSummary != null -> FinishScreen(workoutState.finishSummary!!,
                         workoutState.error, exchange.preparing, workoutState.notes,
                         { text, done -> scope.launch { done(workout.updateNotes(text)) } },
