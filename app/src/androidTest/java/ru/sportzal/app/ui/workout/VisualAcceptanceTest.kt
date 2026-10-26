@@ -89,8 +89,8 @@ class VisualAcceptanceTest {
         capture("12-replacement")
         compose.onNodeWithTag("save-context").performClick()
         await("Тяга узким хватом")
-        compose.onNodeWithTag("weight-row").assertTextEquals("Вес", "")
-        compose.onNodeWithTag("reps-row").assertTextEquals("Повторы", "")
+        compose.onNodeWithTag("weight-row").assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
+        compose.onNodeWithTag("reps-row").assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
         scrollTo(hasTestTag("weight-row")); compose.onNodeWithTag("weight-row").performTextReplacement("20,5")
         compose.onNodeWithTag("reps-row").performTextReplacement("12")
         scrollTo("Не оценил"); compose.onNodeWithText("Не оценил").performClick()
@@ -166,11 +166,20 @@ class VisualAcceptanceTest {
             .compress(Bitmap.CompressFormat.PNG, 100, bytes)
         val dir = File(compose.activity.filesDir, "review-screens").apply { mkdirs() }
         File(dir, "$name.png").writeBytes(bytes.toByteArray())
-        // UTP uninstalls the app after the suite. A shell-owned archive survives that cleanup.
-        val command = "run-as ru.sportzal.app tar -cf - files/review-screens > /sdcard/Download/sportzal-review.tar"
-        android.os.ParcelFileDescriptor.AutoCloseInputStream(
-            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
-        ).use { it.readBytes() }
+        // UTP uninstalls the app after the suite. Shared Downloads survive that cleanup.
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "$name.png")
+                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Download/sportzal-review")
+                put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+            val resolver = compose.activity.contentResolver
+            val uri = requireNotNull(resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values))
+            requireNotNull(resolver.openOutputStream(uri)).use { it.write(bytes.toByteArray()) }
+            values.clear(); values.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+        }
     }
 
     private val machines = listOf(

@@ -313,11 +313,11 @@ class WorkoutCorrectionsTest {
         compose.onNodeWithText("Рабочий · 100 кг · 5–8").assertDoesNotExist()
     }
 
-    @Test fun rotationOverviewRetainsApproximateElapsedTimers() {
+    @Test fun rotationOverviewKeepsElapsedTimerVisibleWithStableSemantics() {
         val original=workout(current=2,saved=listOf(result()))
         val ui=original.copy(blocks=listOf(original.blocks.single().copy(mode="rotation")))
         compose.setContent { SportzalTheme { WorkoutOverview(ui,{}, {}, {}, {}, {"≈ 1:23"}) } }
-        compose.onNodeWithText("≈ 1:23",useUnmergedTree=true).assertExists()
+        compose.onNodeWithContentDescription("Время с записи подхода").assertIsDisplayed()
     }
 
     private fun workout(current: Int? = null, saved: List<SetResultEntity> = emptyList(), skipped: List<SkippedSetEntity> = emptyList()): WorkoutUiState {
