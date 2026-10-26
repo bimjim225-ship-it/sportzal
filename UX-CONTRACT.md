@@ -428,3 +428,5 @@ Equipment list показывает:
 |---|---|---|---|---|
 | Bottom action | ScreenWithAction | this contract | start / accept / activate / share | long content + 320dp/200% native |
 | Equipment guide | EquipmentGuide + VisualCatalog | DESIGN.md | catalog / inline / quick view | native screenshots + actual equipment regression |
+
+При 200% шрифта/малой доступной высоте крупные названия уходят в прокручиваемое содержимое; постоянными остаются короткая навигация и нужное действие. Поиск каталога сохраняет стабильный ключ при изменении раскладки. ScreenWithAction владеет компактной ошибкой и диалогом полного текста; длинная ошибка не вытесняет отправку или редактирование комментария. Проверка использует пересечение touch target с областью выше IME/навигации, а не только наличие нескольких видимых пикселей.

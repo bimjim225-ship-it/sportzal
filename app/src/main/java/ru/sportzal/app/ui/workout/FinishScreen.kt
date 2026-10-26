@@ -34,9 +34,8 @@ import java.util.Locale
     fun requestClose() { if (!busy) { if (dirty) closeRequested = true else onClose() } }
     BackHandler { requestClose() }
     ScreenWithAction(bottomAction = {
-        error?.let { StatusNotice(it, error = true) }
         SportzalButton("Передать отчёт ИИ", { commitThen(onShare) }, busy = busy)
-    }) {
+    }, error = error) {
       Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Icon(painterResource(R.drawable.sz_ic_check), null, Modifier.size(44.dp), tint = SportzalColors.Success)

@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import ru.sportzal.app.ui.components.ExerciseCard
@@ -68,15 +69,19 @@ fun WorkoutScreen(
         dismissButton = { TextButton(onClick = onCancelFinish) { Text("Отмена") } })
     LaunchedEffect(Unit) { while (true) { delay(1_000); onTick() } }
     if (overview) WorkoutOverview(state, onBack, onSelectExercise, onFinish, onCancelEmpty, elapsedFor)
-    else Column(Modifier.fillMaxSize()) {
+    else BoxWithConstraints(Modifier.fillMaxSize()) {
+      val compactNavigation = maxHeight < 500.dp || LocalDensity.current.fontScale > 1.3f
+      Column(Modifier.fillMaxSize()) {
       if (focusedExerciseId != null) {
-          AppHeader(selected?.actualContext()?.title ?: selected?.exercise?.title ?: "Упражнение", onBack = onBack, compact = true,
+          AppHeader(if (compactNavigation) "Подход" else selected?.actualContext()?.title ?: selected?.exercise?.title ?: "Упражнение", onBack = onBack, compact = true,
               action = { TextButton({ quickGuide = true }, enabled = selected != null) { Text("Схема") } })
       }
       LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 8.dp),
           verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             if (focusedExerciseId == null) Text(state.title, style = MaterialTheme.typography.headlineLarge)
+            else if (compactNavigation) Text(selected?.actualContext()?.title ?: selected?.exercise?.title ?: "Упражнение",
+                style = MaterialTheme.typography.titleLarge)
         }
         if (focusedExerciseId == null) item { TextButton({ noteDialog = true }) { Text("Заметка к тренировке") }; state.notes?.let { Text(it) } }
         if (focusedExerciseId == null) state.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
@@ -122,6 +127,7 @@ fun WorkoutScreen(
             else Button(onClick = onFinish, enabled = !state.saving) { Text("Завершить тренировку") }
         }
         if (focusedExerciseId != null) item { TextButton({ noteDialog = true }) { Text("Заметка к тренировке") } }
+      }
       }
     }
     if (noteDialog) WorkoutNoteDialog(state.notes.orEmpty(), state.saving, { noteDialog = false }) { value ->

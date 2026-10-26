@@ -18,9 +18,8 @@ import ru.sportzal.app.ui.text.*
 fun PlannedWorkoutScreen(plan: PlannedWorkoutDocument, equipment: List<EquipmentDocument>, busy: Boolean,
     onBack: () -> Unit, onStart: () -> Unit, error: String? = null) {
     ScreenWithAction(bottomAction = {
-        error?.let { StatusNotice(it, error = true) }
         SportzalButton("Начать тренировку", onStart, busy = busy)
-    }) {
+    }, error = error) {
       LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { AppHeader(plan.title, formatPlanDate(plan.plannedDate), onBack) }
         planItems(plan, equipment)
@@ -35,16 +34,14 @@ fun ProgramImportScreen(preview: ImportPreview?, reading: Boolean, busy: Boolean
     val valid = (preview as? ImportPreview.Valid)?.takeUnless { reading }
     val action: (@Composable () -> Unit)? = when (valid?.status) {
         ProgramImportStatus.NEW -> ({
-            message?.let { StatusNotice(it, error = true) }
             SportzalButton("Принять план", { onAccept(valid!!) }, busy = busy)
         })
         ProgramImportStatus.STORED_INACTIVE -> ({
-            message?.let { StatusNotice(it, error = true) }
             SportzalButton("Использовать этот план", { onActivate(valid!!) }, busy = busy)
         })
         else -> null
     }
-    ScreenWithAction(action) {
+    ScreenWithAction(action, error = message.takeIf { action != null }) {
       LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { AppHeader("Новый план", onBack = onBack) }
         if (reading) item { LoadingState("Читаем файл плана") }

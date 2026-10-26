@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import ru.sportzal.app.R
@@ -41,13 +42,16 @@ import ru.sportzal.app.ui.media.*
     if (selected != null) {
         EquipmentDetail(selected, state, photoStore, { selectedId = null }, { editing = true },
             { photoTarget = selected; picker.launch(arrayOf("image/*")) }, { onRemovePhoto(selected) })
-    } else Column(Modifier.fillMaxSize()) {
+    } else BoxWithConstraints(Modifier.fillMaxSize()) {
+      val compactHeader = maxHeight < 400.dp || LocalDensity.current.fontScale > 1.3f
+      Column(Modifier.fillMaxSize()) {
       Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        AppHeader("Тренажёры", "Оборудование моего зала")
+        if (!compactHeader) AppHeader("Тренажёры", "Оборудование моего зала")
         TextButton({ adding = true }, enabled = !state.saving) { Text("Добавить тренажёр") }
       }
       LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().focusRequester(focus),
+        if (compactHeader) item(key = "catalog-title") { AppHeader("Тренажёры", "Оборудование моего зала") }
+        item(key = "catalog-search") { OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().focusRequester(focus),
             label = { Text("Найти тренажёр") }, singleLine = true,
             leadingIcon = { Icon(painterResource(R.drawable.sz_ic_search), null) },
             trailingIcon = { if (query.isNotEmpty()) IconButton({ query = ""; focus.requestFocus() }) {
@@ -60,7 +64,7 @@ import ru.sportzal.app.ui.media.*
             StatusNotice(if (state.items.isEmpty()) "Добавьте оборудование зала" else "Ничего не найдено",
                 if (state.items.isEmpty()) "Можно добавить тренажёр вручную или загрузить каталог вместе с планом от ИИ." else "Попробуйте другое название.")
         }
-        items(filtered, key = { it.equipmentId }) { item ->
+        items(filtered, key = { "equipment-${it.equipmentId}" }) { item ->
             Card(onClick = { selectedId = item.equipmentId }, modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     EquipmentIllustration(VisualCatalog.find(item.illustrationKey), Modifier.size(88.dp), thumbnail = true)
@@ -73,6 +77,7 @@ import ru.sportzal.app.ui.media.*
                 }
             }
         }
+      }
       }
     }
     if (adding || (editing && selected != null)) EquipmentEditSheet(if (adding) null else selected, state.saving,
