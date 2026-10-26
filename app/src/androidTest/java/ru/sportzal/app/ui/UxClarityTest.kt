@@ -235,6 +235,7 @@ class UxClarityTest {
                     EquipmentPhotoStore(ApplicationProvider.getApplicationContext<Context>()), {}, { _, done -> done(true) }, { _, _ -> }, {})
             } }
         }
+        assertUsableInViewport(compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex)), "catalog-viewport")
         val query = compose.onNode(hasSetTextAction())
         query.performScrollTo().assertIsDisplayed()
         val clipped = query.getBoundsInRoot()
@@ -264,6 +265,8 @@ class UxClarityTest {
             }, { _, _, _ -> }, {}, focusedExerciseId = exercise.exerciseInstanceId)
         }
         compose.onNodeWithText(title).assertExists()
+        // A zero-height LazyColumn cannot advance a viewport-sized scroll; fail before asking it to scroll.
+        assertUsableInViewport(compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex)), "ime-viewport")
         compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
             .performScrollToNode(hasTestTag("weight-${exercise.exerciseInstanceId}"))
         val weight = compose.onNodeWithTag("weight-${exercise.exerciseInstanceId}").performScrollTo().assertIsDisplayed()
