@@ -17,7 +17,8 @@ import ru.sportzal.app.domain.AiPlanPrompt
 import ru.sportzal.app.ui.components.*
 
 @Composable
-fun AiHelpScreen(onBack: () -> Unit, onShare: () -> Unit, onSave: () -> Unit, onImport: () -> Unit, preparing: Boolean) {
+fun AiHelpScreen(onBack: () -> Unit, onShare: () -> Unit, onSave: () -> Unit, onImport: () -> Unit, preparing: Boolean,
+    onEquipment: (() -> Unit)? = null) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf(false) }
@@ -31,7 +32,9 @@ fun AiHelpScreen(onBack: () -> Unit, onShare: () -> Unit, onSave: () -> Unit, on
     }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { AppHeader("План с ИИ", "От первого плана до следующей тренировки", onBack) }
-        item { HelpStep("01", "Добавьте оборудование", "Во вкладке «Тренажёры» запишите названия и настройки. Для начала хватит тех, которые вы используете.") }
+        item { HelpStep("01", "Добавьте оборудование", "Во вкладке «Тренажёры» запишите названия и настройки. Для начала хватит тех, которые вы используете.")
+            onEquipment?.let { TextButton(it) { Text("Открыть тренажёры") } }
+        }
         item { HelpStep("02", "Отправьте данные в свой чат", "Передайте отчёт ИИ или сохраните файл и приложите его вручную. Даже без истории отчёт содержит каталог вашего зала.")
             SportzalButton("Передать отчёт ИИ", onShare, busy = preparing, secondary = true)
             TextButton(onSave, enabled = !preparing) { Text("Сохранить файл") }

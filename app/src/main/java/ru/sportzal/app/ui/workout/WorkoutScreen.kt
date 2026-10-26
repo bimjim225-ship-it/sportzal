@@ -17,8 +17,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import ru.sportzal.app.ui.components.ExerciseCard
@@ -58,21 +61,27 @@ fun WorkoutScreen(
     onCancelExtra: (String, (Boolean) -> Unit) -> Unit = { _, done -> done(true) },
 ) {
     var noteDialog by rememberSaveable { mutableStateOf(false) }
+    var quickGuide by rememberSaveable(focusedExerciseId) { mutableStateOf(false) }
+    val selected = state.blocks.flatMap { it.cards }.firstOrNull { it.exercise.exerciseInstanceId == focusedExerciseId }
     if (state.finishConfirmation) AlertDialog(onDismissRequest = onCancelFinish,
         text = { Text("Завершить с невыполненными подходами?") },
         confirmButton = { TextButton(onClick = onConfirmFinish) { Text("Завершить") } },
         dismissButton = { TextButton(onClick = onCancelFinish) { Text("Отмена") } })
     LaunchedEffect(Unit) { while (true) { delay(1_000); onTick() } }
     if (overview) WorkoutOverview(state, onBack, onSelectExercise, onFinish, onCancelEmpty, elapsedFor)
-    else Column(Modifier.fillMaxSize()) {
+    else BoxWithConstraints(Modifier.fillMaxSize()) {
+      val compactNavigation = maxHeight < 500.dp || LocalDensity.current.fontScale > 1.3f
+      Column(Modifier.fillMaxSize()) {
       if (focusedExerciseId != null) {
-          val selected = state.blocks.flatMap { it.cards }.firstOrNull { it.exercise.exerciseInstanceId == focusedExerciseId }
-          AppHeader(selected?.actualContext()?.title ?: selected?.exercise?.title ?: "Упражнение", onBack = onBack, compact = true)
+          AppHeader(if (compactNavigation) "Подход" else selected?.actualContext()?.title ?: selected?.exercise?.title ?: "Упражнение", onBack = onBack, compact = true,
+              action = { TextButton({ quickGuide = true }, enabled = selected != null) { Text("Схема") } })
       }
       LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 8.dp),
           verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             if (focusedExerciseId == null) Text(state.title, style = MaterialTheme.typography.headlineLarge)
+            else if (compactNavigation) Text(selected?.actualContext()?.title ?: selected?.exercise?.title ?: "Упражнение",
+                style = MaterialTheme.typography.titleLarge)
         }
         if (focusedExerciseId == null) item { TextButton({ noteDialog = true }) { Text("Заметка к тренировке") }; state.notes?.let { Text(it) } }
         if (focusedExerciseId == null) state.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
@@ -106,7 +115,7 @@ fun WorkoutScreen(
                 if (expanded) {
                     val context = card.actualContext()
                     ExerciseMediaPanel(context.exerciseId, context.equipmentId, context.setup,
-                        card.exercise.notes.takeIf { context.exerciseId == card.exercise.exerciseId }, state.saving) { key, done ->
+                        card.exercise.notes.takeIf { context.exerciseId == card.exercise.exerciseId }, state.saving || state.reloadRequired) { key, done ->
                         onSelectTechnique(context.exerciseId, context.equipmentId, key, done)
                     }
                     block.notes?.let { Text(it) }
@@ -119,9 +128,22 @@ fun WorkoutScreen(
         }
         if (focusedExerciseId != null) item { TextButton({ noteDialog = true }) { Text("Заметка к тренировке") } }
       }
+      }
     }
     if (noteDialog) WorkoutNoteDialog(state.notes.orEmpty(), state.saving, { noteDialog = false }) { value ->
         onNote(value) { if (it) noteDialog = false }
+    }
+    if (quickGuide && selected != null) {
+        val context = selected.actualContext()
+        AlertDialog(onDismissRequest = { quickGuide = false },
+            title = { Text("Настройка и техника") },
+            text = { Column(Modifier.verticalScroll(rememberScrollState())) {
+                ExerciseMediaPanel(context.exerciseId, context.equipmentId, context.setup,
+                    selected.exercise.notes.takeIf { context.exerciseId == selected.exercise.exerciseId },
+                    state.saving || state.reloadRequired) { key, done ->
+                    onSelectTechnique(context.exerciseId, context.equipmentId, key, done)
+                }
+            } }, confirmButton = { TextButton({ quickGuide = false }) { Text("Закрыть") } })
     }
 }
 

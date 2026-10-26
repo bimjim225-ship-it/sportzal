@@ -38,13 +38,7 @@ fun TodayScreen(selection: TodaySelection, manualChoices: List<PlannedWorkout>, 
         if (loading) item { LoadingState("Загрузка плана") }
         else if (error == null) item {
             when (selection) {
-                TodaySelection.NoProgram -> Card { Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Ваш план — здесь", style = MaterialTheme.typography.headlineSmall)
-                    Text("Добавьте оборудование зала, передайте данные ИИ и загрузите полученный план.")
-                    SportzalButton("Загрузить план от ИИ", onPickProgram)
-                    onAiHelp?.let { TextButton(it) { Text("Как получить план от ИИ") } }
-                    onEquipment?.let { TextButton(it) { Text("Добавить тренажёры") } }
-                } }
+                TodaySelection.NoProgram -> FirstPlanCard(equipment.size, busy, onEquipment, onAiHelp, onPickProgram)
                 TodaySelection.Exhausted -> StatusNotice("План выполнен", "Передайте результаты ИИ, чтобы получить следующий план.",
                     actionLabel = "Загрузить план от ИИ", onAction = onPickProgram)
                 is TodaySelection.Ready, is TodaySelection.Resume -> Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {

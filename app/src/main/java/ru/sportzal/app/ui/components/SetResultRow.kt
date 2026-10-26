@@ -115,7 +115,6 @@ internal fun EditSetDialog(
                 contextJson = StrictJson.encodeToString(next)
             }
             if (showRir) {
-                Text("Запас повторов")
                 RirSelector(rir, answered = true, enabled = !saving) { rir = it }
             }
             Text("Отклонения")

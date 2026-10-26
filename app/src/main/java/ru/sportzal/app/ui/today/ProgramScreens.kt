@@ -4,7 +4,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ru.sportzal.app.data.files.ImportPreview
@@ -16,11 +17,13 @@ import ru.sportzal.app.ui.text.*
 @Composable
 fun PlannedWorkoutScreen(plan: PlannedWorkoutDocument, equipment: List<EquipmentDocument>, busy: Boolean,
     onBack: () -> Unit, onStart: () -> Unit, error: String? = null) {
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    ScreenWithAction(bottomAction = {
+        SportzalButton("Начать тренировку", onStart, busy = busy)
+    }, error = error) {
+      LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { AppHeader(plan.title, formatPlanDate(plan.plannedDate), onBack) }
         planItems(plan, equipment)
-        error?.let { item { StatusNotice(it, error = true) } }
-        item { SportzalButton("Начать тренировку", onStart, busy = busy) }
+      }
     }
 }
 
@@ -28,10 +31,21 @@ fun PlannedWorkoutScreen(plan: PlannedWorkoutDocument, equipment: List<Equipment
 fun ProgramImportScreen(preview: ImportPreview?, reading: Boolean, busy: Boolean, message: String?,
     onBack: () -> Unit, onChoose: () -> Unit, onAccept: (ImportPreview.Valid) -> Unit,
     onActivate: (ImportPreview.Valid) -> Unit = {}) {
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    val valid = (preview as? ImportPreview.Valid)?.takeUnless { reading }
+    val action: (@Composable () -> Unit)? = when (valid?.status) {
+        ProgramImportStatus.NEW -> ({
+            SportzalButton("Принять план", { onAccept(valid!!) }, busy = busy)
+        })
+        ProgramImportStatus.STORED_INACTIVE -> ({
+            SportzalButton("Использовать этот план", { onActivate(valid!!) }, busy = busy)
+        })
+        else -> null
+    }
+    ScreenWithAction(action, error = message.takeIf { action != null }) {
+      LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { AppHeader("Новый план", onBack = onBack) }
         if (reading) item { LoadingState("Читаем файл плана") }
-        when (preview) {
+        when (val preview = preview.takeUnless { reading }) {
             is ImportPreview.Valid -> {
                 item { Text(when (preview.status) {
                     ProgramImportStatus.NEW -> "План готов к принятию"
@@ -45,13 +59,12 @@ fun ProgramImportScreen(preview: ImportPreview?, reading: Boolean, busy: Boolean
                     item { Text(plan.title, style = MaterialTheme.typography.titleLarge); Text(formatPlanDate(plan.plannedDate), color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     planItems(plan, preview.equipment)
                 }
-                message?.let { item { StatusNotice(it, error = true) } }
+                if (action == null) message?.let { item { StatusNotice(it, error = true) } }
                 item { StatusNotice("Файл прочитан", "Новый план применяется к будущим занятиям. Активная тренировка и история сохраняются.") }
                 when (preview.status) {
-                    ProgramImportStatus.NEW -> item { SportzalButton("Принять план", { onAccept(preview) }, busy = busy) }
+                    ProgramImportStatus.NEW -> Unit
                     ProgramImportStatus.STORED_INACTIVE -> item {
                         StatusNotice("Этот план уже сохранён", "Можно снова выбрать его для будущих занятий. Начатая тренировка останется прежней.")
-                        SportzalButton("Использовать этот план", { onActivate(preview) }, busy = busy)
                     }
                     ProgramImportStatus.ALREADY_ACTIVE -> item { StatusNotice("Этот план уже используется") }
                     ProgramImportStatus.CONFLICT -> item { StatusNotice("Конфликт версии", "Под этим номером сохранён другой состав. Попросите ИИ увеличить номер версии.", error = true) }
@@ -61,6 +74,7 @@ fun ProgramImportScreen(preview: ImportPreview?, reading: Boolean, busy: Boolean
             null -> Unit
         }
         if (!reading) item { SportzalButton("Выбрать другой файл", onChoose, enabled = !busy, secondary = true) }
+      }
     }
 }
 
@@ -73,15 +87,20 @@ private fun LazyListScope.planItems(plan: PlannedWorkoutDocument, equipment: Lis
             block.notes?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         } }
         block.exercises.forEach { exercise -> item {
+            var expanded by rememberSaveable(plan.workoutInstanceId, exercise.exerciseInstanceId) { mutableStateOf(false) }
             Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     EquipmentIllustration(LocalVisualBindings.current.equipment(exercise.equipmentId), Modifier.size(76.dp), thumbnail = true)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(exercise.title, style = MaterialTheme.typography.titleMedium)
-                        equipment.firstOrNull { it.equipmentId == exercise.equipmentId }?.let { Text(it.name, style = MaterialTheme.typography.bodySmall) }
-                        plannedSetLines(exercise).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                        equipment.firstOrNull { it.equipmentId == exercise.equipmentId }
+                            ?.takeUnless { it.name.trim().equals(exercise.title.trim(), ignoreCase = true) }
+                            ?.let { Text(it.name, style = MaterialTheme.typography.bodySmall) }
+                        compactPrescriptionLines(exercise).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
                     }
                 }
+                TextButton({ expanded = !expanded }) { Text(if (expanded) "Скрыть подходы" else "Все подходы (${exercise.plannedSets.size})") }
+                if (expanded) plannedSetLines(exercise).forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
                 (exercise.setupHint ?: equipment.firstOrNull { it.equipmentId == exercise.equipmentId }?.setupHint)?.let { Text(it) }
                 Text(loadBasisLabel(exercise.loadBasis), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 exercise.notes?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
