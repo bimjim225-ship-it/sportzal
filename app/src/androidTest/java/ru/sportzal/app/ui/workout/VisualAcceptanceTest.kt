@@ -101,7 +101,8 @@ class VisualAcceptanceTest {
     private fun scrollTo(text: String) = scrollTo(hasText(text))
     private fun scrollTo(matcher: SemanticsMatcher) {
         compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex)).performScrollToNode(matcher)
-        compose.onNode(matcher).assertIsDisplayed()
+        // Lazy scrolling places the containing item; a tall card still needs its child revealed.
+        compose.onNode(matcher).performScrollTo().assertIsDisplayed()
     }
     private fun capture(name: String) {
         compose.waitForIdle()

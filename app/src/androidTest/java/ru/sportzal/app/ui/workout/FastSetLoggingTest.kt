@@ -72,7 +72,7 @@ class FastSetLoggingTest {
         compose.onNodeWithTag("reps-instance").assertIsNotFocused()
         compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
             .performScrollToNode(hasText("1. 30 кг × 7 · Запас: 2"))
-        compose.onNodeWithText("1. 30 кг × 7 · Запас: 2").assertIsDisplayed()
+        compose.onNodeWithText("1. 30 кг × 7 · Запас: 2").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Подход 2 · Рабочий").performScrollTo().assertIsDisplayed()
         compose.onNode(hasContentDescription("Время с записи подхода")).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("save-instance").performScrollTo().assertIsDisplayed().performClick()
